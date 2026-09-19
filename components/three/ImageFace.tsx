@@ -36,7 +36,7 @@ export function ImageFace({ face, position, rotation }: Props) {
     <group position={position} rotation={rotation}>
       <mesh position={[0, 0, 0.002]}>
         <planeGeometry args={[FACE_SIZE, FACE_SIZE]} />
-        <meshBasicMaterial color="#05070c" />
+        <meshBasicMaterial color="#05070c" transparent />
       </mesh>
       <mesh position={[0, 0, 0.004]}>
         <planeGeometry args={[size, size]} />
@@ -44,6 +44,7 @@ export function ImageFace({ face, position, rotation }: Props) {
           map={texture}
           map-repeat={repeat}
           map-offset={offset}
+          transparent
           toneMapped={false}
         />
       </mesh>

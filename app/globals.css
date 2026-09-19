@@ -52,28 +52,72 @@ body {
 .screen {
   position: fixed;
   inset: 0;
+  /* Above drei's <Html> band (zIndexRange), so face text never bleeds through. */
   display: grid;
   place-items: center;
   padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
   text-align: center;
-  z-index: 5;
+  z-index: 60;
 }
 
-.screen--landing,
-.screen--completion {
+.screen--landing {
   background: radial-gradient(
     circle at 50% 45%,
-    rgba(93, 75, 148, 0.22),
-    rgba(5, 7, 12, 0.92) 55%,
+    rgba(93, 75, 148, 0.2),
+    rgba(5, 7, 12, 0.88) 52%,
     var(--void) 100%
   );
-  backdrop-filter: blur(2px);
-  animation: fade-in 700ms ease both;
 }
 
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.screen--completion {
+  background: radial-gradient(
+    circle at 50% 44%,
+    rgba(93, 75, 148, 0.16),
+    rgba(5, 7, 12, 0.95) 46%,
+    rgba(5, 7, 12, 0.99) 100%
+  );
+}
+
+/* Arriving: the screen settles in as the camera comes to rest. */
+.screen--landing {
+  animation: screen-arrive 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.screen--completion {
+  animation: screen-arrive 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+}
+
+/* Departing: the screen rushes past the viewer as the camera dives in. */
+.screen--landing[data-leaving="true"],
+.screen--completion[data-leaving="true"] {
+  animation: screen-depart 900ms cubic-bezier(0.55, 0, 0.9, 0.45) both;
+  pointer-events: none;
+}
+
+@keyframes screen-arrive {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes screen-depart {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+    filter: blur(10px);
+  }
 }
 
 .landing,
@@ -85,6 +129,55 @@ body {
   align-items: center;
   gap: 20px;
   max-width: 34rem;
+}
+
+/* The drawn closing message needs room to breathe. */
+.completion {
+  gap: 34px;
+  max-width: min(92vw, 62rem);
+}
+
+.completion__stroke {
+  width: 100%;
+  filter: drop-shadow(0 0 28px rgba(0, 174, 239, 0.28));
+}
+
+/* ---------- social links ---------- */
+
+.social {
+  display: flex;
+  gap: 22px;
+  margin-top: 4px;
+}
+
+.social__link {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(92, 103, 112, 0.5);
+  border-radius: 50%;
+  color: var(--lunar);
+  transition: color 240ms ease, border-color 240ms ease, box-shadow 240ms ease,
+    transform 240ms ease;
+}
+
+.social__link svg {
+  width: 19px;
+  height: 19px;
+}
+
+.social__link:hover,
+.social__link:focus-visible {
+  color: var(--starlight);
+  border-color: var(--ion);
+  box-shadow: 0 0 20px rgba(0, 174, 239, 0.28);
+  transform: translateY(-2px);
+}
+
+.social__link:focus-visible {
+  outline: 2px solid var(--ion);
+  outline-offset: 3px;
 }
 
 .landing__brand {
@@ -213,20 +306,25 @@ body {
 .completion__message {
   font-size: clamp(1.1rem, 4vw, 1.5rem);
   font-weight: 500;
-  line-height: 2;
+  line-height: 1.9;
   color: var(--starlight);
 }
 
 /* ---------- cube face text (rendered inside <Html transform>) ---------- */
 
 .face-text {
-  width: 400px;
-  padding: 44px 40px;
-  border-radius: 8px;
+  /* Width, height and font-size are set inline to match the panel's on-screen
+     size (see framing.ts), so the CSS-to-screen scale stays near 1:1 and the
+     paragraph is fitted to the face rather than spilling past its edge. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8.5%;
+  overflow: hidden;
   text-align: left;
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 420ms ease 120ms, transform 420ms ease 120ms;
+  transform: translateY(8px);
+  transition: opacity 420ms ease 140ms, transform 420ms ease 140ms;
   user-select: none;
 }
 
@@ -237,12 +335,12 @@ body {
 
 .face-text p {
   font-family: var(--font-ja);
-  font-size: 17px;
+  font-size: 1em;
   font-weight: 400;
-  line-height: 2.05;
+  line-height: 1.9;
   letter-spacing: 0.04em;
   color: var(--starlight);
-  text-shadow: 0 1px 12px rgba(5, 7, 12, 0.95);
+  text-shadow: 0 1px 14px rgba(5, 7, 12, 0.98), 0 0 3px rgba(5, 7, 12, 0.9);
   word-break: normal;
   overflow-wrap: anywhere;
   line-break: strict;
@@ -250,8 +348,8 @@ body {
 
 .face-text__index {
   display: block;
-  margin-top: 26px;
-  font-size: 11px;
+  margin-top: 1.6em;
+  font-size: 0.62em;
   letter-spacing: 0.35em;
   color: var(--titanium);
 }
@@ -259,6 +357,7 @@ body {
 /* ---------- progress + hint ---------- */
 
 .progress {
+  animation: fade-in 700ms ease 200ms both;
   position: fixed;
   left: 50%;
   bottom: max(28px, env(safe-area-inset-bottom));
@@ -298,6 +397,11 @@ body {
 .progress__dot[data-on="true"] {
   background: var(--ion);
   box-shadow: 0 0 10px rgba(0, 174, 239, 0.7);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .hint {

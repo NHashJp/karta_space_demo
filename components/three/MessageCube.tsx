@@ -31,6 +31,9 @@ type Props = {
   faces: CardFace[];
   activeFace: number;
   isTransitioning: boolean;
+  revealText: boolean;
+  /** Closing screen: the cube fades back so the drawn message can be read. */
+  dimmed: boolean;
   reducedMotion: boolean;
   onTransitionEnd: () => void;
 };
@@ -39,6 +42,8 @@ export function MessageCube({
   faces,
   activeFace,
   isTransitioning,
+  revealText,
+  dimmed,
   reducedMotion,
   onTransitionEnd,
 }: Props) {
@@ -52,6 +57,11 @@ export function MessageCube({
   const lastPreset = useRef<string | undefined>(undefined);
   const startedAt = useRef(0);
 
+  // Base opacities are captured once, so dimming can scale them without
+  // needing every material threaded through props.
+  const dim = useRef(0);
+  const baseOpacity = useRef(new WeakMap<THREE.Material, number>());
+
   // A change of active face starts a transition from wherever the cube is now.
   useEffect(() => {
     if (!cube.current) return;
@@ -63,9 +73,30 @@ export function MessageCube({
     startedAt.current = performance.now();
   }, [activeFace, reducedMotion]);
 
-  useFrame((frameState) => {
+  useFrame((frameState, delta) => {
     const group = cube.current;
     if (!group) return;
+
+    // Damping approaches zero asymptotically, so snap the tail and run one
+    // last pass at full opacity — otherwise materials settle just below it.
+    const wasDimmed = dim.current > 0;
+    dim.current = THREE.MathUtils.damp(dim.current, dimmed ? 1 : 0, 3.2, delta);
+    if (!dimmed && dim.current < 0.002) dim.current = 0;
+
+    if (dim.current > 0 || wasDimmed) {
+      const fade = 1 - dim.current * 0.88;
+      group.traverse((node) => {
+        const material = (node as THREE.Mesh).material as THREE.Material | undefined;
+        if (!material || Array.isArray(material) || !("opacity" in material)) return;
+        const opaque = material as THREE.Material & { opacity: number };
+        let base = baseOpacity.current.get(opaque);
+        if (base === undefined) {
+          base = opaque.opacity;
+          baseOpacity.current.set(opaque, base);
+        }
+        opaque.opacity = base * fade;
+      });
+    }
 
     if (preset.current) {
       const elapsed = performance.now() - startedAt.current;
@@ -110,16 +141,16 @@ export function MessageCube({
         <mesh>
           <boxGeometry args={[2, 2, 2]} />
           <meshPhysicalMaterial
-            color="#1c2333"
-            metalness={0.65}
-            roughness={0.18}
+            color="#26304a"
+            metalness={0.6}
+            roughness={0.2}
             transparent
-            opacity={0.34}
+            opacity={0.46}
             clearcoat={1}
             clearcoatRoughness={0.1}
             envMapIntensity={1.2}
           />
-          <Edges scale={1.001} threshold={15} color="#7f93a8" />
+          <Edges scale={1.001} threshold={15} color="#9fb4c9" transparent />
         </mesh>
 
         {faces.map((face, index) => {
@@ -131,7 +162,7 @@ export function MessageCube({
               face={face}
               position={placement.position}
               rotation={placement.rotation}
-              visible={index === activeFace && !isTransitioning}
+              visible={revealText && index === activeFace}
             />
           ) : (
             <ImageFace

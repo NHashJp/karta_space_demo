@@ -8,7 +8,26 @@ export const cardConfig: CardConfig = {
   slug: "2026-newyear-7k2m",
   title: "2026年のあなたへ",
   subtitle: "スクロールして、六つの面をめぐってください。",
-  closing: "最後まで見てくれてありがとう。",
+  closing: "改めてお世話になりました。これからもよろしくね",
+  // TODO: replace the handles below with your own. Any entry left with an
+  // empty `href` is simply not rendered on the closing screen.
+  social: [
+    {
+      platform: "instagram",
+      href: "https://www.instagram.com/your-handle",
+      label: "Instagram",
+    },
+    {
+      platform: "github",
+      href: "https://github.com/your-handle",
+      label: "GitHub",
+    },
+    {
+      platform: "linkedin",
+      href: "https://www.linkedin.com/in/your-handle",
+      label: "LinkedIn",
+    },
+  ],
   faces: [
     {
       type: "text",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { useProgress } from "@react-three/drei";
 import type { CardConfig } from "@/types/card";
 import { CubeScene } from "@/components/three/CubeScene";
@@ -8,14 +8,17 @@ import { CardLanding } from "./CardLanding";
 import { CardProgress } from "./CardProgress";
 import { CompletionState } from "./CompletionState";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
-
-type ExperienceState = "landing" | "transitioning" | "reading" | "completed";
-
-const LAST_FACE = 5;
+import {
+  acceptsInput,
+  dimsScene,
+  initialExperience,
+  isZoomedIn,
+  reduceExperience,
+  revealsText,
+} from "@/lib/experienceState";
 
 export function CardExperience({ card }: { card: CardConfig }) {
-  const [state, setState] = useState<ExperienceState>("landing");
-  const [activeFace, setActiveFace] = useState(0);
+  const [{ state, activeFace }, dispatch] = useReducer(reduceExperience, initialExperience);
   const [settled, setSettled] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const { active: loading, errors } = useProgress();
@@ -29,47 +32,14 @@ export function CardExperience({ card }: { card: CardConfig }) {
   const ready = settled && !loading;
   const failed = errors.length > 0;
 
-  // Read the live state from a ref so the handler never nests state updates.
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
   const move = useCallback(
-    (direction: 1 | -1) => {
-      const current = stateRef.current;
-
-      if (current === "completed") {
-        // Scrolling back up returns to the final face.
-        if (direction === -1) setState("reading");
-        return;
-      }
-      if (current !== "reading") return;
-
-      if (direction === 1) {
-        if (activeFace === LAST_FACE) {
-          setState("completed");
-          return;
-        }
-        setActiveFace(activeFace + 1);
-        setState("transitioning");
-        return;
-      }
-      if (activeFace === 0) return;
-      setActiveFace(activeFace - 1);
-      setState("transitioning");
-    },
-    [activeFace],
+    (direction: 1 | -1) => dispatch({ type: "move", direction }),
+    [],
   );
+  const onTransitionEnd = useCallback(() => dispatch({ type: "rotationEnd" }), []);
+  const onZoomEnd = useCallback(() => dispatch({ type: "zoomEnd" }), []);
 
-  const onTransitionEnd = useCallback(() => {
-    setState((current) => (current === "transitioning" ? "reading" : current));
-  }, []);
-
-  const replay = useCallback(() => {
-    setActiveFace(0);
-    setState("transitioning");
-  }, []);
-
-  useFaceNavigation(move, state === "transitioning" || state === "landing", state !== "landing");
+  useFaceNavigation(move, !acceptsInput(state), state !== "landing");
 
   if (failed) {
     return (
@@ -86,22 +56,27 @@ export function CardExperience({ card }: { card: CardConfig }) {
 
   return (
     <main className="experience" data-state={state}>
-      <div className="experience__scene" aria-hidden={state === "landing"}>
+      <div className="experience__scene" aria-hidden={state !== "reading"}>
         <CubeScene
           faces={card.faces}
           activeFace={activeFace}
           isTransitioning={state === "transitioning"}
+          revealText={revealsText(state)}
+          dimmed={dimsScene(state)}
+          zoomedIn={isZoomedIn(state)}
           reducedMotion={reducedMotion}
           onTransitionEnd={onTransitionEnd}
+          onZoomEnd={onZoomEnd}
         />
       </div>
 
-      {state === "landing" ? (
+      {state === "landing" || state === "entering" ? (
         <CardLanding
           title={card.title}
           subtitle={card.subtitle}
           ready={ready}
-          onOpen={() => setState("reading")}
+          leaving={state === "entering"}
+          onOpen={() => dispatch({ type: "open" })}
         />
       ) : null}
 
@@ -114,8 +89,13 @@ export function CardExperience({ card }: { card: CardConfig }) {
         </>
       ) : null}
 
-      {state === "completed" ? (
-        <CompletionState closing={card.closing} onReplay={replay} />
+      {state === "completed" || state === "returning" ? (
+        <CompletionState
+          closing={card.closing}
+          social={card.social}
+          leaving={state === "returning"}
+          onReplay={() => dispatch({ type: "replay" })}
+        />
       ) : null}
 
       {/* Paragraph text also lives here as plain DOM, for assistive tech. */}

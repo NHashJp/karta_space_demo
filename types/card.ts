@@ -16,6 +16,16 @@ export type CardFace = TextFace | ImageFace;
 /** Exactly six faces, in fixed display order. */
 export type CardFaces = [CardFace, CardFace, CardFace, CardFace, CardFace, CardFace];
 
+export type SocialPlatform = "instagram" | "github" | "linkedin";
+
+export type SocialLink = {
+  platform: SocialPlatform;
+  /** Leave empty to hide this link on the closing screen. */
+  href: string;
+  /** Accessible name, e.g. "Instagram (@handle)". */
+  label: string;
+};
+
 export type CardConfig = {
   slug: string;
   title: string;
@@ -24,4 +34,6 @@ export type CardConfig = {
   faces: CardFaces;
   /** Shown in the completion state. */
   closing: string;
+  /** Optional links shown under the replay button on the closing screen. */
+  social?: SocialLink[];
 };

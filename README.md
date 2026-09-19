@@ -26,7 +26,27 @@ CARD_PASSWORD=hoshizora
 Leave it unset and the card is link-only. The password is compared
 server-side; the browser only ever gets an HttpOnly cookie derived from it.
 
-## Controls^
+## The flow
+
+```
+landing ──open──> entering ──zoom in──> reading <──rotate──> transitioning
+                                           │
+                                     (past face 6)
+                                           v
+completed <──zoom out── leaving      returning ──zoom in──> reading
+    │                                     ^
+    └──────── scroll up / replay ─────────┘
+```
+
+The camera dollies in from a distance when the card opens and pulls back out
+after the last face, with the title and closing screens rushing past the viewer
+as it moves. Face text is attached to the cube **only** in the `reading` state,
+so card content never shows through the title or closing screen.
+
+`npm run verify` walks this whole machine — 41 transitions — and asserts that
+text stays hidden in every other phase.
+
+## Controls
 
 |         |                                                               |
 | ------- | ------------------------------------------------------------- |
@@ -35,6 +55,37 @@ server-side; the browser only ever gets an HttpOnly cookie derived from it.
 
 One deliberate gesture moves exactly one face. Input is ignored while a
 rotation is in flight, and trackpad momentum can't skip a face.
+
+## The scene
+
+Everything in the background is procedural — no textures to download:
+
+| | |
+|---|---|
+| `NebulaBackdrop` | domain-warped fractal noise on the inside of a 90-unit sphere. Warping by a second noise field gives it wisps and hollows rather than even fog; the drift vector is built from sine pairs with unrelated periods, so the direction wanders and the motion never repeats. Drops one octave below 700px wide, for phone frame rates. |
+| `Starfield` | 1500 points in a spherical shell, each with its own tint, size and twinkle phase. Sizes follow a steep curve, so a few stars are bright and most are faint — roughly how a real sky reads. |
+| `WanderingLights` | three drifting lights. Every axis sums two sines whose periods share no common multiple, so a light never retraces its path. Each is a point light, so the cube picks up coloured reflections, plus an additive glow behind it so the light itself reads as nebula haze. |
+
+Shaders live in `components/three/shaders/`. They are plain `ShaderMaterial`
+sources, so they can use three's `#include <colorspace_fragment>` chunk and get
+the renderer's own output colour conversion.
+
+On the closing screen the whole scene recedes — cube materials, glows, point
+lights and nebula intensity all damp down — so the drawn message reads against
+it. That is derived from `dimsScene()` in the state machine, not tracked
+separately.
+
+The closing message is drawn with [React Bits' StrokeText](https://reactbits.dev/text-animations/stroke-text)
+(MIT), vendored into `components/text/`. It carries two local changes, both
+marked `LOCAL` in the file: the `"use client"` directive, and a `dashLength`
+prop — upstream derives the stroke dash from `fontSize * 7`, which fits Latin
+glyphs but leaves part of a dense kanji permanently undrawn.
+
+## Social links
+
+`social` in `config/card.config.ts` drives the icons under the replay button.
+**The handles there are placeholders** — `npm run verify` prints a NOTE until
+you replace them. Any entry with an empty `href` is not rendered.
 
 ## Editing the card
 
