@@ -1,0 +1,339 @@
+/* Space-metal palette, taken from playground/colorscheme.html */
+:root {
+  --void: #05070c;
+  --void-deep: #0a0c10;
+  --navy: #1c2333;
+  --charcoal: #2d3142;
+  --titanium: #5c6770;
+  --lunar: #adacb5;
+  --cosmic-silver: #b0b4ba;
+  --asteroid: #d8d5db;
+  --starlight: #e8e9eb;
+  --ion: #00aeef;
+  --nebula: #5d4b94;
+
+  --font-ja: var(--font-noto-sans-jp), "Hiragino Sans", "Yu Gothic", "YuGothic",
+    system-ui, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--void);
+  color: var(--starlight);
+  font-family: var(--font-ja);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- shared screens ---------- */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  text-align: center;
+  z-index: 5;
+}
+
+.screen--landing,
+.screen--completion {
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgba(93, 75, 148, 0.22),
+    rgba(5, 7, 12, 0.92) 55%,
+    var(--void) 100%
+  );
+  backdrop-filter: blur(2px);
+  animation: fade-in 700ms ease both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.landing,
+.completion,
+.notice,
+.gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 34rem;
+}
+
+.landing__brand {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  color: var(--titanium);
+  text-transform: uppercase;
+}
+
+.landing__title {
+  font-size: clamp(1.9rem, 6vw, 3.1rem);
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  color: var(--starlight);
+  text-shadow: 0 0 36px rgba(0, 174, 239, 0.28);
+}
+
+.landing__subtitle,
+.landing__hint {
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.9;
+  color: var(--lunar);
+}
+
+.landing__hint {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: var(--titanium);
+}
+
+.button {
+  appearance: none;
+  padding: 0.85rem 2.4rem;
+  border: 1px solid rgba(176, 180, 186, 0.45);
+  border-radius: 999px;
+  background: rgba(28, 35, 51, 0.55);
+  color: var(--starlight);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--ion);
+  background: rgba(0, 174, 239, 0.12);
+  box-shadow: 0 0 26px rgba(0, 174, 239, 0.25);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.button--ghost {
+  padding: 0.7rem 1.8rem;
+  font-size: 0.85rem;
+  background: transparent;
+}
+
+.button:focus-visible,
+.gate__input:focus-visible {
+  outline: 2px solid var(--ion);
+  outline-offset: 3px;
+}
+
+/* ---------- password gate ---------- */
+
+.gate {
+  width: min(24rem, 100%);
+}
+
+.gate__title {
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.7;
+  color: var(--asteroid);
+}
+
+.gate__label {
+  font-size: 0.85rem;
+  color: var(--lunar);
+}
+
+.gate__input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--titanium);
+  border-radius: 10px;
+  background: rgba(10, 12, 16, 0.8);
+  color: var(--starlight);
+  font-family: inherit;
+  font-size: 1rem;
+  text-align: center;
+  letter-spacing: 0.2em;
+}
+
+.gate__error {
+  font-size: 0.85rem;
+  color: #ff8a8a;
+}
+
+.notice p[lang="ja"] {
+  font-size: 1rem;
+  line-height: 1.9;
+  color: var(--asteroid);
+}
+
+/* ---------- experience ---------- */
+
+.experience {
+  position: fixed;
+  inset: 0;
+}
+
+.experience__scene {
+  position: absolute;
+  inset: 0;
+}
+
+.completion__message {
+  font-size: clamp(1.1rem, 4vw, 1.5rem);
+  font-weight: 500;
+  line-height: 2;
+  color: var(--starlight);
+}
+
+/* ---------- cube face text (rendered inside <Html transform>) ---------- */
+
+.face-text {
+  width: 400px;
+  padding: 44px 40px;
+  border-radius: 8px;
+  text-align: left;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 420ms ease 120ms, transform 420ms ease 120ms;
+  user-select: none;
+}
+
+.face-text[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.face-text p {
+  font-family: var(--font-ja);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 2.05;
+  letter-spacing: 0.04em;
+  color: var(--starlight);
+  text-shadow: 0 1px 12px rgba(5, 7, 12, 0.95);
+  word-break: normal;
+  overflow-wrap: anywhere;
+  line-break: strict;
+}
+
+.face-text__index {
+  display: block;
+  margin-top: 26px;
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  color: var(--titanium);
+}
+
+/* ---------- progress + hint ---------- */
+
+.progress {
+  position: fixed;
+  left: 50%;
+  bottom: max(28px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.progress__count {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  color: var(--cosmic-silver);
+}
+
+.progress__slash {
+  color: var(--titanium);
+}
+
+.progress__track {
+  display: flex;
+  gap: 7px;
+}
+
+.progress__dot {
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(92, 103, 112, 0.5);
+  transition: background 420ms ease, box-shadow 420ms ease;
+}
+
+.progress__dot[data-on="true"] {
+  background: var(--ion);
+  box-shadow: 0 0 10px rgba(0, 174, 239, 0.7);
+}
+
+.hint {
+  position: fixed;
+  left: 50%;
+  bottom: calc(max(28px, env(safe-area-inset-bottom)) + 62px);
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  letter-spacing: 0.3em;
+  color: var(--titanium);
+  opacity: 0;
+  transition: opacity 600ms ease;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.hint[data-visible="true"] {
+  opacity: 1;
+  animation: hint-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (max-width: 480px) {
+  .progress { bottom: max(20px, env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 120ms !important;
+  }
+}
