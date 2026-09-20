@@ -70,9 +70,16 @@ for that orientation.
 
 ### 5. Configured content
 
-Each face's message against its face: 80–250 characters (spec §7), fits at the
-phone panel size, readable at ≥14px. Image faces are checked for alt text.
-Also prints a NOTE while the social links still point at `your-handle`.
+Runs over **every card** in `config/cards.config.ts`, so adding a card adds its
+own checks. Per card: the slug is URL-safe and unique, there are exactly six
+faces, the title and closing are non-empty. Per face: a message is 80–250
+characters (spec §7), fits at the phone panel size and is readable at ≥14px;
+an image has alt text, exists on disk, and lives under that card's own
+`/cards/<slug>/` folder. Also prints a NOTE while social links still point at
+`your-handle`.
+
+Section 4 sizes type against the longest message across all cards, so one
+over-long paragraph on any card is caught.
 
 ### 6. Experience flow
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getCardBySlug } from "@/lib/card";
+import { getCardBySlug } from "@/lib/cards";
 import { hasAccess, passwordRequired } from "@/lib/access";
 import { PasswordGate } from "@/components/access/PasswordGate";
 import { CardExperience } from "@/components/card/CardExperience";
@@ -26,7 +26,7 @@ export default async function CardPage({ params }: Props) {
   }
 
   // Card content is only sent to the browser once access is granted (spec §21).
-  if (passwordRequired() && !(await hasAccess(card.slug))) {
+  if (passwordRequired(card.slug) && !(await hasAccess(card.slug))) {
     return <PasswordGate slug={card.slug} />;
   }
 

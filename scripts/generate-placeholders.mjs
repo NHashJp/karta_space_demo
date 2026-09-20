@@ -1,7 +1,9 @@
 /**
- * Generates the placeholder card images (dependency-free PNG encoder).
- * Swap /public/card/*.png for real photographs when you have them:
- *   node scripts/generate-placeholders.mjs
+ * Generates placeholder card images (dependency-free PNG encoder).
+ * Images live per card, so this writes into public/cards/<slug>/:
+ *   node scripts/generate-placeholders.mjs [slug]
+ *
+ * Swap them for real photographs when you have them.
  */
 import { deflateSync } from "node:zlib";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -115,10 +117,12 @@ function render({ seed, glow, accent }) {
   return encodePng(SIZE, SIZE, rows);
 }
 
-mkdirSync("public/card", { recursive: true });
+const slug = process.argv[2] ?? "2026-newyear-7k2m";
+const dir = `public/cards/${slug}`;
+mkdirSync(dir, { recursive: true });
 
 writeFileSync(
-  "public/card/image-01.png",
+  `${dir}/image-01.png`,
   render({
     seed: 20260101,
     accent: [0, 174, 239],
@@ -130,7 +134,7 @@ writeFileSync(
 );
 
 writeFileSync(
-  "public/card/image-02.png",
+  `${dir}/image-02.png`,
   render({
     seed: 77712,
     accent: [93, 75, 148],
@@ -141,4 +145,4 @@ writeFileSync(
   }),
 );
 
-console.log("wrote public/card/image-01.png and image-02.png");
+console.log(`wrote ${dir}/image-01.png and image-02.png`);

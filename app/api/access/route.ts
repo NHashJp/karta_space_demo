@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { accessCookie, checkPassword, passwordRequired, rateLimit } from "@/lib/access";
-import { getCardBySlug } from "@/lib/card";
+import { getCardBySlug } from "@/lib/cards";
 
 export async function POST(request: Request) {
   const { slug, password } = (await request.json().catch(() => ({}))) as {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   if (!slug || !getCardBySlug(slug)) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
-  if (!passwordRequired()) {
+  if (!passwordRequired(slug)) {
     return NextResponse.json({ ok: true });
   }
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  if (typeof password !== "string" || !checkPassword(password)) {
+  if (typeof password !== "string" || !checkPassword(slug, password)) {
     return NextResponse.json({ error: "invalid_password" }, { status: 401 });
   }
 

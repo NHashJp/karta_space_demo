@@ -1,8 +1,11 @@
 # KARTA_SPACE — MVP demo
 
-A single six-sided 3D message card. Open a URL, pass an optional password gate,
-see the card title, then scroll or swipe through six cube faces — each one a
-paragraph of Japanese text or an image.
+Six-sided 3D message cards. Open a URL, pass an optional password gate, see the
+card title, then scroll or swipe through six cube faces — each one a paragraph
+of Japanese text or an image.
+
+One deployment serves any number of cards: every card is an entry in
+`config/cards.config.ts`, on its own slug, with its own optional password.
 
 Implements `KARTA_SPACE_MVP_Implementation_Spec.md` v0.1. No editor, no
 dashboard, no database.
@@ -14,17 +17,23 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000> — the root redirects to the configured card:
-`/c/2026-newyear-7k2m`. Any other slug shows the invalid-card state.
+Open <http://localhost:3000> — in development the root is the card index, so
+every configured card is one click away. Any slug that is not in the config
+shows the invalid-card state. **In production the root lists nothing**, because
+a slug is the only thing standing between a stranger and a card.
 
-To require a password, put one in `.env.local`:
+To require a password, put one in `.env.local` — per card, or shared:
 
 ```
-CARD_PASSWORD=hoshizora
+CARD_PASSWORD_2026_NEWYEAR_7K2M=hoshizora   # just this card
+CARD_PASSWORD=hoshizora                     # every card with no password of its own
 ```
 
-Leave it unset and the card is link-only. The password is compared
-server-side; the browser only ever gets an HttpOnly cookie derived from it.
+The per-card name is the slug, upper-cased, with every non-alphanumeric
+character replaced by `_`. A card with neither variable set is link-only.
+Passwords are compared server-side; the browser only ever gets an HttpOnly
+cookie derived from the password, named `ks_access_<slug>` and scoped to that
+card — so access to one card never grants access to another.
 
 ## The flow
 
@@ -83,22 +92,68 @@ glyphs but leaves part of a dense kanji permanently undrawn.
 
 ## Social links
 
-`social` in `config/card.config.ts` drives the icons under the replay button.
-**The handles there are placeholders** — `npm run verify` prints a NOTE until
-you replace them. Any entry with an empty `href` is not rendered.
+`social` on each card in `config/cards.config.ts` drives the icons under its
+replay button. **The handles on the first card are placeholders** — `npm run
+verify` prints a NOTE until you replace them. Any entry with an empty `href` is
+not rendered.
 
-## Editing the card
+## Editing the cards
 
-Everything lives in `config/card.config.ts` — title, closing message, and
-exactly six faces, each either:
+**Every message in the product lives in one file: `config/cards.config.ts`.**
+Edit it by hand, or use the editor.
 
-```ts
-{ type: "text", body: "…" }                       // ~80–250 Japanese characters
-{ type: "image", src: "/card/x.png", alt: "…" }   // square, ideally ≥1200×1200
+### The editor
+
+```bash
+npm run dev     # then open http://localhost:3000/editor
 ```
 
-Drop replacement images in `public/card/`, edit the config, redeploy. The
-current images are generated placeholders — regenerate with `npm run images`.
+A rough authoring UI for that same file: pick a card in the sidebar, edit its
+title, its six faces (text or image), its closing message and its links, and
+press **Save to file**. It writes `config/cards.config.ts`, the dev server
+reloads, and `/c/<slug>` shows the change. Each card's panel also says which
+environment variable holds its password and whether that variable is set.
+
+It runs **in development only** — a deployed filesystem is read-only, and an
+unauthenticated write endpoint on a public deployment would let anyone rewrite
+every card. Publishing is still a deploy. Two consequences worth knowing:
+
+- A save rewrites the whole file from the data, so the header comment survives
+  but comments you add further down do not.
+- Saving is refused if any card has an error that would break the next build
+  (bad or duplicate slug, not six faces, empty title or closing, an image face
+  with no path). Spec advice — a paragraph outside 80–250 characters, missing
+  alt text — shows as a note and still saves.
+
+### The file
+
+It exports an array of cards; each has a slug, a title, a closing message and
+exactly six faces, each face either:
+
+```ts
+{ type: "text", body: "…" }                                  // ~80–250 Japanese characters
+{ type: "image", src: "/cards/<slug>/x.png", alt: "…" }      // square, ideally ≥1200×1200
+```
+
+### Adding a card
+
+1. **+ Add card** in the editor, or append an entry to the array by hand.
+2. Put its images in `public/cards/<slug>/` — `npm run images <slug>` writes
+   two placeholders there.
+3. Optionally set `CARD_PASSWORD_<SLUG>` in the environment, then restart the
+   dev server — passwords are read at server start.
+4. `npm run verify`, then redeploy. Send the recipient `/c/<slug>`.
+
+Nothing else in the codebase needs to know the card exists. `lib/cards.ts`
+builds the slug registry from that array and validates every entry at import
+time — slug shape, slug uniqueness, exactly six faces, non-empty title and
+closing — so a broken card fails the build rather than a visitor's page.
+
+`config/cards.config.ts` ships with a second, text-only example card to show
+the shape of an added one. Delete that entry when you have a real card.
+
+The starting images are generated placeholders — regenerate with
+`npm run images [slug]`.
 
 ## How the rotation works
 
@@ -120,19 +175,22 @@ and decorative rotation stays inside the spec's 360–540° budget.
 
 ## Scripts
 
-|                     |                                    |
-| ------------------- | ---------------------------------- |
-| `npm run dev`       | dev server                         |
-| `npm run build`     | production build                   |
-| `npm run verify`    | rotation math checks               |
-| `npm run typecheck` | `tsc --noEmit`                     |
-| `npm run images`    | regenerate placeholder card images |
+|                     |                                                                    |
+| ------------------- | ------------------------------------------------------------------ |
+| `npm run dev`       | dev server                                                         |
+| `npm run build`     | production build                                                   |
+| `npm run verify`    | rotation maths, plus every card's content                          |
+| `npm run typecheck` | `tsc --noEmit`                                                     |
+| `npm run images`    | regenerate placeholder images for a card (`npm run images <slug>`) |
 
 ## Deploying to Vercel
 
-Import the repo, set `CARD_PASSWORD` as an environment variable if you want the
-gate, deploy. The card is `noindex` via metadata, an `X-Robots-Tag` header, and
-`robots.txt`.
+Import the repo, set `CARD_PASSWORD` and/or any `CARD_PASSWORD_<SLUG>`
+variables you want, deploy. Cards are `noindex` via metadata, an `X-Robots-Tag`
+header, and `robots.txt`.
+
+Adding a card later is a config edit and a redeploy; existing cards and their
+outstanding access cookies are unaffected.
 
 ## Known limits
 
@@ -143,3 +201,6 @@ Deliberate, per the spec:
   photos; move to private storage if that changes.
 - Rate limiting on password attempts is in-memory, so it resets on every
   serverless cold start.
+- Cards are configuration, not data: adding one is a deploy. That is the
+  deliberate ceiling of this MVP — an authoring UI is the change that would
+  force a database, and nothing before it does.

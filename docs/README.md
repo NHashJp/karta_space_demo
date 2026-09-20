@@ -1,8 +1,9 @@
 # KARTA_SPACE documentation
 
-A single six-sided 3D message card. A recipient opens a URL, passes an optional
+Six-sided 3D message cards. A recipient opens a URL, passes an optional
 password gate, sees the card title, and then scrolls or swipes through six cube
-faces — each one a paragraph of Japanese text or an image.
+faces — each one a paragraph of Japanese text or an image. One deployment
+serves any number of cards, each on its own slug.
 
 These documents explain how it is built and why the non-obvious parts are the
 way they are. For running it, editing content and deploying, see the

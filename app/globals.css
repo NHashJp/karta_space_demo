@@ -291,6 +291,38 @@ body {
   color: var(--asteroid);
 }
 
+/* ---------- development card index (never rendered in production) ---------- */
+
+.index {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(28rem, 100%);
+}
+
+.index__link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--titanium);
+  border-radius: 10px;
+  color: var(--starlight);
+  text-decoration: none;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.index__link:hover,
+.index__link:focus-visible {
+  border-color: var(--ion);
+  background: rgba(0, 174, 239, 0.08);
+}
+
+.index__link code {
+  font-size: 0.8rem;
+  color: var(--lunar);
+}
+
 /* ---------- experience ---------- */
 
 .experience {
@@ -440,4 +472,223 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 120ms !important;
   }
+}
+
+/* ---------- editor (development only) ---------- */
+
+.editor {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--void);
+  text-align: left;
+}
+
+.editor__bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  background: rgba(5, 7, 12, 0.92);
+  border-bottom: 1px solid var(--charcoal);
+  backdrop-filter: blur(8px);
+}
+
+.editor__barRight {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.editor__path,
+.editor__status {
+  font-size: 0.78rem;
+  color: var(--lunar);
+}
+
+.editor__blocked,
+.editor__problem--error {
+  color: #ff8a8a;
+}
+
+.editor__blocked {
+  padding: 10px 20px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--charcoal);
+}
+
+.editor__body {
+  display: grid;
+  grid-template-columns: minmax(200px, 16rem) minmax(0, 1fr);
+  gap: 24px;
+  padding: 20px;
+  max-width: 68rem;
+}
+
+@media (max-width: 720px) {
+  .editor__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-content: start;
+}
+
+.editor__listItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--charcoal);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--starlight);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.editor__listItem[aria-current="true"] {
+  border-color: var(--ion);
+  background: rgba(0, 174, 239, 0.08);
+}
+
+.editor__listItem code,
+.editor__hint code {
+  font-size: 0.75rem;
+  color: var(--lunar);
+}
+
+.editor__badge {
+  font-size: 0.7rem;
+  color: var(--lunar);
+}
+
+.editor__badge--error {
+  color: #ff8a8a;
+}
+
+.editor__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.editor__row {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--charcoal);
+}
+
+.editor__section h2 {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--lunar);
+}
+
+.editor__hint,
+.editor__problem {
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--lunar);
+}
+
+.editor__hint a {
+  color: var(--ion);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 18rem;
+}
+
+.field > span {
+  font-size: 0.78rem;
+  color: var(--lunar);
+}
+
+.field input,
+.editor textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--titanium);
+  border-radius: 8px;
+  background: rgba(10, 12, 16, 0.8);
+  color: var(--starlight);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.field input:focus-visible,
+.editor textarea:focus-visible {
+  outline: 1px solid var(--ion);
+}
+
+.face {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--charcoal);
+  border-radius: 10px;
+}
+
+.face__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.face__types {
+  display: flex;
+  gap: 6px;
+}
+
+.face__type {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--charcoal);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--lunar);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.face__type[aria-pressed="true"] {
+  border-color: var(--ion);
+  color: var(--starlight);
+}
+
+.face__count {
+  font-size: 0.72rem;
+  color: var(--lunar);
+}
+
+.face__count[data-warn="true"] {
+  color: #ffc48a;
 }
