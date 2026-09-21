@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import * as THREE from "three";
 import { FOV, cameraDistance, measureFace, textPanelPx } from "../components/three/framing.ts";
 import { cards } from "../config/cards.config.ts";
+import { allProblems } from "../lib/cardRules.ts";
 import {
   acceptsInput,
   initialExperience,
@@ -149,29 +150,26 @@ console.log("4. Camera framing and on-screen text size:");
 console.log(`5. Configured content fits the spec's limits (${cards.length} card(s)):`);
 {
   const phone = textPanelPx(390, 844);
-  const slugs = new Set<string>();
+  const problems = allProblems(cards);
 
-  for (const card of cards) {
+  for (const [index, card] of cards.entries()) {
     console.log(`  ${card.slug} - "${card.title}"`);
     const id = (suffix: string) => `${card.slug} ${suffix}`;
 
-    check(id("slug is url-safe"), /^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])$/.test(card.slug), card.slug);
-    check(id("slug is unique"), !slugs.has(card.slug), card.slug);
-    slugs.add(card.slug);
-    check(id("has exactly six faces"), card.faces.length === 6, `${card.faces.length}`);
-    check(id("has a closing message"), card.closing.trim().length > 0);
+    // The rules themselves live in lib/cardRules.ts, so they are the same ones
+    // the registry enforces at import time and the editor shows as you type.
+    // The editor saves through a warning so a card can be drafted; this suite
+    // does not, because it is the gate you run before deploying.
+    for (const error of problems[index].errors) check(id(error), false);
+    for (const warning of problems[index].warnings) check(id(warning), false);
 
+    // Below: only what those rules cannot know - whether the file is really
+    // there, and whether the text physically fits a cube face on a phone.
     for (const [i, face] of card.faces.entries()) {
       if (face.type !== "text") {
         const file = `public${face.src}`;
         console.log(`    face ${i + 1}: image  ${face.src}`);
-        check(id(`face ${i + 1} has alt text`), face.alt.trim().length > 0);
         check(id(`face ${i + 1} image exists`), existsSync(file), file);
-        check(
-          id(`face ${i + 1} image lives under this card`),
-          face.src.startsWith(`/cards/${card.slug}/`),
-          face.src,
-        );
         continue;
       }
       const chars = face.body.length;
@@ -179,7 +177,6 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
       console.log(
         `    face ${i + 1}: ${String(chars).padStart(3)} chars -> ${fit.lines} lines @ ${fit.fontPx}px on a 390px phone`,
       );
-      check(id(`face ${i + 1} within 80-250 chars`), chars >= 80 && chars <= 250, `${chars}`);
       check(id(`face ${i + 1} fits the face`), !fit.overflows, `${fit.lines} lines`);
       check(id(`face ${i + 1} readable on phone`), fit.fontPx >= 14, `${fit.fontPx}px`);
     }
@@ -187,10 +184,6 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
     const active = (card.social ?? []).filter(link => link.href.trim().length > 0);
     const placeholders = active.filter(link => /your-handle/.test(link.href));
     console.log(`    social: ${active.length} link(s) shown on the closing screen`);
-    for (const link of active) {
-      check(id(`${link.platform} href is absolute`), /^https?:\/\//.test(link.href), link.href);
-      check(id(`${link.platform} has a label`), link.label.trim().length > 0);
-    }
     if (placeholders.length > 0) {
       console.log(
         `    NOTE: ${placeholders.length} social link(s) still point at "your-handle" ` +

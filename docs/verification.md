@@ -71,12 +71,26 @@ for that orientation.
 ### 5. Configured content
 
 Runs over **every card** in `config/cards.config.ts`, so adding a card adds its
-own checks. Per card: the slug is URL-safe and unique, there are exactly six
-faces, the title and closing are non-empty. Per face: a message is 80–250
-characters (spec §7), fits at the phone panel size and is readable at ≥14px;
-an image has alt text, exists on disk, and lives under that card's own
-`/cards/<slug>/` folder. Also prints a NOTE while social links still point at
-`your-handle`.
+own checks.
+
+The rules are not written here. They live in `lib/cardRules.ts` and are the
+same object the registry enforces at import time and the editor shows as you
+type — slug shape and uniqueness, six faces, non-empty title and closing,
+80–250 characters a message (spec §7), alt text, images under the card's own
+`/cards/<slug>/` folder. See
+[content and cards](./content-and-cards.md#one-definition-of-a-valid-card).
+
+The one difference is severity. Those rules separate **errors** (would break
+the build) from **warnings** (against the spec, but harmless to the
+machinery), and the editor saves through a warning so that a card can be
+drafted. This suite fails on both, because it is the gate you run before
+deploying, not while writing.
+
+On top of the shared rules it checks the two things they cannot know:
+
+- an image face's file is **really on disk** at that path;
+- a message **physically fits** a cube face — measured through `measureFace` at
+  the phone panel size, ≥14px and no overflow.
 
 Section 4 sizes type against the longest message across all cards, so one
 over-long paragraph on any card is caught.
@@ -116,3 +130,8 @@ This suite checks maths, not pixels. It cannot tell you whether the nebula
 looks good, whether the rotation feels nice, or whether the type is beautiful —
 only that the numbers underneath are right. Real-device QA (spec §31, phase 7)
 is still a human job.
+
+It also checks content, not delivery: it says nothing about the password gate,
+the cookie, or the editor's write path, none of which are pure functions. Those
+are covered by the reasoning in
+[access and security](./access-and-security.md) and by running the thing.

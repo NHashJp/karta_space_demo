@@ -69,8 +69,12 @@ export function cardProblems(card: CardConfig, seenSlugs: Iterable<string> = [])
 
   for (const link of card.social ?? []) {
     const href = link.href.trim();
-    if (href && !/^https?:\/\//.test(href)) {
+    if (!href) continue; // an empty link is simply not rendered
+    if (!/^https?:\/\//.test(href)) {
       out.warnings.push(`${link.platform}: link should start with https://`);
+    }
+    if (!link.label?.trim()) {
+      out.warnings.push(`${link.platform}: no label (it is the link's accessible name)`);
     }
   }
 

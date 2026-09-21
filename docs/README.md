@@ -6,7 +6,7 @@ faces — each one a paragraph of Japanese text or an image. One deployment
 serves any number of cards, each on its own slug.
 
 These documents explain how it is built and why the non-obvious parts are the
-way they are. For running it, editing content and deploying, see the
+way they are. For the how-to — running it, writing a card, deploying — see the
 [project README](../README.md).
 
 ## Start here
@@ -14,6 +14,7 @@ way they are. For running it, editing content and deploying, see the
 | Document | What it covers |
 |---|---|
 | [Architecture](./architecture.md) | Layers, file map, what runs on the server and what runs in the browser |
+| [Content and cards](./content-and-cards.md) | Cards as configuration, the slug registry, one definition of a valid card, and how the editor writes the file |
 | [Experience flow](./experience-flow.md) | The seven-state machine, and how one gesture becomes one face |
 | [Cube and motion](./cube-and-motion.md) | Face orientations, rotation presets, and why a showy spin still lands exactly square-on |
 | [Framing and text](./framing-and-text.md) | Camera distance, the `<Html transform>` scale rule, and fitting type to a cube face |
@@ -21,7 +22,7 @@ way they are. For running it, editing content and deploying, see the
 | [Access and security](./access-and-security.md) | Slug, password, cookie, and an honest account of what this does and does not protect |
 | [Verification](./verification.md) | What `npm run verify` proves, and the bugs it has actually caught |
 
-## The five mechanisms worth understanding
+## The six mechanisms worth understanding
 
 If you only read parts of this, read these.
 
@@ -47,6 +48,11 @@ If you only read parts of this, read these.
    page is a server component that returns the gate instead of the card.
    → [Access and security](./access-and-security.md#content-withholding)
 
+6. **One definition of a valid card, four enforcement points.** The registry,
+   the editor's save, the editor's UI and `npm run verify` all read the same
+   rules module — they differ only in how strictly they treat a warning.
+   → [Content and cards](./content-and-cards.md#one-definition-of-a-valid-card)
+
 ## Conventions
 
 - The spec this implements is `KARTA_SPACE_MVP_Implementation_Spec.md` v0.1.
@@ -54,3 +60,5 @@ If you only read parts of this, read these.
 - "Face" always means one of the six cube sides, numbered 1–6 in reading order.
   `activeFace` is the zero-based index of the same thing.
 - "World units" are three.js scene units. The cube is 2 of them across.
+- "Card" means one six-faced message on one slug. One deployment serves many;
+  they share code and nothing else — not content, not passwords, not cookies.

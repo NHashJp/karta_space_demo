@@ -7,8 +7,12 @@ of Japanese text or an image.
 One deployment serves any number of cards: every card is an entry in
 `config/cards.config.ts`, on its own slug, with its own optional password.
 
-Implements `KARTA_SPACE_MVP_Implementation_Spec.md` v0.1. No editor, no
-dashboard, no database.
+Implements `KARTA_SPACE_MVP_Implementation_Spec.md` v0.1. No dashboard, no
+database; a rough local editor for the messages, and nothing else.
+
+This README is the how-to. For how it is built and why — the state machine, the
+rotation maths, the content model, the access decisions — see
+[`docs/`](./docs/README.md).
 
 ## Run it
 
@@ -147,7 +151,9 @@ exactly six faces, each face either:
 Nothing else in the codebase needs to know the card exists. `lib/cards.ts`
 builds the slug registry from that array and validates every entry at import
 time — slug shape, slug uniqueness, exactly six faces, non-empty title and
-closing — so a broken card fails the build rather than a visitor's page.
+closing — so a broken card fails the build rather than a visitor's page. The
+reasoning behind all of that is in
+[docs/content-and-cards.md](./docs/content-and-cards.md).
 
 `config/cards.config.ts` ships with a second, text-only example card to show
 the shape of an added one. Delete that entry when you have a real card.
@@ -202,5 +208,9 @@ Deliberate, per the spec:
 - Rate limiting on password attempts is in-memory, so it resets on every
   serverless cold start.
 - Cards are configuration, not data: adding one is a deploy. That is the
-  deliberate ceiling of this MVP — an authoring UI is the change that would
-  force a database, and nothing before it does.
+  deliberate ceiling of this MVP — authoring *without* a deploy is the change
+  that would force a database, and nothing before it does.
+- The editor runs in development only, and writes to the repository.
+
+The threat model is written out honestly in
+[docs/access-and-security.md](./docs/access-and-security.md).

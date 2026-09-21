@@ -74,9 +74,11 @@ makes [verification](./verification.md) possible without a browser.
 
 ## Server and client boundary
 
-`app/c/[slug]/page.tsx` is a server component. It is the only code that can see
-the card's password in the environment, and the only place that decides whether
-to render the card at all. When access has not been granted it returns `<PasswordGate>`
+`app/c/[slug]/page.tsx` is a server component. It is the only place that
+decides whether to render a card at all, and the only route whose rendering
+depends on the card's password. (In development `app/editor/page.tsx` also
+reads the environment, but only to report *whether* a password variable is set
+— never its value.) When access has not been granted it returns `<PasswordGate>`
 and the card object is never serialised into the response.
 
 Everything under `components/card/` and `components/three/` is a client
@@ -154,4 +156,7 @@ A face is text or image, never both (spec §6). `lib/cards.ts` validates every
 card at import time — slug shape, slug uniqueness, exactly six faces, non-empty
 title and closing — so a miscounted or duplicated card fails the build rather
 than the page. That check is what keeps a config file with dozens of cards in
-it safe to edit.
+it safe to edit, by hand or through `/editor`.
+
+The model, the registry, the rules and the editor's design are covered in
+[content and cards](./content-and-cards.md).

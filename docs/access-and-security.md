@@ -1,7 +1,7 @@
 # Access and security
 
 Source: `lib/access.ts`, `lib/cards.ts`, `app/c/[slug]/page.tsx`,
-`app/api/access/route.ts`
+`app/api/access/route.ts`, `app/page.tsx`, `app/api/editor/route.ts`
 
 ## What this protects against
 
@@ -11,13 +11,15 @@ Be clear about the threat model, because the spec is (spec §29):
   the card.
 - **Does** stop the card's text reaching a browser that has not been granted
   access.
-- **Does not** make the card confidential. A custom slug is obscurity, not
+- **Does** keep cards separate from one another: access to one card grants
+  nothing on any other, even on the same deployment and in the same browser.
+- **Does not** make a card confidential. A custom slug is obscurity, not
   authentication. Images in `/public` are fetchable by direct URL by anyone who
   knows the path.
 
 It is demo access control. Do not put anything sensitive behind it.
 
-## The three gates
+## The four gates
 
 ```
 1. an unguessable slug          /c/2026-newyear-7k2m
@@ -59,7 +61,7 @@ the same side of the network boundary:
 const card = getCardBySlug(slug);
 if (!card) return <InvalidCard />;
 
-if (passwordRequired() && !(await hasAccess(card.slug))) {
+if (passwordRequired(card.slug) && !(await hasAccess(card.slug))) {
   return <PasswordGate slug={card.slug} />;
 }
 
@@ -108,16 +110,21 @@ since the token is keyed by the password.
 
 An in-memory map, **10 attempts per 10 minutes** per IP-and-slug, returning
 `429`. Expired entries are swept whenever a new window opens, so the map does
-not grow with the number of cards served. Deliberately basic: it resets on every serverless cold start, so it
-slows down a casual guesser and nothing more. Spec §29 lists this as desirable
-rather than required. A real limit needs shared storage.
+not grow with the number of cards served.
+
+Deliberately basic: it resets on every serverless cold start, so it slows down
+a casual guesser and nothing more. Spec §29 lists this as desirable rather than
+required. A real limit needs shared storage.
 
 ## The editor is development-only
 
 `/editor` and `POST /api/editor` both refuse to do anything when
 `NODE_ENV === "production"`: the page renders a notice instead of the cards,
-and the route returns `403` without touching the filesystem. Two separate
-reasons, either one sufficient:
+and the route returns `403` without touching the filesystem. Note what the
+editor is *not* — it is not a way past the password gate, because it only ever
+runs where the card content is already on the same machine as the person
+editing it. Two separate reasons it stays out of production, either one
+sufficient:
 
 - a deployed filesystem is read-only, so a save could not work anyway;
 - an unauthenticated write endpoint on a public deployment would let anyone
@@ -141,4 +148,4 @@ Three layers, because one is easy to defeat by accident (spec §18):
 
 The spec's own guidance, and the honest answer: move images to authenticated
 private object storage, and put real sessions behind a database. Both are out
-of scope for v0.1 and neither is needed for a demo card.
+of scope for v0.1 and neither is needed for demo cards.
