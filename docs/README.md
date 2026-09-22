@@ -2,8 +2,9 @@
 
 Six-sided 3D message cards. A recipient opens a URL, passes an optional
 password gate, sees the card title, and then scrolls or swipes through six cube
-faces — each one a paragraph of Japanese text or an image. One deployment
-serves any number of cards, each on its own slug.
+faces — each one a paragraph of Japanese text or an image. Some cards have one
+more line, written inside. One deployment serves any number of cards, each on
+its own slug.
 
 These documents explain how it is built and why the non-obvious parts are the
 way they are. For the how-to — running it, writing a card, deploying — see the
@@ -15,14 +16,14 @@ way they are. For the how-to — running it, writing a card, deploying — see t
 |---|---|
 | [Architecture](./architecture.md) | Layers, file map, what runs on the server and what runs in the browser |
 | [Content and cards](./content-and-cards.md) | Cards as configuration, the slug registry, one definition of a valid card, and how the editor writes the file |
-| [Experience flow](./experience-flow.md) | The seven-state machine, and how one gesture becomes one face |
+| [Experience flow](./experience-flow.md) | The ten-state machine, how one gesture becomes one face, and the way into the cube |
 | [Cube and motion](./cube-and-motion.md) | Face orientations, rotation presets, and why a showy spin still lands exactly square-on |
 | [Framing and text](./framing-and-text.md) | Camera distance, the `<Html transform>` scale rule, and fitting type to a cube face |
 | [Scene and shaders](./scene-and-shaders.md) | Nebula, starfield, wandering lights, dimming and the performance budget |
 | [Access and security](./access-and-security.md) | Slug, password, cookie, and an honest account of what this does and does not protect |
 | [Verification](./verification.md) | What `npm run verify` proves, and the bugs it has actually caught |
 
-## The six mechanisms worth understanding
+## The seven mechanisms worth understanding
 
 If you only read parts of this, read these.
 
@@ -52,6 +53,11 @@ If you only read parts of this, read these.
    the editor's save, the editor's UI and `npm run verify` all read the same
    rules module — they differ only in how strictly they treat a warning.
    → [Content and cards](./content-and-cards.md#one-definition-of-a-valid-card)
+
+7. **The cube has an inside.** A third camera position, three states that
+   mirror the reading ones, and a line that is attached only once the camera
+   has actually arrived in there.
+   → [Content and cards](./content-and-cards.md#the-inside-of-the-cube)
 
 ## Conventions
 

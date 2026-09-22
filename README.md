@@ -94,6 +94,25 @@ marked `LOCAL` in the file: the `"use client"` directive, and a `dashLength`
 prop — upstream derives the stroke dash from `fontSize * 7`, which fits Latin
 glyphs but leaves part of a dense kanji permanently undrawn.
 
+## The inside of the cube
+
+A card can carry one short line written on the *inside* of the cube. Six
+seconds after the closing screen has settled — long enough for it to read as
+the ending — the reader is quietly offered a way in, and the camera passes
+through a wall to a line that was there the whole time.
+
+```ts
+secret: "ずっと、味方でいます。"   // up to 28 characters
+```
+
+Leave it out and nothing changes: no offer, no inner shell, no extra geometry.
+It is not a seventh face — the card still has exactly six — and it is not more
+private than the rest of the card, which sits behind the same password.
+
+Short is not a style note. Inside a cube, a phone has 0.60 world units of view;
+a paragraph cannot be read from in there at any size. `npm run verify` checks
+the line fits at every viewport.
+
 ## Social links
 
 `social` on each card in `config/cards.config.ts` drives the icons under its
@@ -131,8 +150,8 @@ every card. Publishing is still a deploy. Two consequences worth knowing:
 
 ### The file
 
-It exports an array of cards; each has a slug, a title, a closing message and
-exactly six faces, each face either:
+It exports an array of cards; each has a slug, a title, a closing message, an
+optional line inside the cube, and exactly six faces, each face either:
 
 ```ts
 { type: "text", body: "…" }                                  // ~80–250 Japanese characters

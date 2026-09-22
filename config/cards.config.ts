@@ -24,6 +24,9 @@ export const cards: CardConfig[] = [
     title: "2026年のあなたへ",
     subtitle: "スクロールして、六つの面をめぐってください。",
     closing: "改めてお世話になりました。これからもよろしくね",
+    // A short line on the inside of the cube, reached from the closing screen.
+    // Leave it out and the cube simply has no inside.
+    secret: "ずっと、味方でいます。",
     // TODO: replace the handles below with your own. Any entry left with an
     // empty `href` is simply not rendered on the closing screen.
     social: [
@@ -85,6 +88,7 @@ export const cards: CardConfig[] = [
     title: "ありがとうを、六つに分けて",
     subtitle: "スクロールして、六つの面をめぐってください。",
     closing: "本当にありがとう。またゆっくり話そうね",
+    secret: "またいつか、どこかで。",
     faces: [
       {
         type: "text",

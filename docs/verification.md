@@ -68,6 +68,17 @@ Asserts: type ≥14px, ≥12 characters per line, the longest message fits the
 face, the cube cannot clip while spinning, and the face fills the spec's range
 for that orientation.
 
+The same loop then does it again from *inside* the cube, where a phone has only
+0.60 world units of view: the secret panel must fit that view, the line must
+set at ≥15px and must fit its panel. Three geometric invariants are checked
+once: the camera sits within the walls, the secret plane is inside the far
+wall, and the two clear the camera's near plane.
+
+```
+desktop 1512x945   inside: view=2.07u panel=0.71u line=34px for 11 chars
+iPhone 390x844     inside: view=0.60u panel=0.50u line=24.74px for 11 chars
+```
+
 ### 5. Configured content
 
 Runs over **every card** in `config/cards.config.ts`, so adding a card adds its
@@ -98,10 +109,17 @@ over-long paragraph on any card is caught.
 ### 6. Experience flow
 
 Walks a complete journey through the [state machine](./experience-flow.md) —
-41 transitions: open, all six faces forward, close, scroll back in, walk
-backwards to face 1, replay. Asserts at every step that **face text is revealed
-only in `reading`**, that input is ignored in all four animated phases, and
-that you cannot navigate before face 1.
+57 transitions: open, all six faces forward, close, scroll back in, walk
+backwards to face 1, replay, then round again and into the cube and back out.
+Asserts at every step that **face text is revealed only in `reading`**, that
+input is ignored in all six animated phases, and that you cannot navigate
+before face 1.
+
+The inside of the cube gets the same treatment as face text, because it is the
+same class of mistake: the secret line must be attached in `inside` and in no
+other state, `reveal` must do nothing from any of the other eight states, and
+the camera phase must read `inside` while descending and `far` the moment the
+climb back out starts.
 
 ## Shaders
 

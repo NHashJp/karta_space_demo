@@ -7,6 +7,7 @@ import * as THREE from "three";
 import type { CardFace } from "@/types/card";
 import { TextFace } from "./TextFace";
 import { ImageFace } from "./ImageFace";
+import { SecretFace } from "./SecretFace";
 import {
   FACE_ORIENTATIONS,
   REDUCED_MOTION_PRESET,
@@ -34,6 +35,12 @@ type Props = {
   revealText: boolean;
   /** Closing screen: the cube fades back so the drawn message can be read. */
   dimmed: boolean;
+  /** One short line on the inside of the far wall, if this card has one. */
+  secret?: string;
+  /** The camera is on its way into the cube, in it, or on its way out. */
+  within: boolean;
+  /** The line itself is only attached once the camera has arrived. */
+  revealSecret: boolean;
   reducedMotion: boolean;
   onTransitionEnd: () => void;
 };
@@ -44,6 +51,9 @@ export function MessageCube({
   isTransitioning,
   revealText,
   dimmed,
+  secret,
+  within,
+  revealSecret,
   reducedMotion,
   onTransitionEnd,
 }: Props) {
@@ -113,7 +123,8 @@ export function MessageCube({
     }
 
     // Reading state keeps an extremely subtle drift on an outer group, so the
-    // face orientation itself stays exact.
+    // face orientation itself stays exact. Inside the cube the same drift is
+    // what keeps the walls from reading as a flat backdrop.
     if (idle.current) {
       const amount = reducedMotion || isTransitioning ? 0 : 1;
       const time = frameState.clock.elapsedTime;
@@ -137,6 +148,28 @@ export function MessageCube({
 
   return (
     <group ref={idle}>
+      {/*
+        The inside of the cube, mounted only while the camera is within it. The
+        outer box is FrontSide, so without this shell the walls would vanish
+        from in there and the scene would show straight through.
+      */}
+      {within && secret ? (
+        <>
+          <mesh>
+            <boxGeometry args={[1.96, 1.96, 1.96]} />
+            <meshStandardMaterial
+              color="#121a2c"
+              side={THREE.BackSide}
+              roughness={0.85}
+              metalness={0.1}
+            />
+          </mesh>
+          {/* Every light in the scene is outside the cube; this one is not. */}
+          <pointLight position={[0, 0, 0.35]} intensity={2.4} distance={4.5} color="#8fb6ff" />
+          <SecretFace text={secret} visible={revealSecret} />
+        </>
+      ) : null}
+
       <group ref={cube}>
         <mesh>
           <boxGeometry args={[2, 2, 2]} />

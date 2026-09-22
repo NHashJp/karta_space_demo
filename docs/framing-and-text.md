@@ -117,6 +117,32 @@ Current configuration on a 390px phone:
 `overflow: hidden` on the panel is the hard backstop, in case a real browser's
 metrics diverge from the model.
 
+## Reading from inside the cube
+
+A card with a `secret` puts the camera *inside* the cube, at
+`INSIDE_DISTANCE = 0.62`, looking at the far wall at `SECRET_PLANE_Z = -0.94`.
+Everything above assumes a camera 5 to 8 units away; from 1.56 units, with the
+same 45° field of view, the numbers are brutal:
+
+| Viewport | View width at the far wall |
+|---|---|
+| desktop 1512×945 | 2.07u |
+| iPad 834×1112 | 0.97u |
+| iPhone 390×844 | **0.60u** |
+
+Six tenths of a world unit is the entire readable width on a phone. That is why
+the secret is capped at 28 characters (`SECRET_MAX`) and why it gets its own
+sizing rule rather than reusing the face panel: `secretPanel()` derives the
+panel from the *inside* distance, and `fitLinePx()` sizes a single line to that
+width, clamped to 15–34px. It is the same 40-pixel rule underneath — only the
+camera has moved.
+
+The panel's world width is clamped to the visible width, so the line cannot
+spill past the frame even where the pixel clamp would have widened it. The
+[verification suite](./verification.md) checks all three — panel inside the
+view, line at least 15px, line fitting its panel — at every viewport, and also
+that the camera sits within the walls and clears its own near plane.
+
 ## Images
 
 Image faces are ordinary three.js textures, not DOM (spec §12). `cover` fitting

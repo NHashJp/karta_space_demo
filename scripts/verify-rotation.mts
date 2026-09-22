@@ -1,13 +1,26 @@
 import { existsSync } from "node:fs";
 import * as THREE from "three";
-import { FOV, cameraDistance, measureFace, textPanelPx } from "../components/three/framing.ts";
+import {
+  FOV,
+  INSIDE_DISTANCE,
+  SECRET_PLANE_Z,
+  cameraDistance,
+  insideVisibleWidth,
+  measureFace,
+  secretFits,
+  secretPanel,
+  textPanelPx,
+} from "../components/three/framing.ts";
 import { cards } from "../config/cards.config.ts";
 import { allProblems } from "../lib/cardRules.ts";
 import {
   acceptsInput,
+  cameraPhase,
   initialExperience,
+  isWithinCube,
   isZoomedIn,
   reduceExperience,
+  revealsSecret,
   revealsText,
   type Experience,
   type ExperienceEvent,
@@ -93,6 +106,16 @@ for (const preset of ROTATION_PRESETS) {
 
 console.log("4. Camera framing and on-screen text size:");
 {
+  // The inside only exists if the camera really is within the walls, and far
+  // enough from the far wall for the near plane (0.1) to clear it.
+  check("inside camera is within the walls", Math.abs(INSIDE_DISTANCE) < 1, `${INSIDE_DISTANCE}`);
+  check("secret plane is inside the far wall", SECRET_PLANE_Z > -1, `${SECRET_PLANE_Z}`);
+  check(
+    "secret plane clears the near plane",
+    INSIDE_DISTANCE - SECRET_PLANE_Z > 0.1,
+    `${(INSIDE_DISTANCE - SECRET_PLANE_Z).toFixed(2)}u`,
+  );
+
   const viewports: [string, number, number][] = [
     ["desktop 1512x945", 1512, 945],
     ["desktop 1500x1400", 1500, 1400],
@@ -123,6 +146,10 @@ console.log("4. Camera framing and on-screen text size:");
         card.faces.filter((f) => f.type === "text").map((f) => f.body.length),
       ),
     );
+    const longestSecret = Math.max(
+      1,
+      ...cards.map((card) => (card.secret ?? "").trim().length),
+    );
     const worst = measureFace(panelPx, longest);
     const fontPx = worst.fontPx * cssToScreen;
 
@@ -139,6 +166,20 @@ console.log("4. Camera framing and on-screen text size:");
     check(`${label} lines not cramped`, worst.charsPerLine >= 12, `${worst.charsPerLine} chars`);
     check(`${label} longest message fits the face`, !worst.overflows, `${worst.lines} lines`);
     check(`${label} cube not clipped`, Math.min(clearH, clearW) >= 1.5 - 1e-6);
+
+    // Inside the cube the whole view is barely half a world unit across on a
+    // phone, so the secret line is sized from there, not from the face.
+    const insideView = insideVisibleWidth(w, h);
+    const { worldWidth } = secretPanel(w, h);
+    const line = secretFits(w, h, longestSecret);
+    console.log(
+      `  ${"".padEnd(18)} inside: view=${insideView.toFixed(2)}u panel=${worldWidth.toFixed(2)}u ` +
+      `line=${line.fontPx}px for ${longestSecret} chars`,
+    );
+    check(`${label} secret panel fits the view`, worldWidth <= insideView + 1e-9,
+      `${worldWidth.toFixed(2)}u in ${insideView.toFixed(2)}u`);
+    check(`${label} secret line legible`, line.fontPx >= 15, `${line.fontPx}px`);
+    check(`${label} secret line fits its panel`, !line.overflows, `${line.fontPx}px`);
     if (aspect >= 1) {
       check(`${label} face fills 45-65% height`, fillH >= 0.45 && fillH <= 0.65, `${(fillH * 100).toFixed(0)}%`);
     } else {
@@ -264,12 +305,59 @@ console.log("6. Experience flow (card content never shows on the end screens):")
   check("replay lands reading face 1", exp.state === "reading" && exp.activeFace === 0);
 
   // Input during any animated phase must be ignored.
-  for (const phase of ["entering", "returning", "leaving", "transitioning"] as const) {
+  for (const phase of ["entering", "returning", "leaving", "transitioning", "descending", "ascending"] as const) {
     const frozen: Experience = { state: phase, activeFace: 2 };
     const after = reduceExperience(frozen, { type: "move", direction: 1 });
     check(`${phase} ignores input`, after === frozen);
     check(`${phase} hides text`, !revealsText(phase));
   }
+
+  // The inside of the cube: reachable only from the closing screen, and it
+  // reveals the secret line only once the camera has actually arrived.
+  // The walk above ends back on face 1, so go the long way round again.
+  for (let face = 0; face < 5; face++) {
+    send({ type: "move", direction: 1 });
+    send({ type: "rotationEnd" });
+  }
+  send({ type: "move", direction: 1 });
+  send({ type: "zoomEnd" });
+  check("back at the closing screen", exp.state === "completed");
+
+  send({ type: "reveal" });
+  check("reveal dives into the cube", exp.state === "descending");
+  check("descending puts the camera inside", cameraPhase(exp.state) === "inside");
+  check("descending mounts the inner shell", isWithinCube(exp.state));
+  check("descending still hides the secret", !revealsSecret(exp.state));
+  check("descending hides face text", !revealsText(exp.state));
+
+  send({ type: "zoomEnd" });
+  check("arrives inside", exp.state === "inside");
+  check("inside reveals the secret", revealsSecret(exp.state));
+  check("inside still hides face text", !revealsText(exp.state));
+  check("inside accepts input", acceptsInput(exp.state));
+
+  send({ type: "move", direction: 1 });
+  check("any gesture leaves the inside", exp.state === "ascending");
+  check("ascending hides the secret again", !revealsSecret(exp.state));
+  check("ascending heads back out", cameraPhase(exp.state) === "far");
+  send({ type: "zoomEnd" });
+  check("returns to the closing screen", exp.state === "completed");
+
+  // The way in exists from exactly one state, and the way out from one other.
+  for (const state of [
+    "landing", "entering", "returning", "reading", "transitioning", "leaving", "descending", "ascending",
+  ] as const) {
+    const frozen: Experience = { state, activeFace: 0 };
+    check(`${state} cannot be revealed into`, reduceExperience(frozen, { type: "reveal" }) === frozen);
+  }
+
+  // The secret is attached in exactly one state, like face text.
+  for (const state of [
+    "landing", "entering", "returning", "reading", "transitioning", "leaving", "completed", "descending", "ascending",
+  ] as const) {
+    check(`${state} hides the secret line`, !revealsSecret(state));
+  }
+  check("only 'inside' reveals the secret", revealsSecret("inside"));
 
   console.log(`  walked ${seen.length} transitions, ending at ${exp.state}:${exp.activeFace + 1}`);
 }

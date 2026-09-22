@@ -105,6 +105,32 @@ the file whole**, so the header survives and comments added below it do not.
 `Boolean(process.env[key])`, so the browser is told *whether* a card has its
 own password and *which variable* holds it, never the value.
 
+## The inside of the cube
+
+`secret` is one optional line. It is not a seventh face — the card still has
+exactly six (spec §6) — it is written on the *inside* of the far wall, and the
+only way to it is from the closing screen, six seconds after that screen has
+settled.
+
+The delay is the whole design. A cube that turns out to have an inside is only
+a surprise if the ending has first been allowed to read as the ending; an offer
+that appears immediately is just another button.
+
+Three consequences worth knowing before writing one:
+
+- **It must be short.** Inside a cube barely half a world unit of view is
+  available on a phone, so `SECRET_MAX` is 28 characters and the rules warn
+  past it. A paragraph cannot be read from in there at any size — that is
+  geometry, not taste. The sizing rule is in
+  [framing and text](./framing-and-text.md#reading-from-inside-the-cube).
+- **It is not more private than the rest of the card.** It sits behind the same
+  password gate as the six faces and is in the accessible copy of the document
+  like everything else. "Secret" means hidden from the *reader* until they go
+  looking, not withheld from the browser.
+- **Leaving it out removes the feature.** No offer on the closing screen, no
+  inner shell, no light, nothing rendered. Cards without one behave exactly as
+  they did before the inside existed.
+
 ## Per-card images
 
 Images live in `public/cards/<slug>/`, one folder per card, and a card's face
@@ -129,6 +155,7 @@ type CardConfig = {
   subtitle?: string     // optional line under it
   faces: CardFaces      // exactly six, in display order
   closing: string       // drawn stroke by stroke on the last screen
+  secret?: string       // one short line, written inside the cube
   social?: SocialLink[] // icons under the replay button
 }
 ```

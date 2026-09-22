@@ -16,6 +16,12 @@ export const BODY_MAX = 250;
 
 export const FACE_COUNT = 6;
 
+/**
+ * The secret line is read from inside the cube, where the whole viewport is
+ * barely half a world unit across on a phone. Past this it sets too small.
+ */
+export const SECRET_MAX = 28;
+
 export type Problems = {
   /** Would break the build or the page. The editor refuses to save these. */
   errors: string[];
@@ -66,6 +72,13 @@ export function cardProblems(card: CardConfig, seenSlugs: Iterable<string> = [])
   }
 
   card.faces?.forEach((face, index) => faceProblems(face, index, card.slug, out));
+
+  const secret = card.secret?.trim();
+  if (secret && secret.length > SECRET_MAX) {
+    out.warnings.push(
+      `the secret line is ${secret.length} characters, over ${SECRET_MAX} — it sets too small inside the cube`,
+    );
+  }
 
   for (const link of card.social ?? []) {
     const href = link.href.trim();

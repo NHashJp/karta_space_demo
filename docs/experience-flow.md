@@ -5,7 +5,7 @@ Source: `lib/experienceState.ts`, `lib/useFaceNavigation.ts`,
 
 ## The machine
 
-Seven states, five events, one pure reducer. No timers, no side effects, no
+Ten states, six events, one pure reducer. No timers, no side effects, no
 async — which is why the whole flow is testable in Node.
 
 ```
@@ -21,30 +21,63 @@ async — which is why the whole flow is testable in Node.
                               │   │  │ zoomEnd        │
                   rotationEnd │   │  v                │
                               └───┘ completed ────────┘
-                                       │  move(-1) or replay
-                                       v
-                                   returning ─ zoomEnd ─> reading
+                                     │   ^   │  move(-1) or replay
+                              reveal │   │   v
+                                     │   │  returning ─ zoomEnd ─> reading
+                                     v   │ zoomEnd
+                              descending │
+                                     │   ascending
+                             zoomEnd │   ^
+                                     v   │ reveal, or any move
+                                   inside┘
 ```
 
-| State | Camera | Face text | Accepts input |
-|---|---|---|---|
-| `landing` | far back | hidden | no |
-| `entering` | dollying in | hidden | no |
-| `returning` | dollying in | hidden | no |
-| `reading` | at reading distance | **shown** | yes |
-| `transitioning` | at reading distance | hidden | no |
-| `leaving` | dollying out | hidden | no |
-| `completed` | far back | hidden | yes (to go back) |
+The right-hand branch only exists for a card that has a `secret` — see
+[content and cards](./content-and-cards.md). Without one, `reveal` is never
+dispatched and those three states are unreachable.
 
-Three derived predicates keep those columns honest, so no component tracks
-them independently:
+| State | Camera | Face text | Secret line | Accepts input |
+|---|---|---|---|---|
+| `landing` | far back | hidden | hidden | no |
+| `entering` | dollying in | hidden | hidden | no |
+| `returning` | dollying in | hidden | hidden | no |
+| `reading` | at reading distance | **shown** | hidden | yes |
+| `transitioning` | at reading distance | hidden | hidden | no |
+| `leaving` | dollying out | hidden | hidden | no |
+| `completed` | far back | hidden | hidden | yes (to go back, or in) |
+| `descending` | through the wall | hidden | hidden | no |
+| `inside` | within the cube | hidden | **shown** | yes (to leave) |
+| `ascending` | back out | hidden | hidden | no |
+
+Derived predicates keep those columns honest, so no component tracks them
+independently:
 
 ```ts
-isZoomedIn(state)  // entering | returning | reading | transitioning
-revealsText(state) // reading, and only reading
-dimsScene(state)   // leaving | completed | returning
-acceptsInput(state)// reading | completed
+cameraPhase(state)   // "far" | "near" | "inside"
+isZoomedIn(state)    // cameraPhase !== "far"
+revealsText(state)   // reading, and only reading
+revealsSecret(state) // inside, and only inside
+isWithinCube(state)  // descending | inside | ascending — mounts the inner shell
+dimsScene(state)     // leaving | completed | returning | ascending
+acceptsInput(state)  // reading | completed | inside
 ```
+
+`isZoomedIn` was a boolean until the cube acquired an inside; the camera now has
+three positions rather than two, so `cameraPhase` is the real signal and
+`isZoomedIn` is derived from it.
+
+## Why the inside is three states, not one
+
+`descending`, `inside` and `ascending` mirror `entering` / `reading` /
+`leaving`, for the same reason: the arrival has to be *announced* by whatever is
+animating. The camera says when it has passed through the wall; only then is the
+line attached, which is why `revealsSecret` is true in `inside` alone and the
+line fades up after the motion has stopped rather than during it.
+
+`dimsScene` deliberately excludes `descending`: the scene is dimmed on the
+closing screen, and lifting that dimming on the way in makes the cube brighten
+as you enter it. `ascending` dims again, so the closing screen is exactly as it
+was when you left it.
 
 ## Why `entering` and `returning` are separate
 
@@ -79,6 +112,7 @@ animating says it has arrived:
 |---|---|---|
 | `transitioning` | `MessageCube`, when rotation progress reaches 1 | `rotationEnd` |
 | `entering`, `returning`, `leaving` | `CameraRig`, when the dolly reaches its target | `zoomEnd` |
+| `descending`, `ascending` | `CameraRig`, same mechanism, third target | `zoomEnd` |
 
 So the phase and the animation cannot drift apart, whatever the frame rate.
 
@@ -104,6 +138,11 @@ distance is at least 45px. `touchmove` is registered non-passive and calls
 from stealing the swipe.
 
 **Keyboard.** `↑ ↓`, `PageUp/PageDown`, `Space` and `Shift+Space`.
+
+Inside the cube, *any* `move` in either direction leaves — there is nowhere
+else to go in there, so asking the reader to find the right direction would be
+a puzzle with one answer. The button on screen does the same thing, which is
+what makes the way out reachable by keyboard and screen reader.
 
 All three consult a `locked` ref before firing, so a transition in flight
 swallows input without the listeners being torn down and rebuilt.

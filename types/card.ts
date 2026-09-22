@@ -34,6 +34,12 @@ export type CardConfig = {
   faces: CardFaces;
   /** Shown in the completion state. */
   closing: string;
+  /**
+   * Optional. One short line hidden *inside* the cube, reachable from the
+   * closing screen. It has to be read from 1.5 world units away with walls on
+   * every side, so it must stay short — see `SECRET_MAX` in `lib/cardRules.ts`.
+   */
+  secret?: string;
   /** Optional links shown under the replay button on the closing screen. */
   social?: SocialLink[];
 };

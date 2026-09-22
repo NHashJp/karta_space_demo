@@ -10,10 +10,12 @@ import { CompletionState } from "./CompletionState";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import {
   acceptsInput,
+  cameraPhase,
   dimsScene,
   initialExperience,
-  isZoomedIn,
+  isWithinCube,
   reduceExperience,
+  revealsSecret,
   revealsText,
 } from "@/lib/experienceState";
 
@@ -38,6 +40,8 @@ export function CardExperience({ card }: { card: CardConfig }) {
   );
   const onTransitionEnd = useCallback(() => dispatch({ type: "rotationEnd" }), []);
   const onZoomEnd = useCallback(() => dispatch({ type: "zoomEnd" }), []);
+  const onReveal = useCallback(() => dispatch({ type: "reveal" }), []);
+  const secret = card.secret?.trim() || undefined;
 
   useFaceNavigation(move, !acceptsInput(state), state !== "landing");
 
@@ -63,7 +67,10 @@ export function CardExperience({ card }: { card: CardConfig }) {
           isTransitioning={state === "transitioning"}
           revealText={revealsText(state)}
           dimmed={dimsScene(state)}
-          zoomedIn={isZoomedIn(state)}
+          cameraPhase={cameraPhase(state)}
+          secret={secret}
+          within={isWithinCube(state)}
+          revealSecret={revealsSecret(state)}
           reducedMotion={reducedMotion}
           onTransitionEnd={onTransitionEnd}
           onZoomEnd={onZoomEnd}
@@ -89,13 +96,33 @@ export function CardExperience({ card }: { card: CardConfig }) {
         </>
       ) : null}
 
-      {state === "completed" || state === "returning" ? (
+      {state === "completed" || state === "returning" || state === "descending" ? (
         <CompletionState
           closing={card.closing}
           social={card.social}
-          leaving={state === "returning"}
+          leaving={state !== "completed"}
+          hasSecret={Boolean(secret)}
+          onReveal={onReveal}
           onReplay={() => dispatch({ type: "replay" })}
         />
+      ) : null}
+
+      {state === "inside" || state === "ascending" ? (
+        <div className="screen screen--inside" data-leaving={state === "ascending"}>
+          <div className="inside">
+            <p className="inside__hint" lang="ja">
+              スクロールして外へ
+            </p>
+            <button
+              className="button button--ghost"
+              onClick={onReveal}
+              disabled={state === "ascending"}
+              lang="ja"
+            >
+              外に戻る
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {/* Paragraph text also lives here as plain DOM, for assistive tech. */}
@@ -106,6 +133,7 @@ export function CardExperience({ card }: { card: CardConfig }) {
             {face.type === "text" ? face.body : face.alt}
           </p>
         ))}
+        {secret ? <p lang="ja">{secret}</p> : null}
       </div>
     </main>
   );

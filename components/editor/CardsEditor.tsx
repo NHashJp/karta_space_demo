@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BODY_MAX, BODY_MIN, allProblems, imageFolder } from "@/lib/cardRules";
+import { BODY_MAX, BODY_MIN, SECRET_MAX, allProblems, imageFolder } from "@/lib/cardRules";
 import type { CardConfig, CardFace, CardFaces, SocialPlatform } from "@/types/card";
 
 type PasswordInfo = {
@@ -232,6 +232,26 @@ export function CardsEditor({ initialCards, images, passwords }: Props) {
               <span>Closing message (drawn stroke by stroke on the last screen)</span>
               <input lang="ja" value={card.closing} onChange={(event) => edit({ closing: event.target.value })} />
             </label>
+
+            <section className="editor__section">
+              <h2>Inside the cube</h2>
+              <label className="field">
+                <span>Secret line (optional)</span>
+                <input
+                  lang="ja"
+                  value={card.secret ?? ""}
+                  onChange={(event) => edit({ secret: event.target.value })}
+                />
+              </label>
+              <p className="face__count" data-warn={(card.secret?.trim().length ?? 0) > SECRET_MAX}>
+                {card.secret?.trim().length ?? 0} of {SECRET_MAX} characters
+              </p>
+              <p className="editor__hint">
+                Written on the inside of the far wall. Six seconds after the closing screen
+                settles, the reader is offered a way in. Leave it empty and the cube has no
+                inside — nothing is offered, and nothing is rendered.
+              </p>
+            </section>
 
             <section className="editor__section">
               <h2>Links on the closing screen</h2>

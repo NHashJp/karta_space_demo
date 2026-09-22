@@ -243,6 +243,15 @@ body {
   background: transparent;
 }
 
+/* Quieter still: an invitation, not an instruction. */
+.button--quiet {
+  padding: 0.55rem 1.5rem;
+  border-color: rgba(176, 180, 186, 0.25);
+  background: transparent;
+  color: var(--lunar);
+  font-size: 0.8rem;
+}
+
 .button:focus-visible,
 .gate__input:focus-visible {
   outline: 2px solid var(--ion);
@@ -691,4 +700,81 @@ body {
 
 .face__count[data-warn="true"] {
   color: #ffc48a;
+}
+
+/* ---------- the inside of the cube ---------- */
+
+/*
+ * The offer to go inside surfaces only after the closing screen has had time
+ * to read as the end, so it fades in rather than appearing.
+ */
+.secret-offer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 1400ms ease, transform 1400ms ease;
+  pointer-events: none;
+}
+
+.secret-offer[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.secret-offer__line {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: var(--titanium);
+}
+
+/*
+ * Inside, the line itself is in the 3D scene, dead centre. This screen keeps
+ * to the bottom edge and lets every gesture through to the navigation.
+ */
+.screen--inside {
+  place-items: end center;
+  background: none;
+  pointer-events: none;
+  animation: screen-arrive 900ms cubic-bezier(0.22, 1, 0.36, 1) 400ms both;
+}
+
+.screen--inside[data-leaving="true"] {
+  animation: screen-depart 700ms cubic-bezier(0.55, 0, 0.9, 0.45) both;
+}
+
+.inside {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.inside__hint {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: var(--titanium);
+}
+
+/* The line written on the inside of the far wall. */
+.secret-line {
+  margin: 0;
+  color: var(--starlight);
+  font-family: var(--font-ja);
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-wrap: balance;
+  text-shadow: 0 0 22px rgba(127, 212, 245, 0.45);
+  opacity: 0;
+  transition: opacity 1200ms ease 260ms;
+}
+
+.secret-line[data-visible="true"] {
+  opacity: 1;
 }

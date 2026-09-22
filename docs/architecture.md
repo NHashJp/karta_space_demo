@@ -89,14 +89,16 @@ component. They receive the already-authorised `CardConfig` as props.
 ```
 CardExperience                     state machine host, owns activeFace
 ├── CubeScene                      the <Canvas>
-│   ├── CameraRig                  sole owner of camera distance
+│   ├── CameraRig                  sole owner of camera distance (far/near/inside)
 │   ├── SpaceEnvironment
 │   │   ├── NebulaBackdrop         shader sphere, radius 90
 │   │   ├── Starfield              1500 points, custom shader
 │   │   └── WanderingLights        3 point lights + additive glows
 │   └── MessageCube                orientation, idle drift, dimming
 │       ├── TextFace   x n         <Html transform> paragraph on a face
-│       └── ImageFace  x n         texture on a face
+│       ├── ImageFace  x n         texture on a face
+│       └── inner shell            mounted only while the camera is inside
+│           └── SecretFace         the line on the inside of the far wall
 ├── CardLanding | CompletionState  the screens that bracket the experience
 ├── CardProgress + hint            the reading UI
 └── .sr-only                       all face text as plain DOM, for assistive tech
