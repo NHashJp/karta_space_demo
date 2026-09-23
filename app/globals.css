@@ -1585,3 +1585,312 @@ body {
     animation: none;
   }
 }
+
+/* ---------- editor v2 (spec v0.2 §15) ---------- */
+
+/*
+ * Three columns: what you are editing, the fields, and the card. The preview
+ * is not decoration — most of a v0.2 card is states nobody sees until a date,
+ * and without it they go unchecked.
+ */
+.editor__body--v2 {
+  grid-template-columns: minmax(160px, 13rem) minmax(0, 1fr) minmax(280px, 22rem);
+  max-width: none;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .editor__body--v2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.editor__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--charcoal);
+}
+
+.editor__tab {
+  min-height: var(--control-h-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--titanium);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.editor__tab[aria-current="true"] {
+  border-color: var(--ion);
+  color: var(--starlight);
+}
+
+.editor__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.82rem;
+  color: var(--asteroid);
+}
+
+.editor__hint[data-warn="true"] {
+  color: #ffb27a;
+}
+
+.face__arc {
+  margin-left: var(--space-1);
+}
+
+/* ---- the fuzzy date input ---- */
+
+.fuzzy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.fuzzy__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--titanium);
+}
+
+.fuzzy__parts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-half);
+  flex-wrap: wrap;
+}
+
+.fuzzy__input {
+  width: 3.5rem;
+  min-height: var(--control-h-compact);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--titanium);
+  border-radius: var(--radius-1);
+  background: rgba(5, 7, 12, 0.6);
+  color: var(--starlight);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.fuzzy__input--year {
+  width: 5rem;
+}
+
+.fuzzy__input--season {
+  width: auto;
+  text-align: left;
+}
+
+.fuzzy__sep {
+  font-size: 0.8rem;
+  color: var(--titanium);
+}
+
+.fuzzy__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-half);
+  font-size: 0.78rem;
+  color: var(--asteroid);
+}
+
+/* What the receiver will read, which is the point of all of the above. */
+.fuzzy__preview {
+  font-size: 0.88rem;
+  color: var(--ion);
+}
+
+/* ---- the preview pane ---- */
+
+.preview {
+  position: sticky;
+  top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.preview__frame {
+  width: 100%;
+  aspect-ratio: 390 / 844;
+  max-height: 70vh;
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-2);
+  overflow: hidden;
+  background: var(--void);
+}
+
+.preview__iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.preview__controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ---- the setup checklist ---- */
+
+.setup {
+  position: relative;
+}
+
+.setup__chip {
+  min-height: var(--control-h-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--lunar);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.setup__panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 90;
+  width: min(30rem, 90vw);
+  padding: var(--space-2);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-2);
+  background: rgba(10, 12, 16, 0.98);
+}
+
+.setup__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.setup__table td {
+  padding: var(--space-1) var(--space-half);
+  border-bottom: 1px solid rgba(45, 49, 66, 0.6);
+  vertical-align: top;
+}
+
+.setup__table td[data-set="true"] {
+  color: var(--ion);
+}
+
+.setup__table td[data-set="false"] {
+  color: var(--titanium);
+}
+
+.setup__table .editor__hint {
+  display: block;
+}
+
+/* ---- the share tab ---- */
+
+.editor__url,
+.editor__password,
+.editor__message {
+  display: block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-1);
+  background: rgba(5, 7, 12, 0.6);
+  font-size: 0.82rem;
+  line-height: 1.8;
+  color: var(--asteroid);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.editor__password {
+  font-size: 1.1rem;
+  letter-spacing: 0.24em;
+  color: var(--starlight);
+}
+
+.editor__step {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: 0.84rem;
+  color: var(--asteroid);
+}
+
+.editor__step span[data-done="true"],
+.editor__step[data-state="live"] {
+  color: var(--ion);
+}
+
+.editor__step[data-state="missing"],
+.editor__step[data-state="unreachable"] {
+  color: #ffb27a;
+}
+
+.editor__signature {
+  padding: var(--space-2);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-1);
+  background: rgba(5, 7, 12, 0.6);
+}
+
+.editor__signature img {
+  display: block;
+  height: 64px;
+  width: auto;
+}
+
+.editor__preview-orbit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ---- the signature pad ---- */
+
+.pad-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  background: rgba(5, 7, 12, 0.72);
+}
+
+.pad {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(640px, 100%);
+  padding: var(--space-3);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-2);
+  background: rgba(10, 12, 16, 0.98);
+}
+
+.pad__canvas {
+  width: 100%;
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-1);
+  background: var(--void);
+  /* A signature is a drag, not a scroll. */
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.pad__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}

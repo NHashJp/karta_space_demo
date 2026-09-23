@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
 import { allProblems } from "@/lib/cardRules";
 import { writeCards } from "@/lib/cardsFile";
+import { writeSecrets } from "@/lib/secretsFile";
+import { editorEnabled, refused } from "@/lib/editorGuard";
 import type { CardConfig } from "@/types/card";
 
 /**
- * The editor's only write. Development only, for two reasons: a deployed
- * filesystem is read-only, and an unauthenticated write endpoint on a public
- * deployment would let anyone rewrite every card.
+ * The editor's save. Development only — see `lib/editorGuard.ts` for why.
+ *
+ * It writes two files: the config, which is committed, and
+ * `.karta/secrets.local.json`, which is not. The second exists so the Share
+ * tab can show a password again on this computer after a restart; the config
+ * only ever carries the hash.
  */
-const editorEnabled = process.env.NODE_ENV !== "production";
-
 export async function POST(request: Request) {
-  if (!editorEnabled) {
-    return NextResponse.json({ error: "editor_disabled" }, { status: 403 });
-  }
+  if (!editorEnabled) return refused();
 
-  const body = (await request.json().catch(() => null)) as { cards?: CardConfig[] } | null;
+  const body = (await request.json().catch(() => null)) as {
+    cards?: CardConfig[];
+    /** slug -> plaintext, for the local-only secrets file. */
+    secrets?: Record<string, string>;
+  } | null;
   if (!body || !Array.isArray(body.cards)) {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
@@ -32,6 +37,9 @@ export async function POST(request: Request) {
 
   try {
     writeCards(body.cards);
+    // Pruned to the cards that still exist, so a deleted card does not leave
+    // its password behind in a file nobody looks at.
+    if (body.secrets) writeSecrets(body.secrets, body.cards.map((card) => card.slug));
   } catch (cause) {
     return NextResponse.json(
       { error: "write_failed", detail: String(cause) },
