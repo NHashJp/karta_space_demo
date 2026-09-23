@@ -260,6 +260,29 @@ function layout(panelPx: number, chars: number, fontPx: number) {
  * genuinely fits, since lines round up. Content that only fits below
  * MIN_FONT_PX should be shortened instead (spec §7).
  */
+/**
+ * A `line` face (spec v0.2 §13.2): one short sentence, set large and centred.
+ *
+ * It is not a smaller problem than a paragraph but a different one. A
+ * paragraph is fitted so it does not spill; a line is fitted so it lands as a
+ * *beat* — 2.2x the paragraph size, and still on one line whatever the
+ * viewport, which is why the range is its own rather than a multiplier on the
+ * paragraph range.
+ */
+const LINE_FACE_SCALE = 2.2;
+const LINE_MIN_FONT_PX = 20;
+const LINE_MAX_FONT_PX = 56;
+
+export function fitLineFaceSize(panelPx: number, chars: number): number {
+  const available = usableWidth(panelPx);
+  // Japanese sets roughly one character per em, so the width a line needs is
+  // its character count times the font size. Allow two lines for a long one
+  // rather than shrinking it below legibility.
+  const ideal = Math.min(LINE_MAX_FONT_PX, fitFontSize(panelPx, chars) * LINE_FACE_SCALE);
+  const byWidth = (available / Math.max(chars, 1)) * (chars > 12 ? 2 : 1);
+  return Math.floor(Math.max(Math.min(ideal, byWidth), LINE_MIN_FONT_PX) * 100) / 100;
+}
+
 export function fitFontSize(panelPx: number, chars: number): number {
   const available = usableWidth(panelPx);
   let font = Math.min(

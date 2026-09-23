@@ -188,6 +188,7 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           leaving={state !== "completed"}
           hasSecret={Boolean(secret)}
           hasOrbit={card.hasOrbit}
+          signature={card.signature}
           onReveal={onReveal}
           onReplay={() => dispatch({ type: "replay" })}
           onDeploy={onDeploy}

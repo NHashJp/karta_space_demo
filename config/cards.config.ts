@@ -34,6 +34,9 @@ export const cards: CardConfig[] = [
     from: "みお",
     writtenAt: "2026-03",
     timeZone: "Asia/Tokyo",
+    // Stroked paths, no fills: it is drawn on the closing screen the same way
+    // the closing line is. The editor's signature pad writes this file.
+    signature: "/cards/2026-newyear-7k2m/signature.svg",
     satellite: {
       label: "次のクリスマス",
       message: "次のクリスマスに、また会おう。",
@@ -91,8 +94,11 @@ export const cards: CardConfig[] = [
         body: "覚えていますか。夏の終わりに、何でもない話をしながら歩いた帰り道のこと。特別な出来事ではなかったはずなのに、思い出すのはいつもああいう時間で、そういう時間こそがきっと大切だったのだと、今になって思います。",
       },
       {
+        // A "line" face: one sentence, set large and centred — a beat in the
+        // letter rather than a paragraph of it (spec v0.2 §5, §13.2).
         type: "text",
-        body: "新しい年に、大きな目標を立てる必要はないのかもしれません。ただ、よく眠って、よく笑って、行きたい場所に行けますように。困ったときには、遠慮なく声をかけてください。いつでも、ちゃんとここにいます。",
+        style: "line",
+        body: "また、会いましょう。",
       },
       {
         type: "image",

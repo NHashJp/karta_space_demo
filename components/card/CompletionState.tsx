@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import StrokeText from "@/components/text/StrokeText";
 import { SocialLinks } from "./SocialLinks";
+import { Signature } from "./Signature";
 import { ORBIT_HINT_MS, SECRET_HINT_MS, SECRET_HINT_WITH_ORBIT_MS } from "@/lib/timing";
 import type { SocialLink } from "@/types/card";
 
@@ -15,6 +16,8 @@ type Props = {
   hasSecret: boolean;
   /** This card continues past the closing screen (spec v0.2 §8.1). */
   hasOrbit: boolean;
+  /** An SVG of the sender's handwriting, drawn under the line (§13.1). */
+  signature?: string;
   onReveal: () => void;
   onReplay: () => void;
   onDeploy: () => void;
@@ -26,6 +29,13 @@ type Props = {
  * every stroke is counted, so this leaves generous headroom.
  */
 const DASH_PER_EM = 22;
+
+/**
+ * When the signature starts. The closing line draws for 2.1s and its fill
+ * wipes from 0.35s; this waits for the whole of that, so the two are
+ * consecutive rather than simultaneous.
+ */
+const SIGNATURE_DELAY_MS = 2600;
 
 /** The stroke is drawn, then the fill wipes across — so keep the line short. */
 function strokeFontSize(width: number, characters: number): number {
@@ -49,6 +59,7 @@ export function CompletionState({
   leaving,
   hasSecret,
   hasOrbit,
+  signature,
   onReveal,
   onReplay,
   onDeploy,
@@ -99,6 +110,12 @@ export function CompletionState({
             dashLength={fontSize * DASH_PER_EM}
           />
         </div>
+        {/*
+          Drawn once the closing line's own fill wipe has finished, so the
+          screen reads as one hand writing one thing.
+        */}
+        {signature ? <Signature src={signature} delayMs={SIGNATURE_DELAY_MS} /> : null}
+
         <button
           className="button button--ghost"
           onClick={onReplay}

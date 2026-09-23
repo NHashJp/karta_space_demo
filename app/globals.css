@@ -1172,3 +1172,62 @@ body {
     animation: none;
   }
 }
+
+/* ---------- the sender's signature (spec v0.2 §13.1) ---------- */
+
+/*
+ * It sits under the closing line and is deliberately the quietest thing on the
+ * screen — a name in someone's own hand, not a heading. Capped by height
+ * rather than width so a long sign-off and a short one read at the same
+ * weight.
+ */
+.signature {
+  --signature-stroke: #7fd4f5;
+  --signature-ink: var(--starlight);
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: calc(-1 * var(--space-1));
+}
+
+.signature svg {
+  width: auto;
+  height: 72px;
+  max-width: min(320px, 80vw);
+  overflow: visible;
+  filter: drop-shadow(0 0 16px rgba(127, 212, 245, 0.25));
+}
+
+@media (min-width: 720px) {
+  .signature svg {
+    height: 96px;
+  }
+}
+
+/* Reduced motion: the signature is simply there, already written. */
+@media (prefers-reduced-motion: reduce) {
+  .signature svg path {
+    transition: none !important;
+    stroke-dashoffset: 0 !important;
+    stroke: var(--signature-ink) !important;
+  }
+}
+
+/*
+ * A `line` face: one sentence, centred and set large (spec v0.2 §13.2). It is
+ * a beat in the letter rather than a paragraph of it, so it is vertically
+ * centred and given room on both sides.
+ */
+.face-text[data-style="line"] {
+  display: grid;
+  place-items: center;
+}
+
+.face-text[data-style="line"] p {
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-wrap: balance;
+  padding: 0 var(--space-3);
+}

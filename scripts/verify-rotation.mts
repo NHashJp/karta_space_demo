@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import * as THREE from "three";
 import {
   FOV,
@@ -11,6 +11,7 @@ import {
   SECRET_PLANE_Z,
   cameraDistance,
   insideVisibleWidth,
+  fitLineFaceSize,
   measureFace,
   secretFits,
   secretPanel,
@@ -269,12 +270,48 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
         continue;
       }
       const chars = face.body.length;
+
+      if (face.style === "line") {
+        // A line face is fitted as a beat, not as a paragraph: the question is
+        // whether it is large enough to land, not whether it spills.
+        const px = fitLineFaceSize(phone, chars);
+        console.log(
+          `    face ${i + 1}: ${String(chars).padStart(3)} chars -> line @ ${px}px on a 390px phone`,
+        );
+        check(id(`face ${i + 1} sets large enough to be a beat`), px >= 20, `${px}px`);
+        // Comparing it to a paragraph would prove nothing: `fitFontSize` is
+        // capped at 20px, so a short paragraph and a short line come out the
+        // same. What makes a line a beat is that it *fills the face* — a
+        // sentence floating in the middle of an empty panel is neither.
+        const fill = (px * chars) / phone;
+        check(id(`face ${i + 1} fills the face as a beat`), fill >= 0.55 && fill <= 1.02,
+          `${(fill * 100).toFixed(0)}% of the panel`);
+        continue;
+      }
+
       const fit = measureFace(phone, chars);
       console.log(
         `    face ${i + 1}: ${String(chars).padStart(3)} chars -> ${fit.lines} lines @ ${fit.fontPx}px on a 390px phone`,
       );
       check(id(`face ${i + 1} fits the face`), !fit.overflows, `${fit.lines} lines`);
       check(id(`face ${i + 1} readable on phone`), fit.fontPx >= 14, `${fit.fontPx}px`);
+    }
+
+    // A signature that is configured but not there would simply not draw, and
+    // nothing on the closing screen would say so — hence a check, not a note.
+    if (card.signature) {
+      const file = `public${card.signature}`;
+      const there = existsSync(file);
+      check(id("signature file exists"), there, file);
+      if (there) {
+        const svg = readFileSync(file, "utf8");
+        console.log(`    signature: ${card.signature}`);
+        check(id("signature is an SVG"), svg.includes("<svg"));
+        // It is drawn by walking a dash along each path; a signature made of
+        // filled shapes would simply appear, which is not the same thing.
+        check(id("signature is made of stroked paths"), /<path[\s>]/.test(svg));
+        check(id("signature has no fills"), !/fill="(?!none)[^"]+"/.test(svg));
+      }
     }
 
     const active = (card.social ?? []).filter(link => link.href.trim().length > 0);
