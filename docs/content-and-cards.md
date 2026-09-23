@@ -80,6 +80,17 @@ while writing, and an empty face renders as an empty face rather than breaking.
 `npm run verify` **fails on them**, because it is the gate you run before
 deploying. Same rules, different strictness, chosen per tool.
 
+## Adding a card now goes through the editor
+
+v0.1 said: append an entry, drop images in `public/cards/<slug>/`, redeploy.
+That still works, and the config is still a file you can edit by hand.
+
+But a v0.2 card has a slug whose random part is what protects it, a password
+whose hash is computed with scrypt, and photographs that belong in
+`private/cards/<slug>/` rather than `public/`. Doing all of that by hand is
+possible and easy to get subtly wrong, so the editor's **Share** tab does it:
+see [the editor](./editor.md).
+
 ## The editor
 
 `/editor` is a rough authoring UI over that one file: a card list, the six face

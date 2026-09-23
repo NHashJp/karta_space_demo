@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useProgress } from "@react-three/drei";
 import { landingNote, type ClientCard } from "@/lib/clientCard";
+import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import type { ExperienceEvent, OrbitPanel } from "@/lib/experienceState";
 import { CubeScene, type SceneComet } from "@/components/three/CubeScene";
 import { CardLanding } from "./CardLanding";
@@ -411,6 +412,15 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
       <AmbientOverlay />
 
       {/* Paragraph text also lives here as plain DOM, for assistive tech. */}
+      {/*
+        The whole card as plain DOM, for assistive tech (§18). Everything the
+        3D scene says is here in text — including the memories, which are
+        otherwise textures and <Html> inside a canvas.
+
+        The sender's comet message appears here only when it has returned, and
+        for the same reason it appears nowhere else before then: it is not in
+        the payload at all until its date (§14.1).
+      */}
       <div className="sr-only">
         <h1 lang="ja">{card.title}</h1>
         {card.faces.map((face, index) => (
@@ -419,6 +429,51 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           </p>
         ))}
         {secret ? <p lang="ja">{secret}</p> : null}
+
+        {card.satellite ? (
+          <section lang="ja">
+            <h2>衛星</h2>
+            <p>{card.satellite.message}</p>
+            <p>
+              {card.satelliteStatus === "returned"
+                ? "この日が、来ましたね。"
+                : `${formatFuzzyDate(card.satelliteNext ?? card.satellite.date)}${
+                    typeof card.daysUntil === "number" ? ` · あと${card.daysUntil}日` : ""
+                  }`}
+            </p>
+          </section>
+        ) : null}
+
+        {memories.length > 0 ? (
+          <section lang="ja">
+            <h2>航跡</h2>
+            {memories.map((memory, index) => (
+              <article key={index}>
+                <h3>{memory.title}</h3>
+                <p>{formatFuzzyDate(memory.date, memory)}</p>
+                {memory.caption ? <p>{memory.caption}</p> : null}
+                {memory.image ? <p>{memory.image.alt}</p> : null}
+              </article>
+            ))}
+          </section>
+        ) : null}
+
+        {card.senderComet ? (
+          <section lang="ja">
+            <h2>彗星</h2>
+            {card.senderComet.status === "returned" ? (
+              <>
+                <p>{card.from}の彗星が、戻ってきました。</p>
+                <p>{card.senderComet.message}</p>
+              </>
+            ) : (
+              <p>
+                {card.from}の彗星。{formatFuzzyDate(card.senderComet.returnsOn)}
+                に戻ってきます。
+              </p>
+            )}
+          </section>
+        ) : null}
       </div>
     </main>
   );

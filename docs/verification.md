@@ -131,6 +131,45 @@ blank scene with a console message that is easy to miss.
 The parser is not a project dependency — it is installed in a scratch directory
 when needed.
 
+## v0.2 sections
+
+The suite grew from six sections to eighteen, plus a second script. Rather than
+listing each, here is what each group is *for*:
+
+| Sections | What they protect |
+|---|---|
+| 1–5 | the cube's geometry, framing and content limits (v0.1) |
+| 6 | the v0.1 journey, transition for transition — the regression baseline |
+| 7 | fuzzy dates, the orbit clock, the comet's orbit, the trail's colours, the payload's seal |
+| 8 | the gate: normalisation, hashing, precedence, cookie invalidation |
+| 9 | orbit, the trail, panels, both one-way animations, all 14 preview targets |
+| 10 | the moving sun, and where the camera may and may not breathe |
+| 11 | orbit and trail framing at every viewport |
+| 12 | the satellite through a full year, and the landing line |
+| 13 | memories, and that photographs go through the gated route |
+| 14 | the comet's position as a countdown |
+| 15 | the three email templates, and that no env value reaches a body |
+| 16 | what the receiver may send, and what is stripped from it |
+| 17 | the seal: round-trip, and every way it must fail |
+| 18 | the reminder's date logic and its idempotency key |
+| `verify-spacing` | the 8-point grid, across CSS and inline styles |
+
+## Two checks worth explaining
+
+**Continuity cannot be a threshold.** "No two samples differ by more than X"
+cannot tell a *fast* curve from a *discontinuous* one — the deployment's
+thruster is deliberately the fastest part of that timeline and fails any bound
+the other three pass. What separates them is how the worst step behaves as
+sampling gets finer: a continuous curve halves when you double the resolution,
+a jump does not move. So the deployment is sampled at two resolutions.
+
+**A seal is checked by searching, not by asserting a flag.** The sender's comet
+message is not asserted "hidden" — the entire `JSON.stringify` of the payload
+is searched for it, before and after the return date. A message behind a
+boolean is not sealed. The same technique proves no environment value reaches
+an email body: each is set to a sentinel string, and the rendered templates are
+searched.
+
 ## Bugs this has caught
 
 | Bug | How it presented |
@@ -141,6 +180,12 @@ when needed.
 | `fitFontSize` rounding up | cost a character per line, added a whole line, overflowed the face |
 | Face text revealed outside `reading` | card content drawn behind the title screen |
 | Damping never reaching zero | materials would settle permanently at 99.9% opacity |
+| scrypt output is a prefix under truncation | a shortened hash still verified, on far fewer bits |
+| `L` left in the generated alphabet | §14.9 excludes it; removing it left 31 letters and a biased modulo |
+| Camera elevation broke the orbit projection | −18% margin where 8% was required |
+| Bounding-box framing of a 4-unit-deep scene | 31% margin, so the composition sat a third too small on every screen |
+| Newlines stripped from reply messages | a paragraph break was impossible; a newline in a *name* was header injection |
+| Comet key length checked in only one place | a short key threw from inside node's cipher instead of being refused |
 
 ## Limits
 
@@ -149,7 +194,9 @@ looks good, whether the rotation feels nice, or whether the type is beautiful �
 only that the numbers underneath are right. Real-device QA (spec §31, phase 7)
 is still a human job.
 
-It also checks content, not delivery: it says nothing about the password gate,
-the cookie, or the editor's write path, none of which are pure functions. Those
-are covered by the reasoning in
-[access and security](./access-and-security.md) and by running the thing.
+It checks content and logic, not delivery. It says nothing about whether an
+email actually arrives, whether a deployed card is reachable, or whether the
+editor's write path works — none of which are pure functions. Those were
+exercised by hand against a running server during each phase (the routes'
+status codes, the media route's guards, the seal over real HTTP), and the
+editor's own **live check** is the standing version of that for deployments.
