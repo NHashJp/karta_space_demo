@@ -2,6 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 
+/**
+ * A gesture aimed at a text field is not a gesture at the card. Without this,
+ * Space and the arrow keys inside a reply would navigate the letter instead of
+ * typing, and scrolling a long message would turn the cube (spec v0.2 §6.4).
+ */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest("input, textarea, select, [contenteditable]:not([contenteditable=\"false\"])"));
+}
+
 const WHEEL_THRESHOLD = 50;
 const SWIPE_THRESHOLD = 45;
 const GESTURE_QUIET_MS = 260;
@@ -44,6 +54,7 @@ export function useFaceNavigation(
     };
 
     const onWheel = (event: WheelEvent) => {
+      if (isTypingTarget(event.target)) return;
       event.preventDefault();
       restartQuietTimer();
       if (lockedRef.current || cooling.current) {
@@ -57,10 +68,13 @@ export function useFaceNavigation(
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      touchStart.current = event.touches[0]?.clientY ?? null;
+      touchStart.current = isTypingTarget(event.target)
+        ? null
+        : (event.touches[0]?.clientY ?? null);
     };
 
     const onTouchMove = (event: TouchEvent) => {
+      if (isTypingTarget(event.target)) return;
       // Stops iOS rubber-banding and pull-to-refresh from hijacking the swipe.
       event.preventDefault();
     };
@@ -76,6 +90,7 @@ export function useFaceNavigation(
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
       const forward = ["ArrowDown", "PageDown"].includes(event.key)
         || (event.key === " " && !event.shiftKey);
       const backward = ["ArrowUp", "PageUp"].includes(event.key)

@@ -5,6 +5,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   INSIDE_DISTANCE,
+  ORBIT_DISTANCE,
+  TRAIL_DISTANCE,
   ZOOM_DISTANCE,
   ZOOM_IN_MS,
   ZOOM_INSIDE_MS,
@@ -13,11 +15,19 @@ import {
   cameraDistance,
 } from "./framing";
 import { easeInOutQuint } from "./rotationPresets";
+import { DRIFT_MS, REWIND_MS, RESURFACE_MS } from "@/lib/timing";
 import type { CameraPhase } from "@/lib/experienceState";
 
 type Props = {
   /** far on the landing and closing screens, near while reading, inside the cube. */
   phase: CameraPhase;
+  /**
+   * Which stop along the trail the camera is heading for. The phase alone is
+   * not enough there: moving from one memory to the next never leaves "trail",
+   * so without this the rig would think it had already arrived and the second
+   * memory would never announce itself.
+   */
+  leg?: number;
   reducedMotion: boolean;
   onArrive: () => void;
 };
@@ -27,12 +37,25 @@ type Props = {
  * in when the card opens, out when it closes, and through the wall when the
  * card has something inside it.
  */
-export function CameraRig({ phase, reducedMotion, onArrive }: Props) {
+export function CameraRig({ phase, leg = 0, reducedMotion, onArrive }: Props) {
   const { camera, size } = useThree();
 
   const reading = cameraDistance(size.width, size.height);
   const waiting = reading + ZOOM_DISTANCE;
-  const target = phase === "inside" ? INSIDE_DISTANCE : phase === "near" ? reading : waiting;
+  const target =
+    phase === "inside"
+      ? INSIDE_DISTANCE
+      : phase === "near"
+        ? reading
+        : phase === "orbit"
+          ? ORBIT_DISTANCE
+          : phase === "trail"
+            ? TRAIL_DISTANCE
+            : waiting;
+
+  // One identity for "where the camera should be", so a move along the trail
+  // counts as a move even though the phase has not changed.
+  const pose = `${phase}:${phase === "trail" ? leg : 0}`;
 
   const from = useRef(target);
   const to = useRef(target);
@@ -43,13 +66,13 @@ export function CameraRig({ phase, reducedMotion, onArrive }: Props) {
   const arrive = useRef(onArrive);
   arrive.current = onArrive;
 
-  const previousPhase = useRef(phase);
+  const previousPose = useRef(pose);
 
   useEffect(() => {
     // First paint: sit at the target rather than drifting toward it.
     if (!mounted.current) {
       mounted.current = true;
-      previousPhase.current = phase;
+      previousPose.current = pose;
       to.current = target;
       camera.position.set(0, 0, target);
       camera.lookAt(0, 0, 0);
@@ -57,7 +80,7 @@ export function CameraRig({ phase, reducedMotion, onArrive }: Props) {
     }
 
     // A resize only re-frames — retarget without animating.
-    if (previousPhase.current === phase) {
+    if (previousPose.current === pose) {
       to.current = target;
       if (!running.current) {
         camera.position.z = target;
@@ -66,7 +89,8 @@ export function CameraRig({ phase, reducedMotion, onArrive }: Props) {
       return;
     }
 
-    previousPhase.current = phase;
+    const leavingTrail = previousPose.current.startsWith("trail:");
+    previousPose.current = pose;
     from.current = camera.position.z;
     to.current = target;
     startedAt.current = performance.now();
@@ -76,9 +100,17 @@ export function CameraRig({ phase, reducedMotion, onArrive }: Props) {
         ? ZOOM_INSIDE_MS
         : phase === "near"
           ? ZOOM_IN_MS
-          : ZOOM_OUT_MS;
+          : phase === "trail"
+            ? // Along the trail the camera is already there; only arriving on
+              // it from orbit is a journey.
+              leavingTrail
+              ? DRIFT_MS
+              : REWIND_MS
+            : leavingTrail
+              ? RESURFACE_MS
+              : ZOOM_OUT_MS;
     running.current = true;
-  }, [camera, phase, target, reducedMotion]);
+  }, [camera, phase, pose, target, reducedMotion]);
 
   useFrame(() => {
     if (!running.current) return;

@@ -13,10 +13,11 @@ import type { CardConfig } from "@/types/card";
  * entry at import time, so a malformed card fails the build rather than the
  * page.
  *
- * Passwords are never written here. Each card reads
- * `CARD_PASSWORD_<SLUG>` (slug upper-cased, non-alphanumerics as `_`), falling
- * back to `CARD_PASSWORD` for all cards, and is link-only when neither is set.
- * See `lib/access.ts`.
+ * Plaintext passwords are never written here. A card reads
+ * `CARD_PASSWORD_<SLUG>` (slug upper-cased, non-alphanumerics as `_`), then
+ * its own `access.passwordHash` if the editor issued one, then the shared
+ * `CARD_PASSWORD`, and is link-only when none of them is set. Only the salted
+ * hash and the hint are ever committed. See `lib/access.ts`.
  */
 export const cards: CardConfig[] = [
   {
@@ -45,10 +46,15 @@ export const cards: CardConfig[] = [
       receiverCanRelease: true,
     },
     reply: {},
+    // Newest first is how these are read, but they can be listed in any
+    // order — `sortMemoriesNewestFirst` puts them in order. One has no image,
+    // one is only approximately dated, one knows only its season.
     memories: [
-      { title: "はじめて会った日", date: "2023-04", approx: true },
-      { title: "夏の帰り道", date: "2023", season: "summer" },
-      { title: "最後の打ち上げ", date: "2026-02-14" },
+      { title: "はじめて会った日", date: "2023-04", approx: true, caption: "駅の改札で、ずいぶん待たせてしまった日。" },
+      { title: "夏の帰り道", date: "2023", season: "summer", caption: "何でもない話をしながら歩いた、あの時間。" },
+      { title: "初めての打ち合わせ", date: "2024-01-18" },
+      { title: "雪の日の約束", date: "2025-12", approx: true, caption: "積もったら行こうね、と言っていた場所。" },
+      { title: "最後の打ち上げ", date: "2026-02-14", caption: "また集まろう、と全員が言った夜。" },
     ],
     // TODO: replace the handles below with your own. Any entry left with an
     // empty `href` is simply not rendered on the closing screen.

@@ -27,6 +27,7 @@ import {
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
 import { toClientCard } from "../lib/clientCard.ts";
+import { JUMP_TARGETS, jumpEvents } from "../lib/devJump.ts";
 import { accessToken, cardSecret, checkPassword } from "../lib/access.ts";
 import {
   formatPassword,
@@ -40,10 +41,13 @@ import { resolveNow } from "../lib/devTime.ts";
 import {
   acceptsInput,
   cameraPhase,
+  dimsScene,
   initialExperience,
+  isDeployed,
   isWithinCube,
   isZoomedIn,
   reduceExperience,
+  revealsMemory,
   revealsSecret,
   revealsText,
   type Experience,
@@ -262,7 +266,9 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
 
 console.log("6. Experience flow (card content never shows on the end screens):");
 {
-  let exp: Experience = initialExperience;
+  // The v0.1 regression card: nothing past the closing screen. Every
+  // transition below must behave exactly as it did before v0.2.
+  let exp: Experience = initialExperience({ memoryCount: 0, hasOrbit: false });
   const seen: string[] = [];
   const send = (event: ExperienceEvent) => {
     exp = reduceExperience(exp, event);
@@ -332,7 +338,7 @@ console.log("6. Experience flow (card content never shows on the end screens):")
 
   // Input during any animated phase must be ignored.
   for (const phase of ["entering", "returning", "leaving", "transitioning", "descending", "ascending"] as const) {
-    const frozen: Experience = { state: phase, activeFace: 2 };
+    const frozen: Experience = { ...initialExperience(), state: phase, activeFace: 2 };
     const after = reduceExperience(frozen, { type: "move", direction: 1 });
     check(`${phase} ignores input`, after === frozen);
     check(`${phase} hides text`, !revealsText(phase));
@@ -373,7 +379,7 @@ console.log("6. Experience flow (card content never shows on the end screens):")
   for (const state of [
     "landing", "entering", "returning", "reading", "transitioning", "leaving", "descending", "ascending",
   ] as const) {
-    const frozen: Experience = { state, activeFace: 0 };
+    const frozen: Experience = { ...initialExperience(), state };
     check(`${state} cannot be revealed into`, reduceExperience(frozen, { type: "reveal" }) === frozen);
   }
 
@@ -384,6 +390,13 @@ console.log("6. Experience flow (card content never shows on the end screens):")
     check(`${state} hides the secret line`, !revealsSecret(state));
   }
   check("only 'inside' reveals the secret", revealsSecret("inside"));
+
+  // A card with no orbit ends where v0.1 ended: forward from the closing
+  // screen, and the deploy button itself, do nothing at all.
+  check("no orbit: scrolling on at the close is a no-op",
+    reduceExperience(exp, { type: "move", direction: 1 }) === exp);
+  check("no orbit: deploy is a no-op", reduceExperience(exp, { type: "deploy" }) === exp);
+  check("no orbit: lookBack is a no-op", reduceExperience(exp, { type: "lookBack" }) === exp);
 
   console.log(`  walked ${seen.length} transitions, ending at ${exp.state}:${exp.activeFace + 1}`);
 }
@@ -702,6 +715,203 @@ console.log("8. Access: forgiving passwords, hashes and precedence (spec v0.2 §
   else process.env[envKey] = before.perCard;
   if (before.shared === undefined) delete process.env.CARD_PASSWORD;
   else process.env.CARD_PASSWORD = before.shared;
+}
+
+console.log("9. Orbit, trail and panels (spec v0.2 §6):");
+{
+  const MEMORIES = 5;
+  const at = (state: Experience["state"], patch: Partial<Experience> = {}): Experience => ({
+    ...initialExperience({ memoryCount: MEMORIES, hasOrbit: true }),
+    state,
+    ...patch,
+  });
+
+  let exp = at("completed", { activeFace: 5 });
+  const send = (event: ExperienceEvent) => (exp = reduceExperience(exp, event));
+
+  // ---- out of the letter and into orbit -----------------------------------
+  send({ type: "move", direction: 1 });
+  check("scrolling on at the close deploys", exp.state === "deploying");
+  check("deploying is not dimmed on arrival", cameraPhase(exp.state) === "orbit");
+  check("deploying shows no face text", !revealsText(exp.state));
+  check("deploying ignores input", !acceptsInput(exp.state));
+  check("the cube is in satellite form", isDeployed(exp.state));
+  send({ type: "deployEnd" });
+  check("deployEnd lands in orbit", exp.state === "orbit");
+  check("orbit is at rest", acceptsInput(exp.state));
+  check("orbit is not dimmed", !dimsScene(exp.state));
+  check("orbit opens no panel by itself", exp.panel === null);
+
+  // ---- and back again, to exactly the screen we left ----------------------
+  send({ type: "dock" });
+  check("dock undeploys", exp.state === "undeploying");
+  check("undeploying dims the scene again", dimsScene(exp.state));
+  check("undeploying heads for the far pose", cameraPhase(exp.state) === "far");
+  send({ type: "deployEnd" });
+  check("undeploying lands at the closing screen", exp.state === "completed");
+  check("undeploying keeps the face it left from", exp.activeFace === 5);
+  send({ type: "deploy" });
+  send({ type: "deployEnd" });
+  check("the deploy button reaches orbit too", exp.state === "orbit");
+
+  // ---- panels: one at a time, and they swallow gestures -------------------
+  for (const panel of ["satellite", "reply", "comet"] as const) {
+    send({ type: "openPanel", panel });
+    check(`${panel} panel opens`, exp.panel === panel && exp.state === "orbit");
+    const held = exp;
+    check(`${panel} panel ignores a forward gesture`,
+      reduceExperience(held, { type: "move", direction: 1 }) === held);
+    check(`${panel} panel ignores a backward gesture`,
+      reduceExperience(held, { type: "move", direction: -1 }) === held);
+    check(`${panel} panel blocks dock`, reduceExperience(held, { type: "dock" }) === held);
+    check(`${panel} panel blocks the trail`,
+      reduceExperience(held, { type: "lookBack" }) === held);
+  }
+  send({ type: "closePanel" });
+  check("closing a panel returns to plain orbit", exp.panel === null && exp.state === "orbit");
+  check("a panel cannot be opened from outside orbit",
+    reduceExperience(at("remembering"), { type: "openPanel", panel: "reply" }).panel === null);
+
+  // ---- the trail: newest first, and never a dead end ----------------------
+  send({ type: "move", direction: 1 });
+  check("scrolling on in orbit rewinds onto the trail", exp.state === "rewinding");
+  check("the trail starts at the newest memory", exp.activeMemory === 0);
+  check("rewinding puts the camera on the trail", cameraPhase(exp.state) === "trail");
+  check("rewinding reveals no memory yet", !revealsMemory(exp.state));
+  send({ type: "zoomEnd" });
+  check("arrives remembering", exp.state === "remembering");
+  check("remembering reveals the memory", revealsMemory(exp.state));
+
+  for (let i = 0; i < MEMORIES - 1; i++) {
+    send({ type: "move", direction: 1 });
+    check(`drifting to memory ${i + 2}`, exp.state === "drifting" && exp.activeMemory === i + 1);
+    check(`memory ${i + 2} is hidden mid-drift`, !revealsMemory(exp.state));
+    send({ type: "zoomEnd" });
+    check(`memory ${i + 2} lands`, exp.state === "remembering" && exp.activeMemory === i + 1);
+  }
+
+  send({ type: "move", direction: 1 });
+  check("past the oldest memory the trail surfaces", exp.state === "resurfacing");
+  send({ type: "zoomEnd" });
+  check("resurfacing returns to orbit", exp.state === "orbit");
+
+  // The other end does the same, so neither end of someone else's memories is
+  // a place to get stuck.
+  exp = at("remembering", { activeMemory: 0 });
+  send({ type: "move", direction: -1 });
+  check("before the newest memory the trail surfaces", exp.state === "resurfacing");
+  send({ type: "zoomEnd" });
+  check("that end returns to orbit too", exp.state === "orbit");
+
+  // lookBack is a toggle: into the trail from orbit, out of it from a memory.
+  send({ type: "lookBack" });
+  check("lookBack enters the trail", exp.state === "rewinding");
+  send({ type: "zoomEnd" });
+  send({ type: "lookBack" });
+  check("lookBack leaves the trail", exp.state === "resurfacing");
+  send({ type: "zoomEnd" });
+
+  const noMemories = initialExperience({ memoryCount: 0, hasOrbit: true });
+  const orbitOnly = { ...noMemories, state: "orbit" as const };
+  check("with no memories there is no trail to enter",
+    reduceExperience(orbitOnly, { type: "lookBack" }) === orbitOnly);
+  check("with no memories scrolling on in orbit does nothing",
+    reduceExperience(orbitOnly, { type: "move", direction: 1 }) === orbitOnly);
+
+  // ---- launch and release only ever follow a server yes -------------------
+  check("launch needs the reply panel",
+    reduceExperience(at("orbit"), { type: "launch" }).state === "orbit");
+  check("launch is refused with the comet panel open",
+    reduceExperience(at("orbit", { panel: "comet" }), { type: "launch" }).state === "orbit");
+  let launched = reduceExperience(at("orbit", { panel: "reply" }), { type: "launch" });
+  check("launch from the reply panel flies", launched.state === "launching");
+  check("launching stays in the orbit pose", cameraPhase(launched.state) === "orbit");
+  check("launching ignores input", !acceptsInput(launched.state));
+  launched = reduceExperience(launched, { type: "launchEnd" });
+  check("the rocket leaves a star behind",
+    launched.state === "orbit" && launched.panel === null && launched.launched);
+  check("released is untouched by a launch", !launched.released);
+
+  check("release needs the comet panel",
+    reduceExperience(at("orbit"), { type: "release" }).state === "orbit");
+  check("release is refused with the reply panel open",
+    reduceExperience(at("orbit", { panel: "reply" }), { type: "release" }).state === "orbit");
+  let released = reduceExperience(at("orbit", { panel: "comet" }), { type: "release" });
+  check("release from the comet panel flies", released.state === "releasing");
+  released = reduceExperience(released, { type: "releaseEnd" });
+  check("the comet is on its way",
+    released.state === "orbit" && released.panel === null && released.released);
+  check("launched is untouched by a release", !released.launched);
+
+  // ---- the reveal rules hold over every new state too ---------------------
+  const v02 = [
+    "deploying", "orbit", "undeploying", "rewinding", "remembering",
+    "drifting", "resurfacing", "launching", "releasing",
+  ] as const;
+  for (const state of v02) {
+    check(`${state} hides face text`, !revealsText(state));
+    check(`${state} hides the secret line`, !revealsSecret(state));
+    check(`${state} cannot be revealed into`,
+      reduceExperience(at(state), { type: "reveal" }).state === state);
+    check(`${state} renders the cube deployed`, isDeployed(state));
+  }
+  for (const state of v02) {
+    if (state !== "remembering") check(`${state} attaches no memory`, !revealsMemory(state));
+  }
+  check("only 'remembering' reveals a memory", revealsMemory("remembering"));
+  for (const state of ["landing", "reading", "completed", "inside"] as const) {
+    check(`${state} is not deployed`, !isDeployed(state));
+    check(`${state} attaches no memory`, !revealsMemory(state));
+  }
+
+  // ---- ?at=: the preview walks the same road, only faster ----------------
+  const walk = (target: string, ctx = { memoryCount: MEMORIES, hasOrbit: true }) => {
+    const events = jumpEvents(target);
+    if (!events) return null;
+    return events.reduce(reduceExperience, initialExperience(ctx));
+  };
+
+  const arrivals: [string, string, Partial<Experience>][] = [
+    ["landing", "landing", {}],
+    ["face-1", "reading", { activeFace: 0 }],
+    ["face-4", "reading", { activeFace: 3 }],
+    ["face-6", "reading", { activeFace: 5 }],
+    ["closing", "completed", {}],
+    ["inside", "inside", {}],
+    ["orbit", "orbit", { panel: null }],
+    ["trail", "remembering", { activeMemory: 0 }],
+    ["satellite", "orbit", { panel: "satellite" }],
+    ["comet", "orbit", { panel: "comet" }],
+    ["reply", "orbit", { panel: "reply" }],
+  ];
+  for (const [target, expected, fields] of arrivals) {
+    const reached = walk(target);
+    check(`?at=${target} reaches ${expected}`, reached?.state === expected, reached?.state);
+    for (const [key, value] of Object.entries(fields)) {
+      check(`?at=${target} sets ${key}`,
+        reached?.[key as keyof Experience] === value, String(reached?.[key as keyof Experience]));
+    }
+  }
+  check("?at= refuses a target it does not know", jumpEvents("satellite-panel") === null);
+  check("?at= refuses an empty target", jumpEvents(undefined) === null);
+
+  // A target the card cannot reach stops at the last state it does have,
+  // rather than inventing one.
+  const plain = walk("orbit", { memoryCount: 0, hasOrbit: false });
+  check("?at=orbit on a v0.1 card stays at the closing screen", plain?.state === "completed",
+    plain?.state);
+
+  {
+    const nodeEnv = process.env.NODE_ENV;
+    // @ts-expect-error NODE_ENV is typed as readonly, and this is the point of the check.
+    process.env.NODE_ENV = "production";
+    check("?at= is ignored in production", jumpEvents("orbit") === null);
+    // @ts-expect-error restoring it again
+    process.env.NODE_ENV = nodeEnv;
+  }
+
+  console.log(`  orbit, ${MEMORIES} memories on the trail, 3 panels, 2 one-way animations`);
+  console.log(`  ?at= reaches all ${JUMP_TARGETS.length} preview targets`);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

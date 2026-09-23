@@ -4,6 +4,7 @@ import { getCardBySlug } from "@/lib/cards";
 import { canView, passwordRequired } from "@/lib/access";
 import { toClientCard } from "@/lib/clientCard";
 import { resolveNow } from "@/lib/devTime";
+import { firstParam } from "@/lib/devJump";
 import { cardVersion } from "@/lib/cardVersion";
 import { mailReady, cometReady } from "@/lib/notify";
 import { PasswordGate } from "@/components/access/PasswordGate";
@@ -44,7 +45,8 @@ export default async function CardPage({ params, searchParams }: Props) {
     );
   }
 
-  const now = resolveNow((await searchParams).now);
+  const query = await searchParams;
+  const now = resolveNow(firstParam(query.now));
   const clientCard = toClientCard(card, now, {
     mailReady: mailReady(card.slug),
     cometReady: cometReady(),
@@ -53,7 +55,7 @@ export default async function CardPage({ params, searchParams }: Props) {
   return (
     <>
       <meta name="karta-version" content={version} />
-      <CardExperience card={clientCard} />
+      <CardExperience card={clientCard} jumpTo={firstParam(query.at)} />
     </>
   );
 }

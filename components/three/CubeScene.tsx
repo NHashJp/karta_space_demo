@@ -17,6 +17,8 @@ type Props = {
   revealText: boolean;
   /** Where the camera should be: far back, at the face, or inside the cube. */
   cameraPhase: CameraPhase;
+  /** Which stop along the trail, when the camera is on it. */
+  cameraLeg?: number;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   within: boolean;
@@ -28,14 +30,19 @@ type Props = {
   onZoomEnd: () => void;
 };
 
-export function CubeScene({ cameraPhase, dimmed, onZoomEnd, ...cube }: Props) {
+export function CubeScene({ cameraPhase, cameraLeg, dimmed, onZoomEnd, ...cube }: Props) {
   return (
     <Canvas
       dpr={[1, 1.75]}
       gl={{ antialias: true, alpha: false }}
       camera={{ fov: FOV, position: [0, 0, 16], near: 0.1, far: 120 }}
     >
-      <CameraRig phase={cameraPhase} reducedMotion={cube.reducedMotion} onArrive={onZoomEnd} />
+      <CameraRig
+        phase={cameraPhase}
+        leg={cameraLeg}
+        reducedMotion={cube.reducedMotion}
+        onArrive={onZoomEnd}
+      />
       <SpaceEnvironment reducedMotion={cube.reducedMotion} dimmed={dimmed} />
       <Suspense fallback={null}>
         <MessageCube {...cube} dimmed={dimmed} />

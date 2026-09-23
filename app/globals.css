@@ -784,3 +784,289 @@ body {
 .secret-line[data-visible="true"] {
   opacity: 1;
 }
+
+/* ---------- the orbit view (spec v0.2 §8.1, §8.3) ---------- */
+
+/*
+ * The offer to go on surfaces after the closing screen has read as an ending,
+ * for the same reason the secret one does — and earlier than it, so the two
+ * never arrive together and turn a quiet ending into a menu.
+ */
+.orbit-offer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 1400ms ease, transform 1400ms ease;
+  pointer-events: none;
+}
+
+.orbit-offer[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.orbit-offer__line {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  color: var(--lunar);
+}
+
+.orbit-offer__cue {
+  font-size: 0.8rem;
+  color: var(--titanium);
+  animation: cue-drift 2400ms ease-in-out infinite;
+}
+
+@keyframes cue-drift {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(4px); opacity: 0.9; }
+}
+
+/*
+ * Orbit chrome does not cover the sky. It sits at the edges and lets every
+ * pointer event through to the scene, so the objects up there stay tappable;
+ * only the controls themselves take input back.
+ */
+.orbit-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+.orbit-ui__tip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--titanium);
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+
+.orbit-ui__tip[data-visible="true"] {
+  opacity: 1;
+}
+
+.orbit-bar {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+/* Receiver-facing controls are 48px tall, whatever the text in them (§23.1). */
+.orbit-bar .button {
+  min-height: 48px;
+}
+
+/*
+ * Off the closing screen and out of the way: bottom-left beside the bar on a
+ * wide screen, top-left on a phone where the bar owns the bottom edge.
+ */
+.orbit-ui .social {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  margin: 0;
+  gap: 16px;
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  .orbit-ui .social {
+    bottom: auto;
+    top: max(16px, env(safe-area-inset-top));
+  }
+}
+
+/* ---------- orbit panels (§8.4, §10.2, §11.3) ---------- */
+
+.panel-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  background: rgba(5, 7, 12, 0.56);
+  animation: panel-arrive 240ms ease both;
+}
+
+@keyframes panel-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.panel {
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  text-align: left;
+  border: 1px solid var(--charcoal);
+  border-radius: 8px;
+  background: rgba(10, 12, 16, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.panel:focus-visible {
+  outline: 2px solid var(--ion);
+  outline-offset: 3px;
+}
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--charcoal);
+}
+
+.panel__title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--lunar);
+}
+
+.panel__close {
+  /* grid-exempt: a 44px target around a glyph that is smaller than the target. */
+  width: 44px;
+  height: 44px;
+  margin: -8px -8px -8px 0;
+  border: 0;
+  background: none;
+  color: var(--titanium);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.panel__close:hover,
+.panel__close:focus-visible {
+  color: var(--starlight);
+}
+
+.panel__body {
+  font-size: 0.88rem;
+  line-height: 1.9;
+  color: var(--asteroid);
+}
+
+/* ---------- the trail (§9.2) ---------- */
+
+.trail-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+.trail-ui__progress {
+  position: absolute;
+  top: max(24px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+
+.trail-ui__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(176, 180, 186, 0.3);
+  transition: background 320ms ease, transform 320ms ease;
+}
+
+.trail-ui__dot[data-active="true"] {
+  background: var(--ion);
+  transform: scale(1.5);
+}
+
+/*
+ * The memory's own words. They fade rather than move: text must never travel
+ * while it is being read (§23.5).
+ */
+.trail-ui__memory {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  width: min(480px, calc(100% - 32px));
+  text-align: center;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.trail-ui__memory[data-visible="true"] {
+  opacity: 1;
+}
+
+.trail-ui__date {
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: var(--titanium);
+}
+
+.trail-ui__title {
+  margin-top: 8px;
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--starlight);
+}
+
+.trail-ui__caption {
+  margin-top: 8px;
+  font-size: 0.88rem;
+  line-height: 1.8;
+  color: var(--asteroid);
+}
+
+.trail-ui__hint {
+  position: absolute;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: var(--titanium);
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+
+.trail-ui__hint[data-visible="true"] {
+  opacity: 1;
+}
+
+.trail-ui__back {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  min-height: 48px;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-offer__cue {
+    animation: none;
+  }
+}

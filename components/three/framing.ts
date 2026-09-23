@@ -21,6 +21,14 @@ export const INSIDE_DISTANCE = 0.62;
 /** The secret line hangs just inside the far wall. */
 export const SECRET_PLANE_Z = -0.94;
 
+/**
+ * v0.2 poses (spec v0.2 §8.3, §9.3). Placeholder distances for now: phase 5
+ * replaces these with real pose paths that also move the camera off the z
+ * axis, and the framing checks in §17 come with them.
+ */
+export const ORBIT_DISTANCE = 13.5;
+export const TRAIL_DISTANCE = 9;
+
 /** Fraction of the viewport's governing axis the front face should occupy. */
 const DESKTOP_FILL = 0.55; // of viewport height (spec §15: 45-65%)
 const MOBILE_FILL = 0.75; // of viewport width  (spec §15: 65-80%)
