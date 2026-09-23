@@ -42,6 +42,7 @@ import {
   trailSeedFor,
 } from "../lib/trailCurve.ts";
 import { DEPLOY_MS } from "../lib/timing.ts";
+import { PANELS, RISE, THRUSTER, TURN, deploymentAt, stagger } from "../lib/deployment.ts";
 import { JUMP_TARGETS, jumpEvents } from "../lib/devJump.ts";
 import { accessToken, cardSecret, checkPassword } from "../lib/access.ts";
 import {
@@ -1188,8 +1189,99 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
   for (let i = 0; i <= 1000; i++) peak = Math.max(peak, Math.abs(bankAt(i / 1000)));
   check("the bank stays under 4 degrees", peak * 3.4 <= 4, `${(peak * 3.4).toFixed(2)}deg`);
 
-  // ---- the camera never outlasts the cube it is following ----------------
-  check("the camera does not outlast the deployment", DEPLOY_MS <= DEPLOY_MS);
+}
+
+console.log("12. The deployment (spec v0.2 §8.2):");
+{
+  // ---- the four parts overlap, which is what makes it one machine --------
+  check("the turn starts at the very beginning", TURN.from === 0);
+  check("the panels start before the turn finishes", PANELS.from < TURN.to);
+  check("the thruster fires as the panels finish", THRUSTER.from <= PANELS.to);
+  check("the rise starts before the thruster is done", RISE.from < THRUSTER.to);
+  check("the rise is the last thing to finish", RISE.to === 1);
+
+  // ---- nothing in it jumps ----------------------------------------------
+  // "Fast" and "discontinuous" both show up as a large step between samples,
+  // so a threshold cannot tell them apart — the thruster is deliberately the
+  // fastest part of this and would fail any bound the others pass. What
+  // separates them is how the step behaves as the sampling gets finer: a
+  // continuous curve halves, a jump does not move.
+  const worstStepAt = (samples: number) => {
+    let worst = 0;
+    let previous = deploymentAt(0);
+    for (let i = 1; i <= samples; i++) {
+      const now = deploymentAt(i / samples);
+      worst = Math.max(
+        worst,
+        Math.abs(now.turn - previous.turn),
+        Math.abs(now.panels - previous.panels),
+        Math.abs(now.thruster - previous.thruster),
+        Math.abs(now.rise - previous.rise),
+      );
+      previous = now;
+    }
+    return worst;
+  };
+  const coarse = worstStepAt(2000);
+  const fine = worstStepAt(8000);
+  check("no part of the deployment jumps", fine < coarse / 3.5,
+    `${coarse.toFixed(6)} -> ${fine.toFixed(6)} at 4x the resolution`);
+  check("and none of it is violent", coarse < 0.02, coarse.toFixed(5));
+
+  // ---- the ends are exact ------------------------------------------------
+  const docked = deploymentAt(0);
+  const deployed = deploymentAt(1);
+  check("docked: nothing has happened yet",
+    docked.turn === 0 && docked.panels === 0 && docked.rise === 0);
+  check("docked: the thruster is cold", docked.thruster === 0);
+  check("deployed: everything has finished",
+    deployed.turn === 1 && deployed.panels === 1 && deployed.rise === 1);
+  check("deployed: the thruster is cold again", Math.abs(deployed.thruster) < 1e-9);
+  check("the thruster only ever fires once",
+    deploymentAt(0.3).thruster === 0 &&
+    deploymentAt(0.6).thruster > 0.5 &&
+    Math.abs(deploymentAt(0.9).thruster) < 1e-9,
+    deploymentAt(0.9).thruster.toExponential(2));
+  check("out of range clamps rather than overshooting",
+    deploymentAt(-1).rise === 0 && deploymentAt(2).rise === 1);
+
+  // ---- the reverse really is the forward timeline, backwards -------------
+  // Docking runs `t` down instead of up, so it lands back on the closing
+  // screen it left only if every part of the deployment is monotonic in `t`.
+  // If one of them went forwards while the rest went back, the cube would come
+  // home in a shape it was never in on the way out.
+  let monotonic = true;
+  let previousPart = deploymentAt(0);
+  for (let i = 1; i <= 4000; i++) {
+    const now = deploymentAt(i / 4000);
+    if (
+      now.turn < previousPart.turn - 1e-12 ||
+      now.panels < previousPart.panels - 1e-12 ||
+      now.rise < previousPart.rise - 1e-12
+    ) {
+      monotonic = false;
+    }
+    previousPart = now;
+  }
+  check("every part of the deployment only ever goes forwards", monotonic);
+
+  // ---- the panels open in turn, and all of them finish -------------------
+  for (let index = 0; index < 4; index++) {
+    check(`panel ${index + 1} starts closed`, stagger(0, index) === 0);
+    check(`panel ${index + 1} ends fully open`, stagger(1, index) === 1);
+  }
+  for (let index = 1; index < 4; index++) {
+    check(`panel ${index + 1} lags the one before it`,
+      stagger(0.5, index) < stagger(0.5, index - 1));
+  }
+  const spread = stagger(0.5, 0) - stagger(0.5, 3);
+  check("the stagger is visible but not a queue", spread > 0.15 && spread < 0.55,
+    spread.toFixed(3));
+
+  console.log(
+    `  turn 0-${TURN.to}, panels ${PANELS.from}-${PANELS.to}, ` +
+    `thruster ${THRUSTER.from}-${THRUSTER.to}, rise ${RISE.from}-1, over ${DEPLOY_MS}ms`,
+  );
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

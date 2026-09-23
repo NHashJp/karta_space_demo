@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Edges } from "@react-three/drei";
 import * as THREE from "three";
 import type { CardFace } from "@/types/card";
+import { CubeSatPanels } from "./CubeSatPanels";
 import { TextFace } from "./TextFace";
 import { ImageFace } from "./ImageFace";
 import { SecretFace } from "./SecretFace";
@@ -15,8 +16,19 @@ import {
   pickPreset,
   type RotationPreset,
 } from "./rotationPresets";
+import {
+  DISPLAY_PITCH,
+  DISPLAY_YAW,
+  deploymentAt,
+  type Deployment,
+} from "@/lib/deployment";
+import { DEPLOY_MS, REDUCED_MS } from "@/lib/timing";
 
 const HALF_PI = Math.PI / 2;
+
+/** Scratch, so the deployment allocates nothing per frame. */
+const DISPLAY = new THREE.Quaternion();
+const EULER = new THREE.Euler();
 
 /** Where each face plane sits, in the order Front, Right, Back, Left, Top, Bottom. */
 const FACE_PLACEMENT: { position: [number, number, number]; rotation: [number, number, number] }[] = [
@@ -43,6 +55,22 @@ type Props = {
   revealSecret: boolean;
   reducedMotion: boolean;
   onTransitionEnd: () => void;
+  /**
+   * Which way the deployment is running, if it is (spec v0.2 §8.2). The cube
+   * owns this animation, so it also owns saying when it is finished — the
+   * camera follows the same constant but never decides the phase.
+   */
+  deploying?: "out" | "in" | null;
+  /**
+   * Written every frame, read by whatever else needs to know how far along the
+   * deployment is — the carrier that flies the cube to its orbit, and the ring
+   * that fades in under it. A ref rather than state, because this changes 60
+   * times a second and none of those are React renders.
+   */
+  progress?: React.RefObject<number>;
+  onDeployEnd?: () => void;
+  seed?: number;
+  returned?: boolean;
 };
 
 export function MessageCube({
@@ -56,9 +84,23 @@ export function MessageCube({
   revealSecret,
   reducedMotion,
   onTransitionEnd,
+  deploying = null,
+  progress,
+  onDeployEnd,
+  seed = 0,
+  returned = false,
 }: Props) {
   const cube = useRef<THREE.Group>(null);
   const idle = useRef<THREE.Group>(null);
+  const thruster = useRef<THREE.PointLight>(null);
+  const glow = useRef<THREE.Mesh>(null);
+
+  // 0 = the letter, 1 = a satellite in orbit. It lives here because the cube
+  // is what is being deployed; everything else reads it.
+  const local = useRef(progress?.current ?? 0);
+  const [phase, setPhase] = useState<Deployment>(() => deploymentAt(local.current));
+  const deployStartedAt = useRef(0);
+  const deployFrom = useRef(0);
 
   const from = useRef(new THREE.Quaternion().copy(FACE_ORIENTATIONS[0]));
   const to = useRef(new THREE.Quaternion().copy(FACE_ORIENTATIONS[0]));
@@ -71,6 +113,14 @@ export function MessageCube({
   // needing every material threaded through props.
   const dim = useRef(0);
   const baseOpacity = useRef(new WeakMap<THREE.Material, number>());
+
+  // A deployment starts from wherever the cube currently is, so an interrupted
+  // one reverses out of its own position rather than snapping to an end.
+  useEffect(() => {
+    if (!deploying) return;
+    deployFrom.current = local.current;
+    deployStartedAt.current = performance.now();
+  }, [deploying]);
 
   // A change of active face starts a transition from wherever the cube is now.
   useEffect(() => {
@@ -86,6 +136,38 @@ export function MessageCube({
   useFrame((frameState, delta) => {
     const group = cube.current;
     if (!group) return;
+
+    // ---- the deployment ---------------------------------------------------
+    if (deploying) {
+      const target = deploying === "out" ? 1 : 0;
+      const span = Math.abs(target - deployFrom.current) || 1;
+      const total = (reducedMotion ? REDUCED_MS : DEPLOY_MS) * span;
+      const t = Math.min((performance.now() - deployStartedAt.current) / total, 1);
+      local.current = deployFrom.current + (target - deployFrom.current) * t;
+
+      if (t >= 1) {
+        local.current = target;
+        // The cube says when it has arrived. Nothing else may decide this: the
+        // camera runs the same constant, but if it announced the end the two
+        // could disagree by a frame at a low frame rate and the panels would
+        // still be moving when the orbit UI appeared.
+        onDeployEnd?.();
+      }
+    }
+
+    if (progress) progress.current = local.current;
+    const now = deploymentAt(local.current);
+    // React only needs to hear about this when it crosses a threshold that
+    // mounts or unmounts something; the rest is written straight to the scene.
+    if ((now.panels > 0) !== (phase.panels > 0)) setPhase(now);
+
+    if (thruster.current) thruster.current.intensity = now.thruster * 2;
+    if (glow.current) {
+      glow.current.visible = now.thruster > 0.01;
+      const material = glow.current.material as THREE.Material & { opacity: number };
+      material.opacity = now.thruster * 0.7;
+      glow.current.scale.setScalar(0.6 + now.thruster * 0.9);
+    }
 
     // Damping approaches zero asymptotically, so snap the tail and run one
     // last pass at full opacity — otherwise materials settle just below it.
@@ -108,7 +190,18 @@ export function MessageCube({
       });
     }
 
-    if (preset.current) {
+    if (local.current > 0) {
+      // Deployed, the cube holds a 3/4 view rather than a face: it has stopped
+      // being a page to read and become an object to look at. Blended from
+      // whichever face was last read, so the turn is continuous.
+      DISPLAY.setFromEuler(EULER.set(DISPLAY_PITCH, DISPLAY_YAW, 0));
+      group.quaternion.slerp(DISPLAY, now.turn);
+      // A slow tumble, so a satellite at rest is not a still image of one.
+      if (!reducedMotion && local.current >= 1) {
+        const wobble = Math.sin(frameState.clock.elapsedTime * 0.21) * 0.105;
+        group.rotateY(wobble * delta);
+      }
+    } else if (preset.current) {
       const elapsed = performance.now() - startedAt.current;
       const t = Math.min(elapsed / preset.current.duration, 1);
       orientationAt(from.current, to.current, preset.current, t, scratch.current);
@@ -171,6 +264,31 @@ export function MessageCube({
       ) : null}
 
       <group ref={cube}>
+        <CubeSatPanels
+          open={phase.panels}
+          seed={seed}
+          returned={returned}
+          reducedMotion={reducedMotion}
+        />
+
+        {/*
+          One soft pulse under the cube as it leaves. A thruster you can see
+          the shape of would be a rocket; this is a nudge, which is what moves
+          something that is already weightless.
+        */}
+        <pointLight ref={thruster} position={[0, -1.4, 0]} intensity={0} distance={6} color="#8fd9ff" />
+        <mesh ref={glow} position={[0, -1.3, 0]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+          <circleGeometry args={[1.1, 32]} />
+          <meshBasicMaterial
+            color="#8fd9ff"
+            transparent
+            opacity={0}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            toneMapped={false}
+          />
+        </mesh>
+
         <mesh>
           <boxGeometry args={[2, 2, 2]} />
           <meshPhysicalMaterial

@@ -13,7 +13,7 @@ import { Panel } from "./Panel";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
-import { DEPLOY_MS, LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
+import { LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
 import { jumpEvents } from "@/lib/devJump";
 import { lightSeed } from "@/lib/sceneLight";
 import {
@@ -31,15 +31,13 @@ import {
 } from "@/lib/experienceState";
 
 /**
- * Animations whose owning component does not exist yet (spec §19 phases 6, 13
- * and 14 build them). Until then this keeps the flow walkable end to end: each
+ * Animations whose owning component does not exist yet (spec §19 phases 13 and
+ * 14 build them). Until then this keeps the flow walkable end to end: each
  * state still lasts its real duration and still ends by dispatching the event
  * its future owner will dispatch, so nothing but the visuals changes when
- * `MessageCube`, `RocketLaunch` and `CometRelease` take these over.
+ * `RocketLaunch` and `CometRelease` take these over.
  */
 const TIMED_PHASES: Partial<Record<string, { ms: number; event: ExperienceEvent }>> = {
-  deploying: { ms: DEPLOY_MS, event: { type: "deployEnd" } },
-  undeploying: { ms: DEPLOY_MS, event: { type: "deployEnd" } },
   launching: { ms: LAUNCH_MS, event: { type: "launchEnd" } },
   releasing: { ms: RELEASE_MS, event: { type: "releaseEnd" } },
 };
@@ -95,6 +93,7 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
   const onZoomEnd = useCallback(() => dispatch({ type: "zoomEnd" }), []);
   const onReveal = useCallback(() => dispatch({ type: "reveal" }), []);
   const onDeploy = useCallback(() => dispatch({ type: "deploy" }), []);
+  const onDeployEnd = useCallback(() => dispatch({ type: "deployEnd" }), []);
   const onDock = useCallback(() => dispatch({ type: "dock" }), []);
   const onLookBack = useCallback(() => dispatch({ type: "lookBack" }), []);
   const onClosePanel = useCallback(() => dispatch({ type: "closePanel" }), []);
@@ -113,13 +112,10 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
     card.satelliteStatus === "returned" || card.senderComet?.status === "returned";
   const atRest = breathesAtRest(state);
 
-  /**
-   * How far the cube has become a satellite. §19 phase 6 hands this to
-   * `MessageCube`, which will drive it from the deployment timeline; until
-   * then it is the state's own answer, eased by the CSS-free lerp in the
-   * carrier, so the orbit composition is already correct to frame and check.
-   */
-  const presence = isDeployed(state) ? (state === "deploying" ? 1 : 1) : 0;
+  // The cube owns the deployment animation and says when it is done; this
+  // only tells it which way to run (spec v0.2 §8.2).
+  const deploying =
+    state === "deploying" ? ("out" as const) : state === "undeploying" ? ("in" as const) : null;
 
   useFaceNavigation(move, !acceptsInput(state), state !== "landing");
 
@@ -151,7 +147,9 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           returned={returned}
           atRest={atRest}
           memoryCount={memoryCount}
-          presence={presence}
+          deploying={deploying}
+          deployed={isDeployed(state)}
+          onDeployEnd={onDeployEnd}
           secret={secret}
           within={isWithinCube(state)}
           revealSecret={revealsSecret(state)}

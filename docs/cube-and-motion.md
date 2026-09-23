@@ -138,3 +138,76 @@ One wrinkle worth knowing about: `THREE.MathUtils.damp` approaches its target
 asymptotically and never arrives. Without a snap, materials would settle
 permanently at 99.9% opacity on the way back. The loop therefore zeroes the
 tail below 0.002 and runs one final pass at full opacity.
+
+## The deployment (v0.2)
+
+The cube turns over, unfolds four solar panels, lights a thruster and rises
+into orbit. It is the moment the whole of v0.2 is built around, and it is one
+animation with four **overlapping** parts:
+
+```
+0                 0.25      0.55  0.65            1
+|--- turn --------|
+        |--- panels ------|
+                          |thrust|
+                       |--- rise ------------------|
+```
+
+The overlaps are the point. Four strictly sequential steps read as a list of
+four things happening; bleeding into each other, they read as one machine doing
+one thing. `lib/deployment.ts` holds the windows and is pure, so verify can
+assert the shape rather than anyone having to watch it: that the phases overlap
+as specified, that the thruster fires exactly once, that the ends are exact,
+and that every part is monotonic in `t`.
+
+That last one is what makes **docking** safe. Undeploying is not a second
+animation — it is the same timeline with `t` running down instead of up. If one
+part of it went forwards while the rest went back, the cube would come home in
+a shape it was never in on the way out.
+
+### Continuity, and why a threshold cannot check it
+
+The obvious check — "no two samples differ by more than X" — cannot tell a
+*fast* curve from a *discontinuous* one, and the thruster is deliberately the
+fastest part of this: it rises and falls inside a window a tenth of the
+timeline wide, so it fails any bound the other three pass.
+
+What separates the two is how the worst step behaves as the sampling gets
+finer. A continuous curve halves when you double the resolution; a jump does
+not move at all. So verify samples at two resolutions and asserts the finer one
+is proportionally smaller.
+
+### Who owns it
+
+The cube. `MessageCube` runs the clock and dispatches `deployEnd`, and nothing
+else may: `CameraRig` reads the same `DEPLOY_MS`, but if the camera announced
+the end the two could disagree by a frame at a low frame rate, and the panels
+would still be moving when the orbit UI appeared.
+
+Progress is published through a **ref** rather than state. The carrier that
+flies the cube to its ellipse and the ring that fades in under it both read it
+every frame, and none of those 60 reads a second should be a React render. The
+only thing that goes through state is the panel mount, which crosses a
+threshold once per deployment.
+
+### Why the panels hinge at the top
+
+Each panel lies flat against one of the four side faces and swings **up** 90°
+on a hinge along that face's top edge, until all four are level with the top
+face — a cross, seen from above.
+
+A bottom hinge would have each folded panel hanging *down* past the cube's
+lower edge, so a docked cube would sit there with four plates dangling under
+it. Hinged at the top, a folded panel reaches exactly to the bottom edge (1.9
+of the cube's 2 units) and the closed cube is still a cube.
+
+They open 80 ms apart rather than together, which is the difference between one
+mechanism with four arms and four latches releasing.
+
+### The glint comes free
+
+`shaders/panelCells.ts` draws the cells rather than texturing them, and gives
+them a hard specular (exponent 68) — glass over silicon is nearly black until
+the sun's angle lines up, and then it flares. Because the sun *moves* on its
+own (§23.3), that flare sweeps across the four panels in turn every couple of
+minutes without anyone animating it.

@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { orbitPosition } from "./framing";
 
 const SEGMENTS = 192;
-const OPACITY = 0.18;
+export const RING_OPACITY = 0.18;
 
 /**
  * The line the satellite travels (spec v0.2 §8.3).
@@ -15,26 +15,24 @@ const OPACITY = 0.18;
  * speck is visibly *in orbit* — the shape tells you it will come back round.
  * Drawn from the same `orbitPosition` the satellite follows, so the two can
  * never disagree about where the orbit is.
+ *
+ * Built as a `THREE.Line` and mounted with `<primitive>` rather than written
+ * as `<line>`: that JSX tag is also SVG's, and the two collide over the ref.
  */
-export function OrbitRing({ opacity = OPACITY }: { opacity?: number }) {
-  const geometry = useMemo(() => {
+export function useOrbitRing(): THREE.Line {
+  return useMemo(() => {
     const points: THREE.Vector3[] = [];
     for (let i = 0; i <= SEGMENTS; i++) {
       points.push(new THREE.Vector3(...orbitPosition((i / SEGMENTS) * Math.PI * 2)));
     }
-    return new THREE.BufferGeometry().setFromPoints(points);
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color: "#9fb4c9",
+      transparent: true,
+      opacity: RING_OPACITY,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    return new THREE.Line(geometry, material);
   }, []);
-
-  return (
-    <line>
-      <primitive object={geometry} attach="geometry" />
-      <lineBasicMaterial
-        color="#9fb4c9"
-        transparent
-        opacity={opacity}
-        depthWrite={false}
-        toneMapped={false}
-      />
-    </line>
-  );
 }

@@ -3,10 +3,11 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { OrbitRing } from "./OrbitRing";
+import { RING_OPACITY, useOrbitRing } from "./OrbitRing";
 import { Planet } from "./Planet";
 import { orbitPosition } from "./framing";
 import { ORBIT_PERIOD_S } from "@/lib/timing";
+import { deploymentAt } from "@/lib/deployment";
 
 /** The satellite's size once the cube has become one (spec v0.2 §22). */
 export const SAT_SCALE = 0.42;
@@ -15,8 +16,12 @@ type Props = {
   seed: number;
   returned: boolean;
   reducedMotion: boolean;
-  /** 0 while docked, 1 once fully in orbit; the deployment crosses it. */
-  presence: number;
+  /**
+   * 0 while docked, 1 once fully in orbit. A ref, written by `MessageCube`
+   * every frame: it owns the deployment, and this is how the rest of the scene
+   * follows along without a React render per frame.
+   */
+  presence: React.RefObject<number>;
 };
 
 /**
@@ -28,19 +33,21 @@ type Props = {
  * the closing screen rather than on first load.
  */
 export function OrbitScene({ seed, returned, reducedMotion, presence }: Props) {
-  const ring = useRef<THREE.Group>(null);
+  const ring = useOrbitRing();
 
   useFrame(() => {
-    // The ring fades in behind the satellite rather than appearing with it.
-    if (ring.current) ring.current.visible = presence > 0.05;
+    // The ring fades in under the satellite rather than appearing with it:
+    // nothing at all until the cube is on its way, then up to full as it
+    // settles onto the ellipse.
+    const material = ring.material as THREE.Material & { opacity: number };
+    material.opacity = RING_OPACITY * Math.max(0, presence.current * 2 - 1);
+    ring.visible = material.opacity > 0.002;
   });
 
   return (
     <group>
       <Planet seed={seed} returned={returned} reducedMotion={reducedMotion} />
-      <group ref={ring}>
-        <OrbitRing opacity={0.18 * presence} />
-      </group>
+      <primitive object={ring} />
     </group>
   );
 }
@@ -60,7 +67,7 @@ export function SatelliteCarrier({
   reducedMotion,
   children,
 }: {
-  presence: number;
+  presence: React.RefObject<number>;
   reducedMotion: boolean;
   children: React.ReactNode;
 }) {
@@ -73,11 +80,14 @@ export function SatelliteCarrier({
     const theta = reducedMotion ? 0.9 : (clock.elapsedTime / ORBIT_PERIOD_S) * Math.PI * 2 + 0.9;
     const [x, y, z] = orbitPosition(theta);
 
+    // Only the last part of the deployment moves the cube — it turns and
+    // unfolds where it is, then leaves (spec v0.2 §8.2, the RISE window).
+    const rise = deploymentAt(presence.current).rise;
+
     // Docked, the cube is at the origin at full size; deployed, it is on the
-    // ellipse at satellite scale. Everything between is the deployment.
-    carrier.position.set(x * presence, y * presence, z * presence);
-    const scale = 1 + (SAT_SCALE - 1) * presence;
-    carrier.scale.setScalar(scale);
+    // ellipse at satellite scale. Everything between is the journey.
+    carrier.position.set(x * rise, y * rise, z * rise);
+    carrier.scale.setScalar(1 + (SAT_SCALE - 1) * rise);
   });
 
   return <group ref={group}>{children}</group>;

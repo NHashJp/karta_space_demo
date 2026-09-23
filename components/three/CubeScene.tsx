@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { CardFace } from "@/types/card";
 import type { CameraPhase } from "@/lib/experienceState";
@@ -34,10 +34,13 @@ type Props = {
   /** Closing screen: cube and scene recede so the drawn message reads clearly. */
   dimmed: boolean;
   /**
-   * 0 while the cube is the letter, 1 once it is a satellite in orbit. The
-   * deployment is the journey between, and it is the cube that drives it.
+   * Which way the deployment is running, if it is. The cube owns the
+   * animation and announces its own end (spec v0.2 §8.2).
    */
-  presence: number;
+  deploying?: "out" | "in" | null;
+  /** True whenever the cube should be drawn in its satellite form. */
+  deployed: boolean;
+  onDeployEnd?: () => void;
   reducedMotion: boolean;
   onTransitionEnd: () => void;
   onZoomEnd: () => void;
@@ -51,10 +54,20 @@ export function CubeScene({
   atRest,
   memoryCount,
   dimmed,
-  presence,
+  deploying,
+  deployed,
+  onDeployEnd,
   onZoomEnd,
   ...cube
 }: Props) {
+  /*
+   * How far the cube has become a satellite, written by `MessageCube` each
+   * frame and read by the carrier that flies it and the ring that fades in
+   * under it. A ref rather than state: it changes 60 times a second, and none
+   * of those should be React renders.
+   */
+  const presence = useRef(deployed ? 1 : 0);
+
   return (
     <Canvas
       dpr={[1, 1.75]}
@@ -77,7 +90,7 @@ export function CubeScene({
         returned={returned}
       />
       {/* A card without an orbit never pays for a planet it does not have. */}
-      {presence > 0 ? (
+      {deployed ? (
         <OrbitScene
           seed={seed}
           returned={Boolean(returned)}
@@ -88,7 +101,15 @@ export function CubeScene({
 
       <Suspense fallback={null}>
         <SatelliteCarrier presence={presence} reducedMotion={cube.reducedMotion}>
-          <MessageCube {...cube} dimmed={dimmed} />
+          <MessageCube
+            {...cube}
+            dimmed={dimmed}
+            deploying={deploying}
+            progress={presence}
+            onDeployEnd={onDeployEnd}
+            seed={seed}
+            returned={returned}
+          />
         </SatelliteCarrier>
       </Suspense>
     </Canvas>
