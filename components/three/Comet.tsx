@@ -66,7 +66,6 @@ export function Comet({
   const group = useRef<THREE.Group>(null);
   const nucleus = useRef<THREE.Mesh>(null);
   const coma = useRef<THREE.Mesh>(null);
-  const ion = useRef<THREE.Mesh>(null);
   const dust = useRef<THREE.Mesh>(null);
 
   const colours = TONES[tone];
@@ -198,8 +197,9 @@ export function Comet({
 
         {tail > 0 ? (
           <>
+            {/* No ref: an ion tail is steady in reality, and the contrast
+                with the flickering dust tail is what tells them apart. */}
             <Tail
-              ref={ion}
               direction={away}
               length={tail}
               width={0.09}
@@ -238,7 +238,7 @@ function Tail({
   color,
   opacity,
 }: {
-  ref: React.RefObject<THREE.Mesh | null>;
+  ref?: React.RefObject<THREE.Mesh | null>;
   direction: THREE.Vector3;
   length: number;
   width: number;
