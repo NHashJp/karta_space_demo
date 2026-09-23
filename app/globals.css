@@ -1430,3 +1430,91 @@ body {
     clip-path: inset(50%);
   }
 }
+
+/* ---------- the reply and comet forms (spec v0.2 §10.2, §11.3) ---------- */
+
+.reply__prompt {
+  font-size: 0.92rem;
+  line-height: 1.9;
+  color: var(--asteroid);
+}
+
+.message-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.message-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  position: relative;
+}
+
+.message-form__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--titanium);
+}
+
+.message-form__input {
+  width: 100%;
+  min-height: var(--control-h);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--titanium);
+  border-radius: var(--radius-1);
+  background: rgba(5, 7, 12, 0.6);
+  color: var(--starlight);
+  font-family: inherit;
+  font-size: 0.94rem;
+  line-height: 1.7;
+}
+
+.message-form__textarea {
+  resize: vertical;
+}
+
+.message-form__input:focus-visible {
+  outline: 2px solid var(--ion);
+  outline-offset: 2px;
+}
+
+.message-form__count {
+  align-self: flex-end;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--titanium);
+  font-variant-numeric: tabular-nums;
+}
+
+.message-form__count[data-over="true"] {
+  color: #ff8a8a;
+}
+
+/*
+ * The honeypot. Taken out of the layout entirely rather than hidden with
+ * `display: none`, which some fillers know to skip.
+ */
+.message-form__trap {
+  position: absolute;
+  /* grid-exempt: off-screen entirely, so the distance is not a layout value. */
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.message-form__error {
+  font-size: 0.82rem;
+  line-height: 1.8;
+  color: #ff8a8a;
+}
+
+/* Where the message is going, which is the whole point of saying it. */
+.reply__note {
+  margin-top: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--titanium);
+}

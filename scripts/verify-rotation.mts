@@ -38,6 +38,7 @@ import { RAMP_SIZE } from "../components/three/shaders/ribbon.ts";
 import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
 import { landingNote, toClientCard } from "../lib/clientCard.ts";
 import { cometMail, formatSentAt, replyMail, satelliteMail } from "../lib/mail.ts";
+import { COMET_MAX, NAME_MAX, REPLY_MAX, validate } from "../lib/submission.ts";
 import {
   TRAIL_LATERAL,
   TRAIL_NEAR_Z,
@@ -1495,7 +1496,70 @@ console.log("15. Email templates (spec v0.2 §14.8):");
   console.log(`  3 templates, stamped ${formatSentAt(sentAt, sample.timeZone)}`);
 }
 
-console.log("16. The deployment (spec v0.2 §8.2):");
+console.log("16. What the receiver may send (spec v0.2 §14.4, §14.5):");
+{
+  const ok = (body: object, max = REPLY_MAX) => validate(body, max);
+
+  // ---- the ordinary case -------------------------------------------------
+  const good = ok({ name: " そら ", message: "  こちらこそ、ありがとう。 " });
+  check("a name and a message are accepted", good.ok);
+  check("both are trimmed", good.ok && good.value.name === "そら", good.ok ? good.value.name : "");
+
+  // ---- the edges ---------------------------------------------------------
+  check("an empty name is refused", !ok({ name: "", message: "x" }).ok);
+  check("a whitespace-only name is refused", !ok({ name: "   ", message: "x" }).ok);
+  check("an empty message is refused", !ok({ name: "x", message: "" }).ok);
+  check("a missing body is refused", !ok({}).ok);
+  check("a non-string is refused", !ok({ name: 42, message: ["x"] }).ok);
+  check(`a name of exactly ${NAME_MAX} is accepted`,
+    ok({ name: "あ".repeat(NAME_MAX), message: "x" }).ok);
+  check(`a name of ${NAME_MAX + 1} is refused`,
+    !ok({ name: "あ".repeat(NAME_MAX + 1), message: "x" }).ok);
+  check(`a reply of exactly ${REPLY_MAX} is accepted`,
+    ok({ name: "x", message: "あ".repeat(REPLY_MAX) }).ok);
+  check(`a reply of ${REPLY_MAX + 1} is refused`,
+    !ok({ name: "x", message: "あ".repeat(REPLY_MAX + 1) }).ok);
+  check("a comet gets its own, longer limit",
+    ok({ name: "x", message: "あ".repeat(COMET_MAX) }, COMET_MAX).ok);
+
+  // Counted the way the person typing counts, not the way UTF-16 does: an
+  // emoji is one character to them, and the limit is written for them.
+  const emoji = "🌠".repeat(NAME_MAX);
+  check("an emoji is one character, not two",
+    ok({ name: emoji, message: "x" }).ok, `${emoji.length} UTF-16 units`);
+
+  // ---- what gets stripped ------------------------------------------------
+  const nasty = ok({ name: "そ\u0000ら", message: "a\u202eb\u200bc" });
+  check("control characters are stripped", nasty.ok && nasty.value.name === "そら",
+    nasty.ok ? nasty.value.name : "");
+  // This one matters: a right-to-left override in a name can make an email
+  // read as something other than what was sent, and this goes to an inbox.
+  check("bidirectional overrides are stripped",
+    nasty.ok && !/[\u202a-\u202e]/.test(nasty.value.message));
+  check("zero-width characters are stripped",
+    nasty.ok && !nasty.value.message.includes("\u200b"));
+  const paragraphs = ok({ name: "x", message: "a\n\n\n\n\nb" });
+  check("newlines survive but a wall of them does not",
+    paragraphs.ok && paragraphs.value.message === "a\n\nb",
+    paragraphs.ok ? JSON.stringify(paragraphs.value.message) : "");
+  // A name goes into a subject line, so a newline there is header injection
+  // rather than formatting.
+  const lined = ok({ name: "そ\nら", message: "x" });
+  check("a name never keeps a newline", lined.ok && !lined.value.name.includes("\n"),
+    lined.ok ? JSON.stringify(lined.value.name) : "");
+
+  // ---- the honeypot ------------------------------------------------------
+  const trapped = validate({ name: "x", message: "y", website: "http://spam" }, REPLY_MAX);
+  check("a filled honeypot is refused", !trapped.ok);
+  // Silently: telling it *which* field gave it away is telling it how to pass.
+  check("and refused silently", !trapped.ok && "silent" in trapped);
+  check("an empty honeypot is fine", validate({ name: "x", message: "y", website: "" },
+    REPLY_MAX).ok);
+
+  console.log(`  name <= ${NAME_MAX}, reply <= ${REPLY_MAX}, comet <= ${COMET_MAX}, plus a honeypot`);
+}
+
+console.log("17. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

@@ -17,9 +17,14 @@ import { join } from "node:path";
  *
  * What it does not check: computed 3D positions, which are not layout.
  *
- * A line that genuinely needs to sit off the grid says so:
+ * A line that genuinely needs to sit off the grid says so, either on the line
+ * itself or on the one above it — the second reads better when the reason
+ * needs more than a few words:
  *
  *     margin-top: 6px; // grid-exempt: optical centring under the stroke text
+ *
+ *     // grid-exempt: off-screen entirely, so this is not a layout value.
+ *     left: -9999px;
  */
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -86,7 +91,7 @@ function scanCss(file: string) {
   scannedFiles++;
   const lines = readFileSync(join(ROOT, file), "utf8").split("\n");
   lines.forEach((text, index) => {
-    if (EXEMPT.test(text)) return;
+    if (EXEMPT.test(text) || EXEMPT.test(lines[index - 1] ?? "")) return;
     // Strip a trailing comment so a note never looks like a value.
     const code = text.replace(/\/\*.*?\*\//g, "");
     const match = /^\s*([a-z-]+)\s*:\s*([^;]+);/.exec(code);
@@ -104,7 +109,7 @@ function scanJsx(file: string) {
   lines.forEach((text, index) => {
     if (/style=\{\{/.test(text)) inStyle = true;
     if (inStyle) {
-      if (!EXEMPT.test(text)) {
+      if (!EXEMPT.test(text) && !EXEMPT.test(lines[index - 1] ?? "")) {
         const match = /([A-Za-z]+)\s*:\s*(["'])([^"']+)\2/.exec(text);
         if (match && JSX_PROPERTIES.test(match[1])) check(file, index + 1, text, match[3]);
         // A bare number in a style object is px to React.

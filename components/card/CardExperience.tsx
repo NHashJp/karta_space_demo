@@ -9,9 +9,9 @@ import { CardLanding } from "./CardLanding";
 import { CardProgress } from "./CardProgress";
 import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
-import { Panel } from "./Panel";
 import { SatellitePanel } from "./SatellitePanel";
 import { CometPanel } from "./CometPanel";
+import { ReplyPanel } from "./ReplyPanel";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
 import { SoundToggle } from "./SoundToggle";
@@ -21,6 +21,7 @@ import { LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
 import { jumpEvents } from "@/lib/devJump";
 import { lightSeed } from "@/lib/sceneLight";
 import { progress as cometProgress } from "@/lib/cometOrbit";
+import { readLaunched, writeLaunched } from "@/lib/localMarks";
 import {
   acceptsInput,
   breathesAtRest,
@@ -99,6 +100,7 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
   const onReveal = useCallback(() => dispatch({ type: "reveal" }), []);
   const onDeploy = useCallback(() => dispatch({ type: "deploy" }), []);
   const onDeployEnd = useCallback(() => dispatch({ type: "deployEnd" }), []);
+  const onLaunchEnd = useCallback(() => dispatch({ type: "launchEnd" }), []);
   const onDock = useCallback(() => dispatch({ type: "dock" }), []);
   const onLookBack = useCallback(() => dispatch({ type: "lookBack" }), []);
   const onClosePanel = useCallback(() => dispatch({ type: "closePanel" }), []);
@@ -146,6 +148,18 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
       sound.stop();
     };
   }, [soundAvailable]);
+
+  /*
+   * The two marks a previous visit left, in this browser only (§10.4, §11.6).
+   * Read after mount rather than during render: the server has no idea what is
+   * in someone's localStorage, and assuming would mean a hydration mismatch.
+   */
+  const [launchedBefore, setLaunchedBefore] = useState(false);
+  useEffect(() => setLaunchedBefore(readLaunched(card.slug)), [card.slug]);
+
+  useEffect(() => {
+    if (launched) writeLaunched(card.slug);
+  }, [launched, card.slug]);
 
   const previousState = useRef(state);
   useEffect(() => {
@@ -239,6 +253,9 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           slug={card.slug}
           comets={comets}
           openPanel={panel}
+          launching={state === "launching"}
+          launched={launched || launchedBefore}
+          onLaunchEnd={onLaunchEnd}
           deploying={deploying}
           deployed={isDeployed(state)}
           onDeployEnd={onDeployEnd}
@@ -297,7 +314,7 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
         <OrbitOverlay
           card={card}
           panel={panel}
-          launched={launched}
+          launched={launched || launchedBefore}
           onOpenPanel={onOpenPanel}
           onLookBack={onLookBack}
           onDock={onDock}
@@ -312,13 +329,12 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
         <CometPanel card={card} today={card.today} onClose={onClosePanel} />
       ) : null}
 
-      {/* Placeholder body until §19 phase 13 builds the reply form. */}
       {panel === "reply" ? (
-        <Panel title="返事" onClose={onClosePanel}>
-          <p className="panel__body" lang="ja">
-            準備中
-          </p>
-        </Panel>
+        <ReplyPanel
+          card={card}
+          onClose={onClosePanel}
+          onSent={() => dispatch({ type: "launch" })}
+        />
       ) : null}
 
       {phase === "trail" && memories.length > 0 ? (

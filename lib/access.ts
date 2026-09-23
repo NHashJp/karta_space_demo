@@ -135,8 +135,12 @@ const attempts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 10;
 
-/** Keyed per IP *and* card, so many cards share one map without it growing forever. */
-export function rateLimit(key: string): boolean {
+/**
+ * Keyed per IP *and* card, so many cards share one map without it growing
+ * forever. `max` differs by what is being limited: ten password guesses are a
+ * person typing, but ten replies in ten minutes are not.
+ */
+export function rateLimit(key: string, max = MAX_ATTEMPTS): boolean {
   const now = Date.now();
   const entry = attempts.get(key);
   if (!entry || now > entry.resetAt) {
@@ -145,5 +149,5 @@ export function rateLimit(key: string): boolean {
     return true;
   }
   entry.count += 1;
-  return entry.count <= MAX_ATTEMPTS;
+  return entry.count <= max;
 }

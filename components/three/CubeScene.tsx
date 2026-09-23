@@ -13,6 +13,8 @@ import { OrbitScene, SatelliteCarrier } from "./OrbitScene";
 import { Comet, type CometTone } from "./Comet";
 import { MemoryPanel } from "./MemoryPanel";
 import { MeteorShower } from "./MeteorShower";
+import { ReplyStar } from "./ReplyStar";
+import { RocketLaunch } from "./RocketLaunch";
 import { Trail } from "./Trail";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { FOV } from "./framing";
@@ -51,6 +53,10 @@ type Props = {
   /** The comets on their long orbits, and which panel is open (§11.2). */
   comets?: SceneComet[];
   openPanel?: string | null;
+  /** A reply is on its way up, or has already settled as a star (§10.3). */
+  launching?: boolean;
+  launched?: boolean;
+  onLaunchEnd?: () => void;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   within: boolean;
@@ -82,6 +88,9 @@ export function CubeScene({
   slug,
   comets,
   openPanel,
+  launching,
+  launched,
+  onLaunchEnd,
   dimmed,
   deploying,
   deployed,
@@ -153,6 +162,13 @@ export function CubeScene({
             />
           ))
         : null}
+
+      {launching && onLaunchEnd ? (
+        <RocketLaunch reducedMotion={cube.reducedMotion} onDone={onLaunchEnd} />
+      ) : null}
+      {deployed && launched && !launching ? (
+        <ReplyStar reducedMotion={cube.reducedMotion} />
+      ) : null}
 
       {/* Once, on the day, and never again while the page is open. */}
       {deployed && returned ? <MeteorShower reducedMotion={cube.reducedMotion} /> : null}
