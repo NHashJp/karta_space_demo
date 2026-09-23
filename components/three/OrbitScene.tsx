@@ -65,17 +65,30 @@ export function OrbitScene({ seed, returned, reducedMotion, presence }: Props) {
 export function SatelliteCarrier({
   presence,
   reducedMotion,
+  returned = false,
   children,
 }: {
   presence: React.RefObject<number>;
   reducedMotion: boolean;
+  /** The satellite's day has come: it gains a warm glow and a slow halo. */
+  returned?: boolean;
   children: React.ReactNode;
 }) {
   const group = useRef<THREE.Group>(null);
+  const halo = useRef<THREE.PointLight>(null);
 
   useFrame(({ clock }) => {
     const carrier = group.current;
     if (!carrier) return;
+
+    if (halo.current) {
+      // Steady, with a four-second breath under it. Not a blink: the satellite
+      // is not signalling, it is simply warm today (§8.4).
+      const pulse = reducedMotion
+        ? 1
+        : 0.82 + 0.18 * Math.sin((clock.elapsedTime / 4) * Math.PI * 2);
+      halo.current.intensity = returned ? 2.6 * pulse * presence.current : 0;
+    }
 
     const theta = reducedMotion ? 0.9 : (clock.elapsedTime / ORBIT_PERIOD_S) * Math.PI * 2 + 0.9;
     const [x, y, z] = orbitPosition(theta);
@@ -90,5 +103,10 @@ export function SatelliteCarrier({
     carrier.scale.setScalar(1 + (SAT_SCALE - 1) * rise);
   });
 
-  return <group ref={group}>{children}</group>;
+  return (
+    <group ref={group}>
+      <pointLight ref={halo} intensity={0} distance={7} color="#ffd8a0" />
+      {children}
+    </group>
+  );
 }

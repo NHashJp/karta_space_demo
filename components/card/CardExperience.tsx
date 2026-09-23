@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useProgress } from "@react-three/drei";
-import type { ClientCard } from "@/lib/clientCard";
+import { landingNote, type ClientCard } from "@/lib/clientCard";
 import type { ExperienceEvent, OrbitPanel } from "@/lib/experienceState";
 import { CubeScene } from "@/components/three/CubeScene";
 import { CardLanding } from "./CardLanding";
@@ -10,6 +10,7 @@ import { CardProgress } from "./CardProgress";
 import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
 import { Panel } from "./Panel";
+import { SatellitePanel } from "./SatellitePanel";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
@@ -163,6 +164,7 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
         <CardLanding
           title={card.title}
           subtitle={card.subtitle}
+          note={landingNote(card)}
           ready={ready}
           leaving={state === "entering"}
           onOpen={() => dispatch({ type: "open" })}
@@ -206,12 +208,13 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
         />
       ) : null}
 
-      {/* Placeholder bodies until §19 phases 8, 10 and 13 build the real ones. */}
-      {panel ? (
-        <Panel
-          title={panel === "satellite" ? "衛星" : panel === "comet" ? "彗星" : "返事"}
-          onClose={onClosePanel}
-        >
+      {panel === "satellite" ? (
+        <SatellitePanel card={card} onClose={onClosePanel} />
+      ) : null}
+
+      {/* Placeholder bodies until §19 phases 10 and 13 build the real ones. */}
+      {panel === "comet" || panel === "reply" ? (
+        <Panel title={panel === "comet" ? "彗星" : "返事"} onClose={onClosePanel}>
           <p className="panel__body" lang="ja">
             準備中
           </p>

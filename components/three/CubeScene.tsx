@@ -100,7 +100,11 @@ export function CubeScene({
       ) : null}
 
       <Suspense fallback={null}>
-        <SatelliteCarrier presence={presence} reducedMotion={cube.reducedMotion}>
+        <SatelliteCarrier
+          presence={presence}
+          reducedMotion={cube.reducedMotion}
+          returned={returned}
+        >
           <MessageCube
             {...cube}
             dimmed={dimmed}

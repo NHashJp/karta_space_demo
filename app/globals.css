@@ -1231,3 +1231,51 @@ body {
   text-wrap: balance;
   padding: 0 var(--space-3);
 }
+
+/* ---------- the satellite panel (spec v0.2 §8.4) ---------- */
+
+.satellite__message {
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+  color: var(--starlight);
+  text-wrap: balance;
+}
+
+.satellite__when {
+  margin-top: var(--space-2);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  color: var(--lunar);
+  font-variant-numeric: tabular-nums;
+}
+
+.satellite__dot {
+  margin: 0 var(--space-1);
+  color: var(--titanium);
+}
+
+.satellite__countdown {
+  color: var(--ion);
+}
+
+/* The quietest line in the panel, and the one that carries the promise. */
+.satellite__contact {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--charcoal);
+  font-size: 0.82rem;
+  line-height: 1.9;
+  color: var(--cosmic-silver);
+}
+
+/*
+ * When the letter was written, or that something has come back (§7). Quiet
+ * enough to be read after the title rather than with it.
+ */
+.landing__note {
+  font-size: 0.8em;
+  letter-spacing: 0.08em;
+  color: var(--lunar);
+}

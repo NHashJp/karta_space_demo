@@ -33,7 +33,7 @@ import {
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
 import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
-import { toClientCard } from "../lib/clientCard.ts";
+import { landingNote, toClientCard } from "../lib/clientCard.ts";
 import {
   TRAIL_LATERAL,
   TRAIL_NEAR_Z,
@@ -1228,7 +1228,64 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 
 }
 
-console.log("12. The deployment (spec v0.2 §8.2):");
+console.log("12. The satellite and the landing line (spec v0.2 §7, §8.4):");
+{
+  const sample = cards[0];
+  const env = { mailReady: false, cometReady: false };
+  const at = (iso: string) => toClientCard(sample, new Date(iso), env);
+
+  // ---- waiting: a date, a countdown, and who will be in touch ------------
+  const waiting = at("2026-09-23T00:00:00Z");
+  check("waiting before the day", waiting.satelliteStatus === "waiting", waiting.satelliteStatus);
+  check("the countdown is a real number of days",
+    typeof waiting.daysUntil === "number" && waiting.daysUntil > 0, String(waiting.daysUntil));
+  check("the next date is the configured one", waiting.satelliteNext === "2026-12-25",
+    waiting.satelliteNext);
+  check("the landing line says when it was written",
+    landingNote(waiting) === "2026年3月に書かれた手紙", landingNote(waiting));
+
+  // ---- the day itself ----------------------------------------------------
+  const day = at("2026-12-25T02:00:00Z");
+  check("returned on the day", day.satelliteStatus === "returned", day.satelliteStatus);
+  check("the countdown is gone", day.daysUntil === 0, String(day.daysUntil));
+  check("the landing line changes on the day",
+    landingNote(day) === "衛星が、戻ってきました。", landingNote(day));
+
+  // Fourteen days of "returned", then back to waiting for next year (§8.4).
+  check("still returned a fortnight later",
+    at("2027-01-07T02:00:00Z").satelliteStatus === "returned");
+  const later = at("2027-02-01T02:00:00Z");
+  check("waiting again after the window", later.satelliteStatus === "waiting");
+  check("and waiting for next year's date", later.satelliteNext === "2027-12-25",
+    later.satelliteNext);
+  check("the landing line goes back to the writing date",
+    landingNote(later) === "2026年3月に書かれた手紙", landingNote(later));
+
+  // ---- the landing line, in order of what matters most that day ----------
+  check("a card with nothing to say says nothing",
+    landingNote({ ...waiting, writtenAt: undefined, satelliteStatus: undefined }) === undefined);
+  check("a year-only writtenAt still reads",
+    landingNote({ ...waiting, writtenAt: "2026", satelliteStatus: undefined })
+      === "2026年に書かれた手紙");
+  check("a returned comet speaks when the satellite has not",
+    landingNote({
+      ...waiting,
+      satelliteStatus: "waiting",
+      senderComet: { status: "returned", releasedOn: "2026-03-01", returnsOn: "2026-12-25", message: "x" },
+    }) === "彗星が、戻ってきました。");
+  check("the satellite outranks the comet",
+    landingNote({
+      ...day,
+      senderComet: { status: "returned", releasedOn: "2026-03-01", returnsOn: "2026-12-25", message: "x" },
+    }) === "衛星が、戻ってきました。");
+
+  console.log(
+    `  satellite ${waiting.satelliteNext}, ${waiting.daysUntil} days out; ` +
+    `returned window 14 days, then ${later.satelliteNext}`,
+  );
+}
+
+console.log("13. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

@@ -120,6 +120,28 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
   };
 }
 
+/**
+ * The quiet line under the landing subtitle (spec v0.2 §7, §21).
+ *
+ * Three possibilities, in order of what matters most on the day the reader
+ * arrives. If the satellite has come back, say that; if the sender's comet
+ * has, say that; otherwise say when the letter was written. They replace one
+ * another rather than stacking, because a landing screen with three
+ * sub-headings is no longer a landing screen.
+ */
+export function landingNote(card: ClientCard): string | undefined {
+  if (card.satelliteStatus === "returned") return "衛星が、戻ってきました。";
+  if (card.senderComet?.status === "returned") return "彗星が、戻ってきました。";
+  if (!card.writtenAt) return undefined;
+
+  const parsed = /^(\d{4})(?:-(\d{2}))?/.exec(card.writtenAt);
+  if (!parsed) return undefined;
+  const [, year, month] = parsed;
+  return month
+    ? `${year}年${Number(month)}月に書かれた手紙`
+    : `${year}年に書かれた手紙`;
+}
+
 function dates(window: { releasedOn: string; returnsOn: string }) {
   return { releasedOn: window.releasedOn, returnsOn: window.returnsOn };
 }
