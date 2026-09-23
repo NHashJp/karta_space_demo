@@ -24,6 +24,9 @@ export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
       uNebula: { value: new THREE.Color("#3b2e63") },
       uIon: { value: new THREE.Color("#0f6d96") },
       uEmber: { value: new THREE.Color("#6b3a63") },
+      // The filament palette of §23.2: violet through to cyan.
+      uFilamentCool: { value: new THREE.Color("#4fc3f0") },
+      uFilamentWarm: { value: new THREE.Color("#8f7fd6") },
       uIntensity: { value: 0.9 },
     }),
     [],

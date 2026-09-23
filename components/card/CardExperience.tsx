@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useProgress } from "@react-three/drei";
 import type { ClientCard } from "@/lib/clientCard";
 import type { ExperienceEvent, OrbitPanel } from "@/lib/experienceState";
@@ -11,11 +11,14 @@ import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
 import { Panel } from "./Panel";
 import { TrailOverlay } from "./TrailOverlay";
+import { AmbientOverlay } from "./AmbientOverlay";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import { DEPLOY_MS, LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
 import { jumpEvents } from "@/lib/devJump";
+import { lightSeed } from "@/lib/sceneLight";
 import {
   acceptsInput,
+  breathesAtRest,
   cameraPhase,
   dimsScene,
   initialExperience,
@@ -103,6 +106,12 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
   const memories = card.memories ?? [];
   const phase = cameraPhase(state);
 
+  const seed = useMemo(() => lightSeed(card.slug), [card.slug]);
+  // A warmer light on the day something comes back (§23.3).
+  const returned =
+    card.satelliteStatus === "returned" || card.senderComet?.status === "returned";
+  const atRest = breathesAtRest(state);
+
   useFaceNavigation(move, !acceptsInput(state), state !== "landing");
 
   if (failed) {
@@ -129,6 +138,9 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           dimmed={dimsScene(state)}
           cameraPhase={phase}
           cameraLeg={activeMemory}
+          seed={seed}
+          returned={returned}
+          atRest={atRest}
           secret={secret}
           within={isWithinCube(state)}
           revealSecret={revealsSecret(state)}
@@ -222,6 +234,8 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           </div>
         </div>
       ) : null}
+
+      <AmbientOverlay />
 
       {/* Paragraph text also lives here as plain DOM, for assistive tech. */}
       <div className="sr-only">

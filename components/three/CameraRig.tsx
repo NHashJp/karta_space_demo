@@ -16,6 +16,7 @@ import {
 } from "./framing";
 import { easeInOutQuint } from "./rotationPresets";
 import { DRIFT_MS, REWIND_MS, RESURFACE_MS } from "@/lib/timing";
+import { cameraBreath } from "@/lib/sceneLight";
 import type { CameraPhase } from "@/lib/experienceState";
 
 type Props = {
@@ -28,6 +29,13 @@ type Props = {
    * memory would never announce itself.
    */
   leg?: number;
+  /** This card's seed, so two cards do not breathe in unison. */
+  seed?: number;
+  /**
+   * Breathe while at rest. Never true where text is being read: a paragraph
+   * that drifts under your eyes is worse than a still scene (§23.2).
+   */
+  breathing?: boolean;
   reducedMotion: boolean;
   onArrive: () => void;
 };
@@ -37,7 +45,14 @@ type Props = {
  * in when the card opens, out when it closes, and through the wall when the
  * card has something inside it.
  */
-export function CameraRig({ phase, leg = 0, reducedMotion, onArrive }: Props) {
+export function CameraRig({
+  phase,
+  leg = 0,
+  seed = 0,
+  breathing = false,
+  reducedMotion,
+  onArrive,
+}: Props) {
   const { camera, size } = useThree();
 
   const reading = cameraDistance(size.width, size.height);
@@ -112,19 +127,30 @@ export function CameraRig({ phase, leg = 0, reducedMotion, onArrive }: Props) {
     running.current = true;
   }, [camera, phase, pose, target, reducedMotion]);
 
-  useFrame(() => {
-    if (!running.current) return;
-    const t = Math.min((performance.now() - startedAt.current) / duration.current, 1);
-    camera.position.z = THREE.MathUtils.lerp(from.current, to.current, easeInOutQuint(t));
-    // Still the origin, even from inside: at z = INSIDE_DISTANCE that is a look
-    // straight down -z, at the far wall.
-    camera.lookAt(0, 0, 0);
+  useFrame(({ clock }) => {
+    if (running.current) {
+      const t = Math.min((performance.now() - startedAt.current) / duration.current, 1);
+      camera.position.z = THREE.MathUtils.lerp(from.current, to.current, easeInOutQuint(t));
+      // Still the origin, even from inside: at z = INSIDE_DISTANCE that is a
+      // look straight down -z, at the far wall.
+      camera.lookAt(0, 0, 0);
 
-    if (t >= 1) {
-      camera.position.z = to.current;
-      running.current = false;
-      arrive.current();
+      if (t >= 1) {
+        camera.position.z = to.current;
+        running.current = false;
+        arrive.current();
+      }
+      return;
     }
+
+    // At rest, the scene breathes. Under a percent of the distance over 26
+    // seconds: never noticed on its own, and the difference between a place
+    // and a photograph of one.
+    if (!breathing) return;
+    const breath = cameraBreath(clock.elapsedTime, seed, { reducedMotion });
+    camera.position.z = to.current * breath.distance;
+    camera.lookAt(0, 0, 0);
+    camera.rotation.z = breath.roll;
   });
 
   return null;

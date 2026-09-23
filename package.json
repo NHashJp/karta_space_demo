@@ -9,7 +9,7 @@
     "lint": "next lint",
     "images": "node scripts/generate-placeholders.mjs",
     "typecheck": "tsc --noEmit",
-    "verify": "node --experimental-strip-types scripts/verify-rotation.mts"
+    "verify": "node --experimental-strip-types scripts/verify-rotation.mts && node --experimental-strip-types scripts/verify-spacing.mts"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

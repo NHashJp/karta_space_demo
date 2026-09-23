@@ -303,6 +303,19 @@ export function dimsScene(state: ExperienceState): boolean {
   );
 }
 
+/**
+ * The camera breathes here (spec v0.2 §23.2): a sub-percent dolly over 26
+ * seconds, which is the difference between a place and a photograph of one.
+ *
+ * Never where something is being read. `reading`, `remembering` and `inside`
+ * are all excluded, because text that drifts while your eyes are on it is far
+ * worse than a scene that holds still — and `acceptsInput` is *not* the right
+ * test for that, since two of those three accept input.
+ */
+export function breathesAtRest(state: ExperienceState): boolean {
+  return state === "landing" || state === "completed" || state === "orbit";
+}
+
 /** Navigation input is ignored unless the experience is at rest. */
 export function acceptsInput(state: ExperienceState): boolean {
   return (

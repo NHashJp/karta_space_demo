@@ -19,6 +19,11 @@ type Props = {
   cameraPhase: CameraPhase;
   /** Which stop along the trail, when the camera is on it. */
   cameraLeg?: number;
+  /** This card's light seed, and whether its day is a warm one (§23.3). */
+  seed: number;
+  returned?: boolean;
+  /** The camera breathes only where nothing is being read (§23.2). */
+  atRest: boolean;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   within: boolean;
@@ -30,7 +35,16 @@ type Props = {
   onZoomEnd: () => void;
 };
 
-export function CubeScene({ cameraPhase, cameraLeg, dimmed, onZoomEnd, ...cube }: Props) {
+export function CubeScene({
+  cameraPhase,
+  cameraLeg,
+  seed,
+  returned,
+  atRest,
+  dimmed,
+  onZoomEnd,
+  ...cube
+}: Props) {
   return (
     <Canvas
       dpr={[1, 1.75]}
@@ -40,10 +54,17 @@ export function CubeScene({ cameraPhase, cameraLeg, dimmed, onZoomEnd, ...cube }
       <CameraRig
         phase={cameraPhase}
         leg={cameraLeg}
+        seed={seed}
+        breathing={atRest}
         reducedMotion={cube.reducedMotion}
         onArrive={onZoomEnd}
       />
-      <SpaceEnvironment reducedMotion={cube.reducedMotion} dimmed={dimmed} />
+      <SpaceEnvironment
+        reducedMotion={cube.reducedMotion}
+        dimmed={dimmed}
+        seed={seed}
+        returned={returned}
+      />
       <Suspense fallback={null}>
         <MessageCube {...cube} dimmed={dimmed} />
       </Suspense>

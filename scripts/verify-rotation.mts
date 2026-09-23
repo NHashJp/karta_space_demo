@@ -26,6 +26,7 @@ import {
   ECCENTRICITY,
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
+import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
 import { toClientCard } from "../lib/clientCard.ts";
 import { JUMP_TARGETS, jumpEvents } from "../lib/devJump.ts";
 import { accessToken, cardSecret, checkPassword } from "../lib/access.ts";
@@ -40,6 +41,7 @@ import {
 import { resolveNow } from "../lib/devTime.ts";
 import {
   acceptsInput,
+  breathesAtRest,
   cameraPhase,
   dimsScene,
   initialExperience,
@@ -69,6 +71,14 @@ const PLACEMENT: [number, number, number][] = [
 let failures = 0;
 const check = (label: string, ok: boolean, detail = "") => {
   if (!ok) { failures++; console.log(`  FAIL ${label} ${detail}`); }
+};
+
+/** For checks inside a long loop: report the first failure only. */
+const reported = new Set<string>();
+const check_once = (label: string, ok: boolean, detail = "") => {
+  if (ok || reported.has(label)) return;
+  reported.add(label);
+  check(label, ok, detail);
 };
 
 console.log("1. Each face lands square-on to the camera, text upright:");
@@ -912,6 +922,132 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
 
   console.log(`  orbit, ${MEMORIES} memories on the trail, 3 panels, 2 one-way animations`);
   console.log(`  ?at= reaches all ${JUMP_TARGETS.length} preview targets`);
+}
+
+console.log("10. The moving sun and the camera's breath (spec v0.2 §23.3):");
+{
+  const seed = lightSeed("2026-newyear-7k2m");
+
+  // ---- continuity: a jump in the sun is a jump in every shadow at once ----
+  let worstStep = 0;
+  let minAzimuth = Infinity;
+  let maxAzimuth = -Infinity;
+  let minElevation = Infinity;
+  let maxElevation = -Infinity;
+  let nan = false;
+
+  const angles = (t: number) => {
+    const { dir } = keyLight(t, seed, false);
+    const [x, y, z] = dir;
+    if (![x, y, z].every(Number.isFinite)) nan = true;
+    return {
+      azimuth: (Math.atan2(x, z) * 180) / Math.PI,
+      elevation: (Math.asin(y) * 180) / Math.PI,
+    };
+  };
+
+  let previous = angles(0);
+  // Ten minutes at 0.1 s: long enough for both azimuth sines and the
+  // elevation one to come round.
+  for (let i = 1; i <= 6000; i++) {
+    const current = angles(i * 0.1);
+    worstStep = Math.max(worstStep, Math.abs(current.azimuth - previous.azimuth));
+    minAzimuth = Math.min(minAzimuth, current.azimuth);
+    maxAzimuth = Math.max(maxAzimuth, current.azimuth);
+    minElevation = Math.min(minElevation, current.elevation);
+    maxElevation = Math.max(maxElevation, current.elevation);
+    previous = current;
+  }
+
+  check("the sun never jumps", worstStep < 0.2, `${worstStep.toFixed(4)}deg per 0.1s`);
+  check("the sun's direction is always a number", !nan);
+  check("azimuth stays within -50deg..-26deg", minAzimuth >= -50 && maxAzimuth <= -26,
+    `${minAzimuth.toFixed(2)}..${maxAzimuth.toFixed(2)}`);
+  check("elevation stays within 37deg..47deg", minElevation >= 37 && maxElevation <= 47,
+    `${minElevation.toFixed(2)}..${maxElevation.toFixed(2)}`);
+  check("the sun actually moves", maxAzimuth - minAzimuth > 4,
+    (maxAzimuth - minAzimuth).toFixed(2));
+
+  const unit = keyLight(31.7, seed, false).dir;
+  check("the direction is a unit vector",
+    Math.abs(Math.hypot(...unit) - 1) < 1e-9, Math.hypot(...unit).toFixed(12));
+
+  // ---- the returned day is warmer, but only a little ---------------------
+  const plain = keyLight(12, seed, false);
+  const warm = keyLight(12, seed, true);
+  check("the returned day changes the colour", plain.color !== warm.color, warm.color);
+  check("the returned day does not move the sun",
+    plain.dir.every((v, i) => v === warm.dir[i]));
+  const shift = Math.max(
+    ...[1, 3, 5].map((i) => {
+      const a = Number.parseInt(plain.color.slice(i, i + 2), 16);
+      const b = Number.parseInt(warm.color.slice(i, i + 2), 16);
+      return Math.abs(a - b) / 255;
+    }),
+  );
+  check("the warm shift is at most 10%", shift <= 0.1 + 1e-6, `${(shift * 100).toFixed(1)}%`);
+
+  // ---- intensity breathes, gently ----------------------------------------
+  let minI = Infinity;
+  let maxI = -Infinity;
+  for (let i = 0; i <= 600; i++) {
+    const { intensity } = keyLight(i * 0.1, seed, false);
+    minI = Math.min(minI, intensity);
+    maxI = Math.max(maxI, intensity);
+  }
+  check("intensity stays near 1", minI >= 0.93 && maxI <= 1.07,
+    `${minI.toFixed(3)}..${maxI.toFixed(3)}`);
+
+  // ---- reduced motion is a still, lit picture ----------------------------
+  const still = keyLight(0, seed, false, { reducedMotion: true });
+  for (const t of [0, 7.5, 61, 500]) {
+    const at = keyLight(t, seed, false, { reducedMotion: true });
+    check(`reduced motion freezes the sun at t=${t}`,
+      at.dir.every((v, i) => v === still.dir[i]) && at.intensity === still.intensity);
+  }
+  check("the frozen sun is still lit", still.intensity > 0);
+
+  // ---- two cards are lit from different points in the same sweep ---------
+  const other = lightSeed("thanks-sample-3f9q");
+  check("two cards differ", keyLight(0, seed, false).dir[0] !== keyLight(0, other, false).dir[0]);
+
+  // ---- the camera breathes, except where text is being read --------------
+  let worstBreath = 0;
+  let previousBreath = cameraBreath(0, seed);
+  for (let i = 1; i <= 2600; i++) {
+    const b = cameraBreath(i * 0.1, seed);
+    worstBreath = Math.max(worstBreath, Math.abs(b.distance - 1));
+    check_once("the breath never jumps", Math.abs(b.distance - previousBreath.distance) < 0.001);
+    previousBreath = b;
+  }
+  check("the breath stays within 0.7%", worstBreath <= BREATH_DISTANCE + 1e-9,
+    `${(worstBreath * 100).toFixed(3)}%`);
+  check("the breath does reach its full swing", worstBreath > BREATH_DISTANCE * 0.99);
+  const held = cameraBreath(13, seed, { reducedMotion: true });
+  check("reduced motion holds the camera still", held.distance === 1 && held.roll === 0);
+
+  // ---- and never breathes where text is being read ------------------------
+  for (const state of ["reading", "remembering", "inside"] as const) {
+    check(`${state} holds the camera perfectly still`, !breathesAtRest(state));
+  }
+  for (const state of ["landing", "completed", "orbit"] as const) {
+    check(`${state} breathes`, breathesAtRest(state));
+  }
+  // Every animated state is already moving the camera; breathing on top of
+  // that would fight the rig.
+  for (const state of [
+    "entering", "returning", "transitioning", "leaving", "descending", "ascending",
+    "deploying", "undeploying", "rewinding", "drifting", "resurfacing",
+    "launching", "releasing",
+  ] as const) {
+    check(`${state} leaves the camera to the rig`, !breathesAtRest(state));
+  }
+
+  console.log(
+    `  sun: azimuth ${minAzimuth.toFixed(1)}..${maxAzimuth.toFixed(1)}deg, ` +
+    `elevation ${minElevation.toFixed(1)}..${maxElevation.toFixed(1)}deg, ` +
+    `worst step ${worstStep.toFixed(4)}deg/0.1s`,
+  );
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
