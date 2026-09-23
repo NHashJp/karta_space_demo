@@ -26,8 +26,8 @@ type Props = {
   sendingLabel: string;
   namePlaceholder?: string;
   messagePlaceholder?: string;
-  /** Called only on a 200. */
-  onSent: (token?: string) => void;
+  /** Called only on a 200, with whatever the route chose to answer with. */
+  onSent: (token?: string, extra?: Record<string, unknown>) => void;
 };
 
 type State = "idle" | "sending" | "failed" | "rate-limited";
@@ -80,8 +80,11 @@ export function MessageForm({
         } catch {
           /* ignore */
         }
-        const data = (await response.json().catch(() => ({}))) as { token?: string };
-        onSent(data.token);
+        const data = (await response.json().catch(() => ({}))) as {
+          token?: string;
+          [key: string]: unknown;
+        };
+        onSent(data.token, data);
         return;
       }
 

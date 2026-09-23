@@ -12,6 +12,7 @@ import { MessageCube } from "./MessageCube";
 import { OrbitScene, SatelliteCarrier } from "./OrbitScene";
 import { Comet, type CometTone } from "./Comet";
 import { MemoryPanel } from "./MemoryPanel";
+import { CometRelease } from "./CometRelease";
 import { MeteorShower } from "./MeteorShower";
 import { ReplyStar } from "./ReplyStar";
 import { RocketLaunch } from "./RocketLaunch";
@@ -57,6 +58,10 @@ type Props = {
   launching?: boolean;
   launched?: boolean;
   onLaunchEnd?: () => void;
+  /** A comet is on its way out (§11.4). */
+  releasing?: boolean;
+  releaseRotation?: number;
+  onReleaseEnd?: () => void;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   within: boolean;
@@ -91,6 +96,9 @@ export function CubeScene({
   launching,
   launched,
   onLaunchEnd,
+  releasing,
+  releaseRotation = 0,
+  onReleaseEnd,
   dimmed,
   deploying,
   deployed,
@@ -162,6 +170,14 @@ export function CubeScene({
             />
           ))
         : null}
+
+      {releasing && onReleaseEnd ? (
+        <CometRelease
+          rotation={releaseRotation}
+          reducedMotion={cube.reducedMotion}
+          onDone={onReleaseEnd}
+        />
+      ) : null}
 
       {launching && onLaunchEnd ? (
         <RocketLaunch reducedMotion={cube.reducedMotion} onDone={onLaunchEnd} />

@@ -20,8 +20,14 @@ import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigat
 import { LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
 import { jumpEvents } from "@/lib/devJump";
 import { lightSeed } from "@/lib/sceneLight";
-import { progress as cometProgress } from "@/lib/cometOrbit";
-import { readLaunched, writeLaunched } from "@/lib/localMarks";
+import { orbitRotation, progress as cometProgress } from "@/lib/cometOrbit";
+import {
+  readLaunched,
+  readReleased,
+  writeLaunched,
+  writeReleased,
+  type ReleasedComet,
+} from "@/lib/localMarks";
 import {
   acceptsInput,
   breathesAtRest,
@@ -101,6 +107,7 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
   const onDeploy = useCallback(() => dispatch({ type: "deploy" }), []);
   const onDeployEnd = useCallback(() => dispatch({ type: "deployEnd" }), []);
   const onLaunchEnd = useCallback(() => dispatch({ type: "launchEnd" }), []);
+  const onReleaseEnd = useCallback(() => dispatch({ type: "releaseEnd" }), []);
   const onDock = useCallback(() => dispatch({ type: "dock" }), []);
   const onLookBack = useCallback(() => dispatch({ type: "lookBack" }), []);
   const onClosePanel = useCallback(() => dispatch({ type: "closePanel" }), []);
@@ -155,7 +162,18 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
    * in someone's localStorage, and assuming would mean a hydration mismatch.
    */
   const [launchedBefore, setLaunchedBefore] = useState(false);
-  useEffect(() => setLaunchedBefore(readLaunched(card.slug)), [card.slug]);
+  const [releasedComet, setReleasedComet] = useState<ReleasedComet | null>(null);
+  useEffect(() => {
+    setLaunchedBefore(readLaunched(card.slug));
+    setReleasedComet(readReleased(card.slug));
+  }, [card.slug]);
+
+  // Its orbit is seeded from the day it was released, exactly as the sender's
+  // is, so the two never lie on top of each other.
+  const releaseRotation = useMemo(
+    () => orbitRotation(card.slug, releasedComet?.releasedOn ?? card.today),
+    [card.slug, releasedComet?.releasedOn, card.today],
+  );
 
   useEffect(() => {
     if (launched) writeLaunched(card.slug);
@@ -200,17 +218,23 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
         onSelect: () => dispatch({ type: "openPanel", panel: "comet" }),
       });
     }
-    if (released && card.receiverComet) {
+    // The receiver's own comet appears once they have actually released one —
+    // in this session, or on an earlier visit in this browser.
+    if (releasedComet) {
       out.push({
         key: "receiver",
-        progress: 0,
-        releasedOn: card.today,
+        progress: cometProgress(
+          releasedComet.releasedOn,
+          releasedComet.returnsOn,
+          card.today,
+        ),
+        releasedOn: releasedComet.releasedOn,
         tone: "receiver",
         onSelect: () => dispatch({ type: "openPanel", panel: "comet" }),
       });
     }
     return out;
-  }, [card.senderComet, card.receiverComet, card.today, released]);
+  }, [card.senderComet, card.today, releasedComet]);
   const atRest = breathesAtRest(state);
 
   // The cube owns the deployment animation and says when it is done; this
@@ -256,6 +280,9 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           launching={state === "launching"}
           launched={launched || launchedBefore}
           onLaunchEnd={onLaunchEnd}
+          releasing={state === "releasing"}
+          releaseRotation={releaseRotation}
+          onReleaseEnd={onReleaseEnd}
           deploying={deploying}
           deployed={isDeployed(state)}
           onDeployEnd={onDeployEnd}
@@ -326,7 +353,20 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
       ) : null}
 
       {panel === "comet" ? (
-        <CometPanel card={card} today={card.today} onClose={onClosePanel} />
+        <CometPanel
+          card={card}
+          today={card.today}
+          released={releasedComet}
+          onClose={onClosePanel}
+          onReleased={(comet) => {
+            // Kept in this browser so the warm comet is still on its orbit
+            // next time (§11.6). The token is never stored — it is the
+            // message, and its one home is the email it went out in.
+            setReleasedComet(comet);
+            writeReleased(card.slug, comet);
+            dispatch({ type: "release" });
+          }}
+        />
       ) : null}
 
       {panel === "reply" ? (

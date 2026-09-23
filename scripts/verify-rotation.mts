@@ -39,6 +39,8 @@ import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/scene
 import { landingNote, toClientCard } from "../lib/clientCard.ts";
 import { cometMail, formatSentAt, replyMail, satelliteMail } from "../lib/mail.ts";
 import { COMET_MAX, NAME_MAX, REPLY_MAX, validate } from "../lib/submission.ts";
+import { open, seal } from "../lib/cometSeal.ts";
+import { randomBytes } from "node:crypto";
 import {
   TRAIL_LATERAL,
   TRAIL_NEAR_Z,
@@ -1559,7 +1561,77 @@ console.log("16. What the receiver may send (spec v0.2 §14.4, §14.5):");
   console.log(`  name <= ${NAME_MAX}, reply <= ${REPLY_MAX}, comet <= ${COMET_MAX}, plus a honeypot`);
 }
 
-console.log("17. The deployment (spec v0.2 §8.2):");
+console.log("17. The comet's seal (spec v0.2 §11.5):");
+{
+  const key = randomBytes(32);
+  const other = randomBytes(32);
+  const payload = {
+    v: 1 as const,
+    slug: "2026-newyear-7k2m",
+    name: "そら",
+    body: "SENTINEL-COMET-BODY いつかまた、話しましょう。",
+    releasedOn: "2026-09-23",
+    returnsOn: "2026-12-25",
+  };
+
+  const token = seal(payload, key)!;
+  check("a comet can be sealed", typeof token === "string" && token.length > 0);
+  check("the token is URL-safe", /^[A-Za-z0-9_-]+$/.test(token));
+  // ~1.1KB per §11.5, which has to fit in a link in an email.
+  check("the token fits in a link", token.length < 2000, `${token.length} chars`);
+  // The body is encrypted, not encoded: it must not be readable in the token.
+  check("the token does not contain the message",
+    !Buffer.from(token, "base64url").toString("utf8").includes("SENTINEL-COMET-BODY"));
+
+  // ---- before the date: the dates, and nothing else ----------------------
+  const away = open(token, "2026-12-24", key);
+  check("before the day it is away", away.status === "away", away.status);
+  check("the dates are readable", away.status === "away" && away.returnsOn === "2026-12-25");
+  check("the name is readable", away.status === "away" && away.name === "そら");
+  // This is the whole promise. Not hidden — not returned at all.
+  check("the message is not in the result",
+    !JSON.stringify(away).includes("SENTINEL-COMET-BODY"));
+
+  // ---- on the day, and after -------------------------------------------
+  const returned = open(token, "2026-12-25", key);
+  check("on the day it has returned", returned.status === "returned", returned.status);
+  check("and the message is readable",
+    returned.status === "returned" && returned.body === payload.body);
+  check("it stays readable afterwards", open(token, "2027-03-01", key).status === "returned");
+
+  // ---- every way it must fail -------------------------------------------
+  check("another key cannot open it", open(token, "2026-12-25", other).status === "invalid");
+  check("no key at all cannot open it", open(token, "2026-12-25", null).status === "invalid");
+  check("nonsense is refused", open("not-a-token", "2026-12-25", key).status === "invalid");
+  check("an empty token is refused", open("", "2026-12-25", key).status === "invalid");
+  check("a truncated token is refused",
+    open(token.slice(0, -8), "2026-12-25", key).status === "invalid");
+
+  // A single flipped bit, anywhere, at every position: GCM authenticates the
+  // whole message, so there is no part of it that can be edited quietly.
+  const raw = Buffer.from(token, "base64url");
+  let survived = 0;
+  for (let i = 0; i < raw.length; i += 7) {
+    const tampered = Buffer.from(raw);
+    tampered[i] ^= 0x01;
+    if (open(tampered.toString("base64url"), "2026-12-25", key).status !== "invalid") {
+      survived++;
+    }
+  }
+  check("a flipped bit anywhere fails", survived === 0, `${survived} survived`);
+
+  // The dates are inside the ciphertext precisely so they cannot be edited to
+  // open a comet early; the check above proves editing them fails at all.
+  const shortKey = randomBytes(16);
+  check("a key of the wrong length is refused", seal(payload, shortKey) === null);
+
+  // Two seals of the same message differ: the IV is random each time.
+  check("two seals of one message differ", seal(payload, key) !== seal(payload, key));
+
+  console.log(`  token ${token.length} chars, ${Math.ceil(raw.length / 7)} tamper positions tested`);
+}
+
+console.log("18. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

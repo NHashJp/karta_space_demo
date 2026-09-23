@@ -169,6 +169,42 @@ the payload, and asserts that no environment value (`RESEND_API_KEY`, `NOTIFY_TO
 it. The dev-only `?now=` time travel is ignored in production for the same
 reason: a query parameter that unseals a message would be no seal at all.
 
+## The comet's seal, and its honest limit
+
+A receiver can write a message that is unreadable until a date. With no
+database, the message cannot be *kept* somewhere and released later — so the
+message **is** the link: `{v, slug, name, body, releasedOn, returnsOn}`
+encrypted with AES-256-GCM under `COMET_SECRET`, a random 12-byte IV, and
+`karta-comet-v1` as additional authenticated data. The token is
+base64url(`iv ‖ ciphertext ‖ tag`), about 260 characters, which fits in a link.
+
+**The dates are inside the ciphertext.** If `returnsOn` sat beside the token as
+a query parameter, anyone holding the link could edit it and open the comet
+early. Inside, changing it means changing the ciphertext, and GCM refuses to
+decrypt anything that has been altered at all — `npm run verify` section 17
+flips a bit at positions across the whole token and asserts every one fails.
+
+`open()` decrypts before the return date too, because the dates it needs are in
+there — but it does not *return* the body. The page that calls it cannot leak
+what it was never handed.
+
+### The limit, stated plainly
+
+This is a promise kept by software, not protection from the operator. **Whoever
+holds `COMET_SECRET` can open any comet at any time**, and in the MVP the
+sender is also the operator. The seal stops a curious person peeking at a link
+they were sent; it does not stop a determined one who also runs the server.
+
+A seal described as stronger than it is would be worse than no seal at all, so:
+
+- rotating `COMET_SECRET` **loses every comet still on its way**. They are not
+  stored anywhere to re-encrypt;
+- the link is the only copy. If the sender deletes the email, the message is
+  gone — the email itself says so;
+- the token is never written to the receiver's browser storage. It is their
+  message, and keeping a copy is their decision, offered as a button rather
+  than done quietly on their behalf.
+
 ## Content withholding
 
 The card page is a **server component**. The decision and the content live on

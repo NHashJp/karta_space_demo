@@ -1518,3 +1518,70 @@ body {
   font-size: 0.8rem;
   color: var(--titanium);
 }
+
+/* ---------- the sender's comet page (spec v0.2 §11.7) ---------- */
+
+.comet-page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-2)
+    max(var(--space-3), env(safe-area-inset-bottom));
+}
+
+.comet-page__scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.comet-page__panel {
+  position: relative;
+  z-index: 60;
+  width: min(420px, 100%);
+  padding: var(--space-3);
+  text-align: left;
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-2);
+  background: rgba(10, 12, 16, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.comet-page__invalid {
+  font-size: 0.92rem;
+  line-height: 1.9;
+  color: var(--lunar);
+}
+
+/*
+ * The message, set to be read rather than displayed: it has waited months for
+ * this. Lines fade in one at a time on a first reading only — re-reading a
+ * letter should not make you wait for it again.
+ */
+.comet-page__message {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--charcoal);
+  font-size: 0.96rem;
+  line-height: 2;
+  letter-spacing: 0.04em;
+  color: var(--asteroid);
+}
+
+.comet-page__message p[data-animate="true"] {
+  opacity: 0;
+  animation: line-arrive 1200ms ease forwards;
+}
+
+@keyframes line-arrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comet-page__message p[data-animate="true"] {
+    opacity: 1;
+    animation: none;
+  }
+}
