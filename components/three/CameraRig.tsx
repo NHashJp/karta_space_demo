@@ -38,6 +38,8 @@ type Props = {
    */
   leg?: number;
   memoryCount?: number;
+  /** The trail's control points, built once by the scene and shared. */
+  trail?: Point3[];
   /** This card's seed: its trail bends its own way, and it breathes its own way. */
   seed?: number;
   /**
@@ -65,6 +67,7 @@ export function CameraRig({
   phase,
   leg = 0,
   memoryCount = 0,
+  trail: given,
   seed = 0,
   breathing = false,
   reducedMotion,
@@ -72,7 +75,10 @@ export function CameraRig({
 }: Props) {
   const { camera, size } = useThree();
 
-  const trail = useMemo(() => trailControlPoints(seed), [seed]);
+  // Built by the scene when there is a trail to draw; built here when the rig
+  // is used on its own. Either way it is the same curve the ribbon uses.
+  const built = useMemo(() => trailControlPoints(seed), [seed]);
+  const trail = given ?? built;
 
   const reading = cameraDistance(size.width, size.height);
   const waiting = reading + ZOOM_DISTANCE;

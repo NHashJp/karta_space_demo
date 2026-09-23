@@ -1,12 +1,17 @@
 "use client";
 
-import { Suspense, useRef } from "react";
+import { Suspense, useMemo, useRef } from "react";
+import type { ClientMemory } from "@/lib/clientCard";
+import { trailSeed } from "@/lib/trailColour";
+import { trailControlPoints, trailSeedFor } from "@/lib/trailCurve";
 import { Canvas } from "@react-three/fiber";
 import type { CardFace } from "@/types/card";
 import type { CameraPhase } from "@/lib/experienceState";
 import { CameraRig } from "./CameraRig";
 import { MessageCube } from "./MessageCube";
 import { OrbitScene, SatelliteCarrier } from "./OrbitScene";
+import { MemoryPanel } from "./MemoryPanel";
+import { Trail } from "./Trail";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { FOV } from "./framing";
 
@@ -25,8 +30,13 @@ type Props = {
   returned?: boolean;
   /** The camera breathes only where nothing is being read (§23.2). */
   atRest: boolean;
-  /** How many memories hang on the trail, which sets where its stops are. */
-  memoryCount?: number;
+  /** The memories that hang on the trail, newest first. */
+  memories?: ClientMemory[];
+  /** Which one is being read, and whether its words are attached yet. */
+  activeMemory?: number;
+  revealMemory?: boolean;
+  /** The card's slug seeds its trail's shape and its colours. */
+  slug: string;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   within: boolean;
@@ -52,7 +62,10 @@ export function CubeScene({
   seed,
   returned,
   atRest,
-  memoryCount,
+  memories,
+  activeMemory = 0,
+  revealMemory = false,
+  slug,
   dimmed,
   deploying,
   deployed,
@@ -68,6 +81,12 @@ export function CubeScene({
    */
   const presence = useRef(deployed ? 1 : 0);
 
+  // The trail's shape and its colours are both seeded from the slug, so a card
+  // keeps the same trail on every visit and no two cards share one.
+  const curveSeed = useMemo(() => trailSeedFor(slug), [slug]);
+  const colourSeed = useMemo(() => trailSeed(slug), [slug]);
+  const trail = useMemo(() => trailControlPoints(curveSeed), [curveSeed]);
+
   return (
     <Canvas
       dpr={[1, 1.75]}
@@ -77,8 +96,9 @@ export function CubeScene({
       <CameraRig
         phase={cameraPhase}
         leg={cameraLeg}
-        memoryCount={memoryCount}
-        seed={seed}
+        memoryCount={memories?.length ?? 0}
+        seed={curveSeed}
+        trail={trail}
         breathing={atRest}
         reducedMotion={cube.reducedMotion}
         onArrive={onZoomEnd}
@@ -98,6 +118,41 @@ export function CubeScene({
           presence={presence}
         />
       ) : null}
+
+      {/*
+        The trail exists from the landing screen onwards, faintly, so the card
+        hints at what is behind it before anyone has been told (§7).
+      */}
+      {memories?.length ? (
+        <Trail
+          points={trail}
+          seed={colourSeed}
+          memoryCount={memories.length}
+          reducedMotion={cube.reducedMotion}
+          intensity={cameraPhase === "trail" || cameraPhase === "orbit" ? 1 : 0.25}
+        />
+      ) : null}
+
+      {/*
+        Only the memory being read and its immediate neighbours are mounted as
+        full panels; the rest are the glints the trail already draws (§9.2).
+      */}
+      {cameraPhase === "trail" && memories
+        ? memories.map((memory, index) =>
+            Math.abs(index - activeMemory) <= 1 ? (
+              <MemoryPanel
+                key={index}
+                memory={memory}
+                index={index}
+                count={memories.length}
+                points={trail}
+                seed={colourSeed}
+                revealed={revealMemory && index === activeMemory}
+                reducedMotion={cube.reducedMotion}
+              />
+            ) : null,
+          )
+        : null}
 
       <Suspense fallback={null}>
         <SatelliteCarrier

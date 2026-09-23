@@ -53,11 +53,31 @@ export const cards: CardConfig[] = [
     // order — `sortMemoriesNewestFirst` puts them in order. One has no image,
     // one is only approximately dated, one knows only its season.
     memories: [
-      { title: "はじめて会った日", date: "2023-04", approx: true, caption: "駅の改札で、ずいぶん待たせてしまった日。" },
-      { title: "夏の帰り道", date: "2023", season: "summer", caption: "何でもない話をしながら歩いた、あの時間。" },
+      {
+        title: "はじめて会った日",
+        date: "2023-04",
+        approx: true,
+        caption: "駅の改札で、ずいぶん待たせてしまった日。",
+        // Photographs live in private/cards/<slug>/, never in public/, and are
+        // served through the media route behind the access check (§14.3).
+        image: { src: "private/cards/2026-newyear-7k2m/memory-01.png", alt: "夕暮れの駅前", fit: "cover" },
+      },
+      {
+        title: "夏の帰り道",
+        date: "2023",
+        season: "summer",
+        caption: "何でもない話をしながら歩いた、あの時間。",
+        image: { src: "private/cards/2026-newyear-7k2m/memory-02.png", alt: "夏の夕方の街路", fit: "cover" },
+      },
+      // A memory with no photograph at all: it renders as words alone.
       { title: "初めての打ち合わせ", date: "2024-01-18" },
       { title: "雪の日の約束", date: "2025-12", approx: true, caption: "積もったら行こうね、と言っていた場所。" },
-      { title: "最後の打ち上げ", date: "2026-02-14", caption: "また集まろう、と全員が言った夜。" },
+      {
+        title: "最後の打ち上げ",
+        date: "2026-02-14",
+        caption: "また集まろう、と全員が言った夜。",
+        image: { src: "private/cards/2026-newyear-7k2m/memory-03.png", alt: "夜の窓辺の灯り", fit: "cover" },
+      },
     ],
     // TODO: replace the handles below with your own. Any entry left with an
     // empty `href` is simply not rendered on the closing screen.

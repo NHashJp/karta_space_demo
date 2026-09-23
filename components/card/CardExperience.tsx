@@ -147,7 +147,10 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           seed={seed}
           returned={returned}
           atRest={atRest}
-          memoryCount={memoryCount}
+          memories={card.memories}
+          activeMemory={activeMemory}
+          revealMemory={revealsMemory(state)}
+          slug={card.slug}
           deploying={deploying}
           deployed={isDeployed(state)}
           onDeployEnd={onDeployEnd}

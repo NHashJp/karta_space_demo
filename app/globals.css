@@ -1279,3 +1279,46 @@ body {
   letter-spacing: 0.08em;
   color: var(--lunar);
 }
+
+/* ---------- memories on the trail (spec v0.2 §9.2) ---------- */
+
+/*
+ * The words under a photograph. They fade in once the camera has arrived and
+ * never move while they are being read; the tint comes from the trail's own
+ * colour at this point on the curve, so each memory carries its own.
+ */
+.memory {
+  --memory-tint: var(--ion);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 600ms ease;
+  pointer-events: none;
+}
+
+.memory[data-visible="true"] {
+  opacity: 1;
+}
+
+.memory__date {
+  font-size: 0.8em;
+  letter-spacing: 0.1em;
+  color: var(--lunar);
+  font-variant-numeric: tabular-nums;
+}
+
+.memory__title {
+  margin-top: var(--space-1);
+  font-size: 1.25em;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--starlight);
+  text-shadow: 0 0 20px color-mix(in srgb, var(--memory-tint) 45%, transparent);
+}
+
+.memory__caption {
+  margin-top: var(--space-1);
+  font-size: 0.9em;
+  line-height: 1.8;
+  color: var(--cosmic-silver);
+  text-wrap: balance;
+}

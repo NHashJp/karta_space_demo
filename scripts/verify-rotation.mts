@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import * as THREE from "three";
 import {
   FOV,
@@ -32,6 +32,7 @@ import {
   ECCENTRICITY,
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
+import { RAMP_SIZE } from "../components/three/shaders/ribbon.ts";
 import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
 import { landingNote, toClientCard } from "../lib/clientCard.ts";
 import {
@@ -1285,7 +1286,58 @@ console.log("12. The satellite and the landing line (spec v0.2 §7, §8.4):");
   );
 }
 
-console.log("13. The deployment (spec v0.2 §8.2):");
+console.log("13. Memories and the media route (spec v0.2 §9.2, §14.3):");
+{
+  const sample = cards[0];
+  const client = toClientCard(sample, new Date("2026-09-23T00:00:00Z"),
+    { mailReady: false, cometReady: false });
+  const memories = client.memories ?? [];
+
+  check("the sample card has memories", memories.length > 0, String(memories.length));
+  check("memories arrive newest first",
+    memories[0].date >= memories[memories.length - 1].date,
+    `${memories[0].date} .. ${memories[memories.length - 1].date}`);
+  check("at least one memory has no photograph", memories.some((m) => !m.image));
+  check("at least one memory is only approximately dated",
+    memories.some((m) => m.approx));
+  check("at least one memory knows only its season", memories.some((m) => m.season));
+
+  for (const memory of memories) {
+    if (!memory.image) continue;
+    // The file is really there, and where the config says it is.
+    check(`"${memory.title}" photograph exists`, existsSync(memory.image.src), memory.image.src);
+    check(`"${memory.title}" photograph is outside public/`,
+      !memory.image.src.startsWith("public"), memory.image.src);
+
+    // And its URL goes through the gated route, not to a public path.
+    check(`"${memory.title}" is served through the media route`,
+      memory.image.url.startsWith(`/c/${sample.slug}/media/`), memory.image.url);
+    check(`"${memory.title}" URL does not leak the folder`,
+      !memory.image.url.includes("private/"), memory.image.url);
+
+    const kb = statSync(memory.image.src).size / 1024;
+    if (kb > 350) console.log(`    NOTE: ${memory.image.src} is ${kb.toFixed(0)}KB (over 350KB)`);
+    else console.log(`    ${memory.image.src} ${kb.toFixed(0)}KB -> ${memory.image.url}`);
+  }
+
+  // ---- the ribbon's colour is the one every tint is taken from -----------
+  // The panel borders and the glints call `trailColour` directly; the ribbon
+  // is handed the same function's output as a 32-point ramp. So the only way
+  // they can disagree is if the ramp is too coarse to follow the curve.
+  const seed = trailSeed(sample.slug);
+  let worstRamp = 0;
+  for (let i = 0; i < RAMP_SIZE - 1; i++) {
+    const a = trailColour(i / (RAMP_SIZE - 1), 0, seed);
+    const b = trailColour((i + 1) / (RAMP_SIZE - 1), 0, seed);
+    for (let c = 0; c < 3; c++) worstRamp = Math.max(worstRamp, Math.abs(a[c] - b[c]));
+  }
+  check("the ribbon's 32-point ramp follows the colour curve", worstRamp < 0.12,
+    worstRamp.toFixed(4));
+
+  console.log(`  ${memories.length} memories, worst ramp step ${worstRamp.toFixed(3)} per channel`);
+}
+
+console.log("14. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

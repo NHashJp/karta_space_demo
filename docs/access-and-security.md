@@ -13,9 +13,11 @@ Be clear about the threat model, because the spec is (spec §29):
   access.
 - **Does** keep cards separate from one another: access to one card grants
   nothing on any other, even on the same deployment and in the same browser.
+- **Does** keep a card's *memory photographs* behind the password, not only its
+  text (v0.2, below).
 - **Does not** make a card confidential. A custom slug is obscurity, not
-  authentication. Images in `/public` are fetchable by direct URL by anyone who
-  knows the path.
+  authentication. Cube-face images in `/public` are still fetchable by direct
+  URL by anyone who knows the path.
 
 It is demo access control. Do not put anything sensitive behind it.
 
@@ -103,6 +105,41 @@ warns below 8 characters.
 - The hint is public to anyone who has the link. Write one that means something
   to one person, not one that narrows the answer for everyone else.
 - The rate limit is still in-memory (below).
+
+## Private photographs (v0.2)
+
+A card's memories are the one genuinely personal part of it — photographs of
+two people, rather than written text about them. In v0.1 anything in `/public`
+was fetchable by anyone who knew the path, password or no password, which was
+an acceptable trade for a picture of a nebula and not for this.
+
+So memory images live in `private/cards/<slug>/`, outside the served
+directory, and reach the browser only through
+`GET /c/[slug]/media/[...path]` (spec v0.2 §14.3):
+
+- the route is **under `/c/[slug]/`** because that is where the access cookie
+  is scoped — anywhere else and the browser would not send it;
+- it calls the same `canView` as the page;
+- it rejects traversal, absolute paths and drive letters *before* touching the
+  disk, and then re-checks the **resolved** path is still inside the card's own
+  folder, because normalisation is the step that turns a clever relative path
+  into a real one;
+- it serves only five image types, by extension, with `nosniff`;
+- `Cache-Control: private` — a shared cache must never hold a photograph
+  fetched with someone else's cookie;
+- and every refusal is the same bare 404. A missing file, a wrong extension and
+  a card the reader cannot open are indistinguishable from outside, so the
+  folder cannot be mapped by probing it.
+
+Cube-face images may stay in `/public` for v0.2; migrating them is optional and
+deferred.
+
+One deployment note: the route builds its path from the request, so the build's
+tracer cannot see which files it will need. `outputFileTracingIncludes` in
+`next.config.ts` names `private/cards/**` for that route, or the photographs
+might not be bundled at all on a serverless deployment. Resolving the root once
+at module scope rather than per request also stops the tracer falling back to
+tracing the whole project.
 
 ## One check per receiver-facing route
 

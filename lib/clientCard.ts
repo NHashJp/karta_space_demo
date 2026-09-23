@@ -46,9 +46,17 @@ export type EnvFlags = {
 export const DEFAULT_FROM = "送り主";
 export const DEFAULT_REPLY_PROMPT = "ひとこと、返事をどうぞ。";
 
-/** A memory image is served through the media route, never from /public. */
+/**
+ * A memory image is served through the media route, never from /public.
+ *
+ * The config names the file by its real path in the repository —
+ * `private/cards/<slug>/x.png` — so that someone reading the config can see
+ * where the file actually is. The route is addressed relative to that folder,
+ * so the prefix comes off here.
+ */
 function mediaUrl(slug: string, src: string): string {
-  const path = src.replace(/^\/+/, "");
+  const folder = `private/cards/${slug}/`;
+  const path = src.replace(/^\/+/, "").replace(folder, "");
   return `/c/${slug}/media/${path}`;
 }
 
