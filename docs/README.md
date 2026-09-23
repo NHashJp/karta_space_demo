@@ -22,6 +22,7 @@ way they are. For the how-to — running it, writing a card, deploying — see t
 | [Scene and shaders](./scene-and-shaders.md) | Nebula, starfield, wandering lights, dimming and the performance budget |
 | [Access and security](./access-and-security.md) | Slug, password, cookie, and an honest account of what this does and does not protect |
 | [Verification](./verification.md) | What `npm run verify` proves, and the bugs it has actually caught |
+| [Spec v0.2 「またね」](./spec-v0.2.md) | The specification being implemented now: the letter becomes a satellite, and something comes back |
 
 ## The seven mechanisms worth understanding
 
