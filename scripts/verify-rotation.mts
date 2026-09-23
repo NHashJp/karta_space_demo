@@ -1631,7 +1631,67 @@ console.log("17. The comet's seal (spec v0.2 §11.5):");
   console.log(`  token ${token.length} chars, ${Math.ceil(raw.length / 7)} tamper positions tested`);
 }
 
-console.log("18. The deployment (spec v0.2 §8.2):");
+console.log("18. The satellite reminder (spec v0.2 §12.1, §14.6):");
+{
+  const sample = cards[0];
+  const tz = sample.timeZone ?? "Asia/Tokyo";
+  const satellite = sample.satellite!;
+
+  // ---- the day is the card's day, not the server's ----------------------
+  // 15:00 UTC on the 24th is already the 25th in Tokyo. A card written in
+  // Japan should be reminded on its own date, wherever the job runs.
+  check("not the day at 23:59 in the card's zone",
+    !isSatelliteDay(satellite, new Date("2026-12-24T14:59:00Z"), tz));
+  check("the day at 00:00 in the card's zone",
+    isSatelliteDay(satellite, new Date("2026-12-24T15:00:00Z"), tz));
+  check("still the day at 23:59 that night",
+    isSatelliteDay(satellite, new Date("2026-12-25T14:59:00Z"), tz));
+  check("over by 00:00 the next day",
+    !isSatelliteDay(satellite, new Date("2026-12-25T15:00:00Z"), tz));
+
+  // ---- and it comes round every year ------------------------------------
+  check("the anniversary counts too",
+    isSatelliteDay(satellite, new Date("2027-12-25T02:00:00Z"), tz));
+  check("a one-off satellite does not",
+    !isSatelliteDay({ ...satellite, repeat: "none" },
+      new Date("2027-12-25T02:00:00Z"), tz));
+
+  // ---- one email per card per day, whatever the scheduler does ----------
+  // Vercel cron may fire twice; there is no database to record a send in, so
+  // the key is what makes a second run harmless.
+  const keep = process.env.NOTIFY_TO;
+  process.env.NOTIFY_TO = "SENTINEL-NOTIFY@example.com";
+  const first = satelliteMail({
+    slug: sample.slug, title: sample.title, label: satellite.label,
+    message: satellite.message, today: "2026-12-25",
+  })!;
+  const second = satelliteMail({
+    slug: sample.slug, title: sample.title, label: satellite.label,
+    message: satellite.message, today: "2026-12-25",
+  })!;
+  check("two runs on one day carry the same key",
+    first.idempotencyKey === second.idempotencyKey, first.idempotencyKey);
+  const nextYear = satelliteMail({
+    slug: sample.slug, title: sample.title, label: satellite.label,
+    message: satellite.message, today: "2027-12-25",
+  })!;
+  check("next year's is a different key",
+    nextYear.idempotencyKey !== first.idempotencyKey, nextYear.idempotencyKey);
+  if (keep === undefined) delete process.env.NOTIFY_TO;
+  else process.env.NOTIFY_TO = keep;
+
+  // ---- the schedule is actually configured ------------------------------
+  const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as {
+    crons?: { path: string; schedule: string }[];
+  };
+  const cron = vercel.crons?.find((c) => c.path === "/api/cron/satellites");
+  check("vercel.json schedules the reminder", Boolean(cron), JSON.stringify(vercel.crons));
+  check("it runs daily", cron?.schedule === "0 0 * * *", cron?.schedule);
+
+  console.log(`  ${satellite.date} in ${tz}, ${cron?.schedule} UTC, one send per card per day`);
+}
+
+console.log("19. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

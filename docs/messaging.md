@@ -56,6 +56,23 @@ on the Hobby plan it fires at some point within the scheduled hour. A missed run
 means no reminder that year. It is a nudge, not a guarantee, and the card never
 promises the receiver that one will arrive.
 
+## The daily job
+
+`GET /api/cron/satellites`, scheduled in `vercel.json` at `0 0 * * *` UTC.
+
+Two details that are easy to get wrong:
+
+- **The date check is in the card's time zone, not the server's.** 15:00 UTC on
+  the 24th is already the 25th in Tokyo. A card written in Japan is reminded on
+  its own date, wherever the job happens to run.
+- **No secret configured means the route is off, not open.** An
+  unauthenticated endpoint that sends email is an endpoint that sends email for
+  anyone. It answers 401 until `CRON_SECRET` is set, and 401 to anything
+  without the matching bearer token.
+
+It answers `{ checked, sent, failed }` for the logs, and can be called by hand
+with the same header to test a card before its date arrives.
+
 ## Resend over HTTP, no SDK
 
 One `POST` with a JSON body. An SDK for that would be a dependency to keep
