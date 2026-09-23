@@ -81,11 +81,15 @@ export function Starfield({ reducedMotion }: { reducedMotion: boolean }) {
     [],
   );
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     if (material.current) {
       material.current.uniforms.uPixelRatio.value = dpr;
       if (!reducedMotion) material.current.uniforms.uTime.value = clock.elapsedTime;
     }
+    // The sky is the far distance, and travels with the camera for the same
+    // reason the nebula does.
+    field.current?.position.copy(camera.position);
+
     // The sky turns, but not on one axis at one rate: three slow sines with
     // unrelated periods make the drift wander instead of scroll.
     if (field.current && !reducedMotion) {

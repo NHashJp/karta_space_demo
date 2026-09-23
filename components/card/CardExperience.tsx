@@ -22,6 +22,7 @@ import {
   cameraPhase,
   dimsScene,
   initialExperience,
+  isDeployed,
   isWithinCube,
   reduceExperience,
   revealsMemory,
@@ -112,6 +113,14 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
     card.satelliteStatus === "returned" || card.senderComet?.status === "returned";
   const atRest = breathesAtRest(state);
 
+  /**
+   * How far the cube has become a satellite. §19 phase 6 hands this to
+   * `MessageCube`, which will drive it from the deployment timeline; until
+   * then it is the state's own answer, eased by the CSS-free lerp in the
+   * carrier, so the orbit composition is already correct to frame and check.
+   */
+  const presence = isDeployed(state) ? (state === "deploying" ? 1 : 1) : 0;
+
   useFaceNavigation(move, !acceptsInput(state), state !== "landing");
 
   if (failed) {
@@ -141,6 +150,8 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           seed={seed}
           returned={returned}
           atRest={atRest}
+          memoryCount={memoryCount}
+          presence={presence}
           secret={secret}
           within={isWithinCube(state)}
           revealSecret={revealsSecret(state)}

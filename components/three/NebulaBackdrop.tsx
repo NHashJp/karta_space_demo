@@ -14,6 +14,7 @@ type Props = {
 
 export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
   const material = useRef<THREE.ShaderMaterial>(null);
+  const shell = useRef<THREE.Mesh>(null);
   const lowDetail = useThree((state) => state.size.width) < 700;
 
   const uniforms = useMemo(
@@ -32,7 +33,12 @@ export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
     [],
   );
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
+    // The gas is the far distance, so its sphere travels with the camera. The
+    // trail runs out to z = -70 inside a sphere of radius 90; left at the
+    // origin, the near wall would be 20 units away by the end of it.
+    shell.current?.position.copy(camera.position);
+
     const shader = material.current;
     if (!shader) return;
     if (!reducedMotion) shader.uniforms.uTime.value = clock.elapsedTime;
@@ -45,7 +51,7 @@ export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
   });
 
   return (
-    <mesh renderOrder={-10} frustumCulled={false}>
+    <mesh ref={shell} renderOrder={-10} frustumCulled={false}>
       <sphereGeometry args={[90, 32, 24]} />
       <shaderMaterial
         // Remounts the material when the detail level changes, so the

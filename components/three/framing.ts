@@ -21,13 +21,163 @@ export const INSIDE_DISTANCE = 0.62;
 /** The secret line hangs just inside the far wall. */
 export const SECRET_PLANE_Z = -0.94;
 
+/* ---------------------------------------------------------------------------
+ * The orbit composition (spec v0.2 §8.3)
+ * ------------------------------------------------------------------------- */
+
+/** 「あなたの星」. The receiver's planet, low in the frame. */
+export const PLANET_RADIUS = 2.2;
+export const PLANET_CENTRE: Vec3 = [0, -3.4, -1];
+
+/** The satellite's tilted ellipse, around the planet's centre. */
+export const ORBIT_SEMI_MAJOR = 3.4;
+export const ORBIT_SEMI_MINOR = 2.6;
+export const ORBIT_TILT = (14 * Math.PI) / 180;
+
 /**
- * v0.2 poses (spec v0.2 §8.3, §9.3). Placeholder distances for now: phase 5
- * replaces these with real pose paths that also move the camera off the z
- * axis, and the framing checks in §17 come with them.
+ * What the orbit camera looks at. Not the planet's centre but a point above
+ * it, which is what puts the planet low in the frame and leaves the sky — the
+ * satellite, the comets, the trail — the upper two-thirds it needs.
  */
-export const ORBIT_DISTANCE = 13.5;
-export const TRAIL_DISTANCE = 9;
+export const ORBIT_TARGET: Vec3 = [0, -2.2, -1];
+
+/**
+ * Margin beyond the composition. §17 requires 8%; designing to 12% leaves the
+ * check somewhere to fail from if the numbers are ever tuned.
+ */
+const ORBIT_MARGIN = 1.12;
+
+export type Vec3 = [number, number, number];
+export type Pose = { position: Vec3; lookAt: Vec3 };
+
+/** A point on the satellite's ellipse at orbit phase `theta` (radians). */
+export function orbitPosition(theta: number): Vec3 {
+  const x = ORBIT_SEMI_MAJOR * Math.cos(theta);
+  const flat = ORBIT_SEMI_MINOR * Math.sin(theta);
+  return [
+    PLANET_CENTRE[0] + x,
+    PLANET_CENTRE[1] + flat * Math.cos(ORBIT_TILT),
+    PLANET_CENTRE[2] + flat * Math.sin(ORBIT_TILT),
+  ];
+}
+
+/**
+ * The half-extents, around `ORBIT_TARGET`, that the orbit view must contain:
+ * the whole ellipse, and as much of the planet as is above the frame's floor.
+ */
+/**
+ * Everything the orbit view has to hold: the whole of the satellite's ellipse,
+ * and the planet's silhouette. Returned as points rather than as a bounding
+ * box, because a box would be framed at its nearest depth and the composition
+ * is over four units deep — the widest parts of it are not the nearest parts,
+ * and sizing for the worst of both at once pushes the camera needlessly far
+ * back.
+ */
+export function orbitSamples(): Vec3[] {
+  const points: Vec3[] = [];
+  for (let i = 0; i < 180; i++) {
+    const a = (i * 2 * Math.PI) / 180;
+    points.push(orbitPosition(a));
+    // The planet's silhouette. Its near pole is the closest thing in the
+    // composition, so it is included as its own sample.
+    points.push([
+      PLANET_CENTRE[0] + Math.cos(a) * PLANET_RADIUS,
+      PLANET_CENTRE[1] + Math.sin(a) * PLANET_RADIUS,
+      PLANET_CENTRE[2],
+    ]);
+  }
+  points.push([PLANET_CENTRE[0], PLANET_CENTRE[1], PLANET_CENTRE[2] + PLANET_RADIUS]);
+  return points;
+}
+
+/**
+ * Where the camera sits in the orbit view, for this viewport.
+ *
+ * Same idea as `cameraDistance`: portrait is governed by width and landscape
+ * by height, and the distance is whichever of the two is further. A phone's
+ * 0.46 aspect ratio makes width the binding constraint by a long way, which is
+ * why the orbit view sits further back on a phone than it looks like it should.
+ */
+export function orbitPose(width: number, height: number): Pose {
+  const aspect = width / height;
+  const halfV = ((FOV * Math.PI) / 180) / 2;
+  const halfH = Math.atan(Math.tan(halfV) * aspect);
+  const tanH = Math.tan(halfH);
+  const tanV = Math.tan(halfV);
+
+  // For each point, the camera distance at which it sits exactly on the
+  // margin; the answer is the furthest of them. Solving point by point rather
+  // than from a bounding box is what keeps the composition as large as it can
+  // be while still passing §17 at every viewport.
+  let distance = 0;
+  for (const [x, y, z] of orbitSamples()) {
+    const ahead = z - ORBIT_TARGET[2];
+    const dx = Math.abs(x - ORBIT_TARGET[0]) * ORBIT_MARGIN;
+    const dy = Math.abs(y - ORBIT_TARGET[1]) * ORBIT_MARGIN;
+    distance = Math.max(distance, dx / tanH + ahead, dy / tanV + ahead);
+  }
+
+  // Straight down -z through the target. The planet already sits low in the
+  // frame because the target is above it; tilting as well would only make the
+  // framing harder to reason about and the ellipse harder to fit.
+  return {
+    position: [ORBIT_TARGET[0], ORBIT_TARGET[1], ORBIT_TARGET[2] + distance],
+    lookAt: ORBIT_TARGET,
+  };
+}
+
+/* ---------------------------------------------------------------------------
+ * The trail (spec v0.2 §9.2, §9.3)
+ * ------------------------------------------------------------------------- */
+
+/** The panel's world size. The cube's face is 2 units; a photograph earns more. */
+export const MEMORY_PANEL_WORLD = 2.4;
+
+/** The share of the frame a memory should fill — the same as a cube face's. */
+const MEMORY_FILL_PORTRAIT = 0.72; // §17: 65-80% of the width
+const MEMORY_FILL_LANDSCAPE = 0.55; // §17: 45-65% of the height
+
+/**
+ * How far in front of a memory the camera stops.
+ *
+ * Responsive for the same reason `cameraDistance` is: a fixed distance makes
+ * the panel fill a phone's narrow frame and get lost in a wide one. Portrait
+ * is governed by width, landscape by height.
+ */
+export function memoryViewDistance(width: number, height: number): number {
+  const aspect = width / height;
+  const halfV = ((FOV * Math.PI) / 180) / 2;
+  const halfH = Math.atan(Math.tan(halfV) * aspect);
+
+  const portrait = aspect < 1;
+  const halfAngle = portrait ? halfH : halfV;
+  const fill = portrait ? MEMORY_FILL_PORTRAIT : MEMORY_FILL_LANDSCAPE;
+
+  return MEMORY_PANEL_WORLD / fill / 2 / Math.tan(halfAngle);
+}
+
+/**
+ * The share of the viewport a memory panel fills, which §17 requires to match
+ * a cube face's: 65-80% of the width in portrait, 45-65% of the height in
+ * landscape. Returned as fractions so verify can assert both.
+ */
+export function memoryPanelFraming(width: number, height: number) {
+  const aspect = width / height;
+  const halfV = ((FOV * Math.PI) / 180) / 2;
+  const halfH = Math.atan(Math.tan(halfV) * aspect);
+  const distance = memoryViewDistance(width, height);
+
+  const visibleHeight = 2 * Math.tan(halfV) * distance;
+  const visibleWidth = 2 * Math.tan(halfH) * distance;
+
+  return {
+    distance,
+    widthFraction: MEMORY_PANEL_WORLD / visibleWidth,
+    heightFraction: MEMORY_PANEL_WORLD / visibleHeight,
+    /** Screen pixels the panel occupies, for the 40px-per-unit text rule. */
+    screenPx: (MEMORY_PANEL_WORLD / visibleWidth) * width,
+  };
+}
 
 /** Fraction of the viewport's governing axis the front face should occupy. */
 const DESKTOP_FILL = 0.55; // of viewport height (spec §15: 45-65%)

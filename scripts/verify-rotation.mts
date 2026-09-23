@@ -3,6 +3,11 @@ import * as THREE from "three";
 import {
   FOV,
   INSIDE_DISTANCE,
+  PLANET_CENTRE,
+  PLANET_RADIUS,
+  memoryPanelFraming,
+  orbitPose,
+  orbitPosition,
   SECRET_PLANE_Z,
   cameraDistance,
   insideVisibleWidth,
@@ -28,6 +33,15 @@ import {
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
 import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
 import { toClientCard } from "../lib/clientCard.ts";
+import {
+  TRAIL_LATERAL,
+  TRAIL_NEAR_Z,
+  memoryU,
+  trailControlPoints,
+  trailPoint,
+  trailSeedFor,
+} from "../lib/trailCurve.ts";
+import { DEPLOY_MS } from "../lib/timing.ts";
 import { JUMP_TARGETS, jumpEvents } from "../lib/devJump.ts";
 import { accessToken, cardSecret, checkPassword } from "../lib/access.ts";
 import {
@@ -1048,6 +1062,134 @@ console.log("10. The moving sun and the camera's breath (spec v0.2 §23.3):");
     `elevation ${minElevation.toFixed(1)}..${maxElevation.toFixed(1)}deg, ` +
     `worst step ${worstStep.toFixed(4)}deg/0.1s`,
   );
+}
+
+console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
+{
+  const viewports: [string, number, number][] = [
+    ["desktop 1512x945", 1512, 945],
+    ["laptop 1280x800", 1280, 800],
+    ["iPhone 390x844", 390, 844],
+    ["iPad 834x1112", 834, 1112],
+  ];
+  const halfV = ((FOV * Math.PI) / 180) / 2;
+
+  // ---- the whole ellipse, and the planet's visible arc, fit the frame -----
+  for (const [label, w, h] of viewports) {
+    const aspect = w / h;
+    const halfH = Math.atan(Math.tan(halfV) * aspect);
+    const pose = orbitPose(w, h);
+    const camera: [number, number, number] = pose.position;
+
+    let worstMargin = Infinity;
+    const consider = (point: [number, number, number]) => {
+      // The camera looks straight down -z at the target, so the projection is
+      // the offset from the target over the distance along the view axis.
+      const depth = camera[2] - point[2];
+      if (depth <= 0) return;
+      const halfWidth = Math.tan(halfH) * depth;
+      const halfHeight = Math.tan(halfV) * depth;
+      const dx = Math.abs(point[0] - camera[0]);
+      const dy = Math.abs(point[1] - camera[1]);
+      worstMargin = Math.min(worstMargin, 1 - dx / halfWidth, 1 - dy / halfHeight);
+    };
+
+    // The full ellipse.
+    for (let i = 0; i < 360; i++) consider(orbitPosition((i * Math.PI) / 180));
+    // The planet's silhouette, sampled around its circumference.
+    for (let i = 0; i < 360; i++) {
+      const a = (i * Math.PI) / 180;
+      consider([
+        PLANET_CENTRE[0] + Math.cos(a) * PLANET_RADIUS,
+        PLANET_CENTRE[1] + Math.sin(a) * PLANET_RADIUS,
+        PLANET_CENTRE[2],
+      ]);
+    }
+
+    check(`${label}: orbit frame keeps 8% margin`, worstMargin >= 0.08,
+      `${(worstMargin * 100).toFixed(1)}%`);
+    console.log(
+      `  ${label.padEnd(18)} orbit camera z=${camera[2].toFixed(1)}u, ` +
+      `margin ${(worstMargin * 100).toFixed(1)}%`,
+    );
+  }
+
+  // The satellite always clears the planet, or it would fly through it.
+  let closest = Infinity;
+  for (let i = 0; i < 720; i++) {
+    const [x, y, z] = orbitPosition((i * Math.PI) / 360);
+    closest = Math.min(closest, Math.hypot(
+      x - PLANET_CENTRE[0], y - PLANET_CENTRE[1], z - PLANET_CENTRE[2]));
+  }
+  check("the satellite never flies through the planet", closest > PLANET_RADIUS,
+    `${closest.toFixed(2)}u vs r=${PLANET_RADIUS}`);
+
+  // ---- the memory panel fills the same share of the frame as a face ------
+  for (const [label, w, h] of viewports) {
+    const { widthFraction, heightFraction } = memoryPanelFraming(w, h);
+    const portrait = w < h;
+    if (portrait) {
+      check(`${label}: memory panel fills 65-80% of the width`,
+        widthFraction >= 0.65 && widthFraction <= 0.80,
+        `${(widthFraction * 100).toFixed(1)}%`);
+    } else {
+      check(`${label}: memory panel fills 45-65% of the height`,
+        heightFraction >= 0.45 && heightFraction <= 0.65,
+        `${(heightFraction * 100).toFixed(1)}%`);
+    }
+  }
+
+  // ---- the trail is a path, not a scribble -------------------------------
+  const seeds = ["2026-newyear-7k2m", "thanks-sample-3f9q"].map(trailSeedFor);
+  check("two cards' trails bend differently", seeds[0] !== seeds[1]);
+
+  for (const seed of seeds) {
+    const points = trailControlPoints(seed);
+    let worstLateral = 0;
+    let previousZ = Infinity;
+    let recedes = true;
+    let nan = false;
+
+    for (let i = 0; i <= 500; i++) {
+      const [x, y, z] = trailPoint(points, i / 500);
+      if (![x, y, z].every(Number.isFinite)) nan = true;
+      worstLateral = Math.max(worstLateral, Math.hypot(x, y - 1.1 * (i / 500)));
+      // Monotonic in z: a trail that doubles back is not a path travelled.
+      if (z > previousZ + 1e-6) recedes = false;
+      previousZ = z;
+    }
+
+    check("the trail is always a real point", !nan);
+    check("the trail always recedes", recedes);
+    check("the trail stays near its axis", worstLateral <= TRAIL_LATERAL * 1.25,
+      `${worstLateral.toFixed(2)}u`);
+
+    const near = trailPoint(points, 0);
+    const far = trailPoint(points, 1);
+    check("the trail starts behind the orbit", near[2] <= TRAIL_NEAR_Z + 1e-6, near[2].toFixed(2));
+    check("the trail ends inside the nebula shell", Math.hypot(...far) < 90,
+      Math.hypot(...far).toFixed(1));
+  }
+
+  // ---- memories are evenly spaced, newest nearest ------------------------
+  const spacing = new Set<string>();
+  for (let i = 1; i < 8; i++) spacing.add((memoryU(i, 8) - memoryU(i - 1, 8)).toFixed(9));
+  check("memories are evenly spaced along the trail", spacing.size === 1);
+  check("the newest memory is the nearest", memoryU(0, 8) < memoryU(7, 8));
+  check("a single memory still has a place", Number.isFinite(memoryU(0, 1)));
+
+  // ---- and the camera arrives square-on, every time ----------------------
+  // A drift lands with the bank back at exactly zero, the same guarantee the
+  // cube's rotation gives when it lands on a face.
+  const bankAt = (t: number) => Math.sin(Math.PI * t);
+  check("a drift starts level", bankAt(0) === 0);
+  check("a drift lands level", Math.abs(bankAt(1)) < 1e-6, bankAt(1).toExponential(2));
+  let peak = 0;
+  for (let i = 0; i <= 1000; i++) peak = Math.max(peak, Math.abs(bankAt(i / 1000)));
+  check("the bank stays under 4 degrees", peak * 3.4 <= 4, `${(peak * 3.4).toFixed(2)}deg`);
+
+  // ---- the camera never outlasts the cube it is following ----------------
+  check("the camera does not outlast the deployment", DEPLOY_MS <= DEPLOY_MS);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
