@@ -4,19 +4,21 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { useProgress } from "@react-three/drei";
 import { landingNote, type ClientCard } from "@/lib/clientCard";
 import type { ExperienceEvent, OrbitPanel } from "@/lib/experienceState";
-import { CubeScene } from "@/components/three/CubeScene";
+import { CubeScene, type SceneComet } from "@/components/three/CubeScene";
 import { CardLanding } from "./CardLanding";
 import { CardProgress } from "./CardProgress";
 import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
 import { Panel } from "./Panel";
 import { SatellitePanel } from "./SatellitePanel";
+import { CometPanel } from "./CometPanel";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import { LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
 import { jumpEvents } from "@/lib/devJump";
 import { lightSeed } from "@/lib/sceneLight";
+import { progress as cometProgress } from "@/lib/cometOrbit";
 import {
   acceptsInput,
   breathesAtRest,
@@ -50,7 +52,7 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
     { memoryCount, hasOrbit: card.hasOrbit },
     initialExperience,
   );
-  const { state, activeFace, activeMemory, panel, launched } = experience;
+  const { state, activeFace, activeMemory, panel, launched, released } = experience;
   const [settled, setSettled] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const { active: loading, errors } = useProgress();
@@ -108,6 +110,39 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
   const phase = cameraPhase(state);
 
   const seed = useMemo(() => lightSeed(card.slug), [card.slug]);
+
+  /**
+   * The comets in the sky, as positions rather than as configuration. The
+   * sender's is wherever its dates put it today; the receiver's appears only
+   * once they have actually released one, and then sits at the start of its
+   * own orbit.
+   */
+  const comets = useMemo<SceneComet[]>(() => {
+    const out: SceneComet[] = [];
+    if (card.senderComet) {
+      out.push({
+        key: "sender",
+        progress: cometProgress(
+          card.senderComet.releasedOn,
+          card.senderComet.returnsOn,
+          card.today,
+        ),
+        releasedOn: card.senderComet.releasedOn,
+        tone: "sender",
+        onSelect: () => dispatch({ type: "openPanel", panel: "comet" }),
+      });
+    }
+    if (released && card.receiverComet) {
+      out.push({
+        key: "receiver",
+        progress: 0,
+        releasedOn: card.today,
+        tone: "receiver",
+        onSelect: () => dispatch({ type: "openPanel", panel: "comet" }),
+      });
+    }
+    return out;
+  }, [card.senderComet, card.receiverComet, card.today, released]);
   // A warmer light on the day something comes back (§23.3).
   const returned =
     card.satelliteStatus === "returned" || card.senderComet?.status === "returned";
@@ -151,6 +186,8 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           activeMemory={activeMemory}
           revealMemory={revealsMemory(state)}
           slug={card.slug}
+          comets={comets}
+          openPanel={panel}
           deploying={deploying}
           deployed={isDeployed(state)}
           onDeployEnd={onDeployEnd}
@@ -215,9 +252,13 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
         <SatellitePanel card={card} onClose={onClosePanel} />
       ) : null}
 
-      {/* Placeholder bodies until §19 phases 10 and 13 build the real ones. */}
-      {panel === "comet" || panel === "reply" ? (
-        <Panel title={panel === "comet" ? "彗星" : "返事"} onClose={onClosePanel}>
+      {panel === "comet" ? (
+        <CometPanel card={card} today={card.today} onClose={onClosePanel} />
+      ) : null}
+
+      {/* Placeholder body until §19 phase 13 builds the reply form. */}
+      {panel === "reply" ? (
+        <Panel title="返事" onClose={onClosePanel}>
           <p className="panel__body" lang="ja">
             準備中
           </p>

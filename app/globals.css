@@ -1322,3 +1322,53 @@ body {
   color: var(--cosmic-silver);
   text-wrap: balance;
 }
+
+/* ---------- the comet panel (spec v0.2 §11.3) ---------- */
+
+.comet-section + .comet-section {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--charcoal);
+}
+
+.mini-orbit {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.comet__headline {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--starlight);
+}
+
+.comet__meta {
+  margin-top: var(--space-half);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--lunar);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The sealed message, once it is readable. Set like a cube face rather than
+ * like UI: it has waited months to be read, and it should look like something
+ * written rather than something displayed.
+ */
+.comet__message {
+  margin-top: var(--space-2);
+  font-size: 0.94rem;
+  line-height: 2;
+  letter-spacing: 0.04em;
+  color: var(--asteroid);
+}
+
+/* The line that makes the seal explicit before anyone commits to it. */
+.comet__note {
+  margin-top: var(--space-1);
+  font-size: 0.8rem;
+  line-height: 1.8;
+  color: var(--titanium);
+}

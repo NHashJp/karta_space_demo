@@ -27,8 +27,10 @@ import {
   cometWindow,
   displayedProgress,
   orbitPoint,
+  orbitRotation,
   solveEccentricAnomaly,
   tailLength,
+  toWorld,
   ECCENTRICITY,
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
@@ -1337,7 +1339,76 @@ console.log("13. Memories and the media route (spec v0.2 §9.2, §14.3):");
   console.log(`  ${memories.length} memories, worst ramp step ${worstRamp.toFixed(3)} per channel`);
 }
 
-console.log("14. The deployment (spec v0.2 §8.2):");
+console.log("14. The comet in the sky (spec v0.2 §11.2):");
+{
+  const sample = cards[0];
+  const env = { mailReady: false, cometReady: false };
+  const at = (iso: string) => toClientCard(sample, new Date(iso), env);
+
+  // ---- the seal, both directions ----------------------------------------
+  // The one promise a comet makes. Checked by searching the whole payload,
+  // not by checking a flag: a message hidden behind a boolean is not sealed.
+  const before = JSON.stringify(at("2026-09-23T00:00:00Z"));
+  const message = sample.comet?.message ?? "";
+  check("the message is absent before the return", !before.includes(message.slice(0, 20)));
+  check("and so is any part of it", !before.includes("まだうまく言えない"));
+  const after = JSON.stringify(at("2026-12-25T02:00:00Z"));
+  check("the message is there on the day", after.includes(message.slice(0, 20)));
+
+  // ---- the position is the countdown ------------------------------------
+  // The whole reason this is a Kepler orbit rather than a progress bar: it
+  // must be far away for most of the wait and come home in a rush.
+  const comet = at("2026-09-23T00:00:00Z").senderComet!;
+  const span = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.97, 1].map((f) => ({
+    f,
+    distance: orbitPoint(displayedProgress(f)).distance,
+  }));
+  // Note these are *drawn* positions, so f = 0 is already the 0.06 floor:
+  // a comet sent today is shown on its way out, not sitting on the planet.
+  check("it leaves rather than lingering", span[0].distance > PERIHELION * 3,
+    span[0].distance.toFixed(1));
+  check("it is far away at half time", span[3].distance > 50, span[3].distance.toFixed(1));
+  check("it is still far at three quarters", span[4].distance > 40, span[4].distance.toFixed(1));
+  check("it comes home in the last tenth",
+    span[6].distance < span[5].distance / 2,
+    `${span[5].distance.toFixed(1)} -> ${span[6].distance.toFixed(1)}`);
+  check("and lands at perihelion", Math.abs(span[7].distance - PERIHELION) < 1e-6);
+
+  // The tail only exists near home, which is what makes its growth the signal.
+  check("no tail at aphelion", tailLength(span[3].distance) === 0);
+  check("a tail in the last stretch", tailLength(span[6].distance) > 0,
+    tailLength(span[6].distance).toFixed(2));
+  let previousTail = 0;
+  let growing = true;
+  for (let i = 90; i <= 100; i++) {
+    const t = tailLength(orbitPoint(displayedProgress(i / 100)).distance);
+    if (t < previousTail - 1e-9) growing = false;
+    previousTail = t;
+  }
+  check("the tail only grows as it comes home", growing);
+
+  // ---- two comets never sit on top of each other ------------------------
+  const a = orbitRotation(sample.slug, "2026-03-01");
+  const b = orbitRotation(sample.slug, "2026-09-23");
+  check("two comets get different orbits", Math.abs(a - b) > 0.2,
+    `${a.toFixed(2)} vs ${b.toFixed(2)}`);
+
+  // ---- and everything stays inside the sky ------------------------------
+  let furthest = 0;
+  for (let i = 0; i <= 720; i++) {
+    const world = toWorld(orbitPoint(i / 720), a);
+    furthest = Math.max(furthest, Math.hypot(
+      PLANET_CENTRE[0] + world.x, PLANET_CENTRE[1] + world.y, PLANET_CENTRE[2] + world.z));
+  }
+  check("the whole orbit is inside the nebula shell", furthest < 90, furthest.toFixed(1));
+
+  console.log(
+    `  ${comet.releasedOn} -> ${comet.returnsOn}; ` +
+    `q=${PERIHELION} Q=${span[3].distance.toFixed(1)}, furthest from origin ${furthest.toFixed(1)}u`,
+  );
+}
+
+console.log("15. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

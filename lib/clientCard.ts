@@ -30,6 +30,12 @@ export type ClientCard = Omit<CardConfig, "comet" | "reply" | "access"> & {
   daysUntil?: number;
   replyAvailable: boolean;
   replyPrompt?: string;
+  /**
+   * Today's date in the card's own time zone, decided on the server. The
+   * browser's clock may be in another zone, or simply wrong, and the comet's
+   * position has to agree with the countdown the server computed.
+   */
+  today: string;
   memories?: ClientMemory[];
   /** True when anything at all exists past the closing screen. */
   hasOrbit: boolean;
@@ -124,6 +130,7 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
     daysUntil: clock?.daysUntil,
     replyAvailable,
     replyPrompt: replyAvailable ? (card.reply?.prompt ?? DEFAULT_REPLY_PROMPT) : undefined,
+    today,
     hasOrbit,
   };
 }

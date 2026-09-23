@@ -10,10 +10,21 @@ import type { CameraPhase } from "@/lib/experienceState";
 import { CameraRig } from "./CameraRig";
 import { MessageCube } from "./MessageCube";
 import { OrbitScene, SatelliteCarrier } from "./OrbitScene";
+import { Comet, type CometTone } from "./Comet";
 import { MemoryPanel } from "./MemoryPanel";
+import { MeteorShower } from "./MeteorShower";
 import { Trail } from "./Trail";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { FOV } from "./framing";
+
+/** One comet, already resolved to the numbers the scene needs. */
+export type SceneComet = {
+  key: string;
+  progress: number;
+  releasedOn: string;
+  tone: CometTone;
+  onSelect?: () => void;
+};
 
 type Props = {
   faces: CardFace[];
@@ -37,6 +48,9 @@ type Props = {
   revealMemory?: boolean;
   /** The card's slug seeds its trail's shape and its colours. */
   slug: string;
+  /** The comets on their long orbits, and which panel is open (§11.2). */
+  comets?: SceneComet[];
+  openPanel?: string | null;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   within: boolean;
@@ -66,6 +80,8 @@ export function CubeScene({
   activeMemory = 0,
   revealMemory = false,
   slug,
+  comets,
+  openPanel,
   dimmed,
   deploying,
   deployed,
@@ -118,6 +134,28 @@ export function CubeScene({
           presence={presence}
         />
       ) : null}
+
+      {/*
+        Comets are drawn from their dates, so they are simply *where they are*
+        — no animation, no state. Opening the comet panel shows their orbits.
+      */}
+      {deployed && comets
+        ? comets.map((comet) => (
+            <Comet
+              key={comet.key}
+              progress={comet.progress}
+              slug={slug}
+              releasedOn={comet.releasedOn}
+              tone={comet.tone}
+              reducedMotion={cube.reducedMotion}
+              showOrbit={openPanel === "comet"}
+              onSelect={comet.onSelect}
+            />
+          ))
+        : null}
+
+      {/* Once, on the day, and never again while the page is open. */}
+      {deployed && returned ? <MeteorShower reducedMotion={cube.reducedMotion} /> : null}
 
       {/*
         The trail exists from the landing screen onwards, faintly, so the card
