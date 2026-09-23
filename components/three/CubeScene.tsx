@@ -157,7 +157,11 @@ export function CubeScene({
         — no animation, no state. Opening the comet panel shows their orbits.
       */}
       {deployed && comets
-        ? comets.map((comet) => (
+        ? comets.map((comet) =>
+            // While a comet is being released, `CometRelease` is drawing it on
+            // its way out. Drawing it at its destination as well would put two
+            // of the same comet on screen for the length of the animation.
+            releasing && comet.tone === "receiver" ? null : (
             <Comet
               key={comet.key}
               progress={comet.progress}
@@ -168,7 +172,8 @@ export function CubeScene({
               showOrbit={openPanel === "comet"}
               onSelect={comet.onSelect}
             />
-          ))
+          ),
+          )
         : null}
 
       {releasing && onReleaseEnd ? (

@@ -7,11 +7,13 @@ import type { CardConfig } from "@/types/card";
  * this same file, and rewrites it whole, so comments added below do not
  * survive a save.
  *
- * To add a card: append an entry, drop its images in `public/cards/<slug>/`,
- * redeploy. Nothing else in the codebase needs to know the card exists —
- * `lib/cards.ts` builds the slug registry from this array and validates every
- * entry at import time, so a malformed card fails the build rather than the
- * page.
+ * To add a card, use the editor's Share tab — it issues a slug with an
+ * unguessable random part and a password, and tells you what to deploy. By
+ * hand: append an entry, put cube-face images in `public/cards/<slug>/` and
+ * memory photographs in `private/cards/<slug>/`, redeploy. Nothing else in the
+ * codebase needs to know the card exists — `lib/cards.ts` builds the slug
+ * registry from this array and validates every entry at import time, so a
+ * malformed card fails the build rather than the page.
  *
  * Plaintext passwords are never written here. A card reads
  * `CARD_PASSWORD_<SLUG>` (slug upper-cased, non-alphanumerics as `_`), then

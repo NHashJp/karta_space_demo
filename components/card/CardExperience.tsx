@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { useProgress } from "@react-three/drei";
 import { landingNote, type ClientCard } from "@/lib/clientCard";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
-import type { ExperienceEvent, OrbitPanel } from "@/lib/experienceState";
+import type { OrbitPanel } from "@/lib/experienceState";
 import { CubeScene, type SceneComet } from "@/components/three/CubeScene";
 import { CardLanding } from "./CardLanding";
 import { CardProgress } from "./CardProgress";
@@ -18,7 +18,6 @@ import { AmbientOverlay } from "./AmbientOverlay";
 import { SoundToggle } from "./SoundToggle";
 import * as sound from "@/lib/sound";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
-import { LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
 import { jumpEvents } from "@/lib/devJump";
 import { lightSeed } from "@/lib/sceneLight";
 import { orbitRotation, progress as cometProgress } from "@/lib/cometOrbit";
@@ -43,18 +42,6 @@ import {
   revealsText,
 } from "@/lib/experienceState";
 
-/**
- * Animations whose owning component does not exist yet (spec §19 phases 13 and
- * 14 build them). Until then this keeps the flow walkable end to end: each
- * state still lasts its real duration and still ends by dispatching the event
- * its future owner will dispatch, so nothing but the visuals changes when
- * `RocketLaunch` and `CometRelease` take these over.
- */
-const TIMED_PHASES: Partial<Record<string, { ms: number; event: ExperienceEvent }>> = {
-  launching: { ms: LAUNCH_MS, event: { type: "launchEnd" } },
-  releasing: { ms: RELEASE_MS, event: { type: "releaseEnd" } },
-};
-
 export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: string }) {
   const memoryCount = card.memories?.length ?? 0;
   const [experience, dispatch] = useReducer(
@@ -62,7 +49,9 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
     { memoryCount, hasOrbit: card.hasOrbit },
     initialExperience,
   );
-  const { state, activeFace, activeMemory, panel, launched, released } = experience;
+  // `released` is deliberately not read here: whether the receiver's comet is
+  // in the sky is decided by `releasedComet` below, which survives a reload.
+  const { state, activeFace, activeMemory, panel, launched } = experience;
   const [settled, setSettled] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const { active: loading, errors } = useProgress();
@@ -90,16 +79,6 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
     const events = jumpEvents(jumpTo);
     if (events) for (const event of events) dispatch(event);
   }, [jumpTo]);
-
-  useEffect(() => {
-    const phase = TIMED_PHASES[state];
-    if (!phase) return;
-    const timer = setTimeout(
-      () => dispatch(phase.event),
-      duration(phase.ms, reduced.current),
-    );
-    return () => clearTimeout(timer);
-  }, [state]);
 
   const move = useCallback((direction: 1 | -1) => dispatch({ type: "move", direction }), []);
   const onTransitionEnd = useCallback(() => dispatch({ type: "rotationEnd" }), []);

@@ -5,6 +5,7 @@ import { Html, useTexture } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { MEMORY_PANEL_WORLD, memoryPanelFraming } from "./framing";
+import { SafeTexture } from "./SafeTexture";
 import { toCss, trailColour, type TrailSeed } from "@/lib/trailColour";
 import { memoryU, trailPoint, trailTangent, type Point3 } from "@/lib/trailCurve";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
@@ -90,9 +91,14 @@ export function MemoryPanel({
   return (
     <group ref={group} position={position} quaternion={quaternion}>
       {memory.image ? (
-        <Suspense fallback={<Shimmer />}>
-          <Photograph url={memory.image.url} fit={memory.image.fit ?? "cover"} />
-        </Suspense>
+        // Suspense covers a photograph that is still loading; the boundary
+        // covers one that never will. Both show the same shimmer, because to
+        // the reader they are the same thing: a frame they can walk past.
+        <SafeTexture fallback={<Shimmer />}>
+          <Suspense fallback={<Shimmer />}>
+            <Photograph url={memory.image.url} fit={memory.image.fit ?? "cover"} />
+          </Suspense>
+        </SafeTexture>
       ) : null}
 
       {/* A frame in the trail's local colour, which is what ties the two. */}

@@ -18,6 +18,7 @@ import {
   textPanelPx,
 } from "../components/three/framing.ts";
 import { cards } from "../config/cards.config.ts";
+import { serializeCards } from "../lib/cardsFile.ts";
 import { allProblems, cardProblems } from "../lib/cardRules.ts";
 import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
 import { civilDate, isSatelliteDay, nextOccurrence, satelliteClock } from "../lib/orbitClock.ts";
@@ -1691,7 +1692,31 @@ console.log("18. The satellite reminder (spec v0.2 §12.1, §14.6):");
   console.log(`  ${satellite.date} in ${tz}, ${cron?.schedule} UTC, one send per card per day`);
 }
 
-console.log("19. The deployment (spec v0.2 §8.2):");
+console.log("19. A save rewrites the file whole, so its header must be current:");
+{
+  // `writeCards` rewrites config/cards.config.ts from the HEADER constant plus
+  // the data. If the two drift apart — as they did once — then opening the
+  // editor and pressing Save silently reverts the file's own documentation to
+  // an older, wrong version. Nothing else would ever notice.
+  const written = serializeCards(cards);
+  const onDisk = readFileSync("config/cards.config.ts", "utf8");
+  const marker = "export const cards: CardConfig[] =";
+
+  const writtenHeader = written.slice(0, written.indexOf(marker));
+  const diskHeader = onDisk.slice(0, onDisk.indexOf(marker));
+
+  check("the header a save would write matches the file on disk",
+    writtenHeader === diskHeader,
+    writtenHeader === diskHeader ? "" : "lib/cardsFile.ts and config/cards.config.ts disagree");
+
+  // And the header has to still be true about where passwords live.
+  check("the header describes the v0.2 password precedence",
+    writtenHeader.includes("access.passwordHash"));
+
+  console.log(`  header ${writtenHeader.split("\n").length} lines, identical`);
+}
+
+console.log("20. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

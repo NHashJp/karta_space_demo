@@ -26,7 +26,11 @@ const ICONS: Record<SocialPlatform, React.ReactNode> = {
 };
 
 export function SocialLinks({ links }: { links: SocialLink[] }) {
-  const shown = links.filter((link) => link.href.trim().length > 0);
+  // Empty, and also the placeholder the sample config ships with: a link that
+  // goes to someone else's 404 is worse than no link (spec v0.2 §8.1).
+  const shown = links.filter(
+    (link) => link.href.trim().length > 0 && !link.href.includes("your-handle"),
+  );
   if (shown.length === 0) return null;
 
   return (
