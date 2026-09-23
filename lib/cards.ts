@@ -1,5 +1,5 @@
-import { cards } from "@/config/cards.config";
-import { allProblems } from "@/lib/cardRules";
+import { cards } from "../config/cards.config.ts";
+import { allProblems } from "./cardRules.ts";
 import type { CardConfig } from "@/types/card";
 
 /**

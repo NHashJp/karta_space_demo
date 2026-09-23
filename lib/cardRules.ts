@@ -258,6 +258,15 @@ function v02Problems(card: CardConfig, out: Problems): void {
   if ((access?.hint?.trim().length ?? 0) > HINT_MAX) {
     out.warnings.push(`access: hint is over ${HINT_MAX} characters`);
   }
+  // A hash with no key to sign cookies with means the card stays shut for
+  // everyone, right password or not (§14.9). While developing that is worth
+  // saying once; shipping it would be shipping a card nobody can open.
+  if (access?.passwordHash && !process.env.ACCESS_SECRET) {
+    const message =
+      "access: passwordHash is set but ACCESS_SECRET is not — this card stays locked for everyone";
+    if (process.env.NODE_ENV === "production") out.errors.push(message);
+    else out.notes.push(message);
+  }
 
   // An unguessable slug is the only thing protecting a link-only card.
   const randomPart = card.slug?.split("-").pop() ?? "";

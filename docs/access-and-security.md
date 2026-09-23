@@ -1,6 +1,6 @@
 # Access and security
 
-Source: `lib/access.ts`, `lib/cards.ts`, `app/c/[slug]/page.tsx`,
+Source: `lib/access.ts`, `lib/password.ts`, `lib/cards.ts`, `app/c/[slug]/page.tsx`,
 `app/api/access/route.ts`, `app/page.tsx`, `app/api/editor/route.ts`
 
 ## What this protects against
@@ -19,13 +19,14 @@ Be clear about the threat model, because the spec is (spec §29):
 
 It is demo access control. Do not put anything sensitive behind it.
 
-## The four gates
+## The gates
 
 ```
 1. an unguessable slug          /c/2026-newyear-7k2m
 2. a per-card password          CARD_PASSWORD_2026_NEWYEAR_7K2M
-3. or a shared fallback         CARD_PASSWORD
-4. or neither, if you want      (link-only)
+3. or a hash in the config      access.passwordHash, issued by the editor
+4. or a shared fallback         CARD_PASSWORD
+5. or neither, if you want      (link-only)
 ```
 
 `getCardBySlug` accepts only slugs in the registry. Anything else renders the
@@ -39,18 +40,69 @@ half of the same trade.
 
 ## One password per card
 
-`cardPassword(slug)` resolves in order:
+`cardSecret(slug)` resolves in order (spec v0.2 §14.9):
 
 ```
 process.env[`CARD_PASSWORD_${SLUG}`]   per card; SLUG upper-cased, non-alphanumerics as _
+card.access.passwordHash               a scrypt hash the editor wrote into the config
 process.env.CARD_PASSWORD              shared fallback for every other card
-undefined                              link-only
+none                                   link-only
 ```
 
-So cards can be mixed freely — some gated with their own password, some open —
-without touching `cards.config.ts`. **No password is ever written into the
-config file**, which is what makes that file safe to commit and to hand to
-whoever writes the messages.
+So cards can be mixed freely — some gated with their own password, some open.
+An environment password always wins, so **every card that worked in v0.1 keeps
+behaving exactly as it did**, whatever is in the config.
+
+v0.1 kept passwords only in environment variables. That is safe, but sharing a
+new card meant editing Vercel's settings and waiting for a restart. v0.2 adds a
+second path so the editor can issue a password on the spot, without weakening
+the first:
+
+| What | Where | Committed? |
+|---|---|---|
+| The password in plain text | `.karta/secrets.local.json`, so the editor can show it again | **no** (gitignored) |
+| A salted scrypt hash | `access.passwordHash` in `cards.config.ts` | yes |
+| A hint, optional | `access.hint`, shown on the gate | yes |
+| The cookie signing key | `ACCESS_SECRET` in the environment | no |
+
+**The plaintext password is still never committed.** What goes into the config
+is `scrypt(normalised, salt16, N = 2^15, r = 8, p = 1, keylen 32)`, stored as
+`scrypt$32768$8$1$<salt b64>$<hash b64>` and compared with `timingSafeEqual`.
+A hash shorter than the full 32 bytes is refused outright: scrypt's output is a
+prefix under truncation, so a shortened hash would still verify while matching
+on far fewer bits.
+
+## A forgiving password
+
+A card password is often the answer to a hint only two people know — *the
+station where we first met* — and someone typing that on a phone should not
+fail on a katakana keyboard, a stray space, or a capital letter. So both sides
+are normalised before they are compared (`lib/password.ts`, spec v0.2 §7):
+
+```
+NFKC  ->  trim  ->  drop spaces and hyphens  ->  lowercase  ->  katakana to hiragana
+```
+
+`カマクラ`, `かまくら` and `ｶﾏｸﾗ` are therefore one password, and so are
+`k7qm 2xpa` and `K7QM-2XPA`. The same normalisation runs before hashing and
+before checking, and **environment passwords go through it too** — the
+forgiveness is a property of the gate, not of where the password is kept.
+
+Generated passwords are 8 characters from `ABCDEFGHJKMNPQRSTUVWXYZ23456789` —
+no `0`/`O` and no `1`/`I`/`L`, because these get read aloud and typed by hand —
+shown as `K7QM-2XPA`. That is about 39.6 bits, drawn with rejection sampling so
+all 31 letters stay equally likely. A custom password is allowed; the editor
+warns below 8 characters.
+
+### Honest limits
+
+- This is still demo access control.
+- If the repository is public, the hash can be attacked offline. A generated
+  password resists that; a short custom answer does not. Keep the repository
+  private, or use a generated password.
+- The hint is public to anyone who has the link. Write one that means something
+  to one person, not one that narrows the answer for everyone else.
+- The rate limit is still in-memory (below).
 
 ## One check per receiver-facing route
 
@@ -69,8 +121,13 @@ sender's comet. `lib/clientCard.ts` is where that promise is kept: it builds
 the payload the page sends, and before the return date the message is simply
 not in it. Not hidden by CSS, not behind a flag — absent.
 
-`npm run verify` asserts both directions by searching `JSON.stringify` of the
-payload, and asserts that no environment value (`RESEND_API_KEY`, `NOTIFY_TO`,
+`npm run verify` section 8 covers the gate itself: the normalisation table
+above, the hash round-trip and its rejections, the precedence order, and the
+two cookie properties (a new hash or a rotated `ACCESS_SECRET` invalidates the
+old one; no `ACCESS_SECRET` issues none at all).
+
+Section 7 asserts both directions of the seal by searching `JSON.stringify` of
+the payload, and asserts that no environment value (`RESEND_API_KEY`, `NOTIFY_TO`,
 `COMET_SECRET`, `ACCESS_SECRET`) and no `access.passwordHash` ever appears in
 it. The dev-only `?now=` time travel is ignored in production for the same
 reason: a query parameter that unseals a message would be no seal at all.
@@ -105,19 +162,27 @@ $ curl -s http://localhost:3000/c/2026-newyear-7k2m | grep -c "あけまして�
 
 ## Password check and cookie
 
-The password is only ever compared on the server, against the environment
-variable resolved for that card, using `timingSafeEqual`.
+The password is only ever compared on the server, against the secret resolved
+for that card, using `timingSafeEqual`.
 
-On success the response sets a cookie whose value is derived from the password
-itself:
+On success the response sets a cookie whose value is derived from that secret:
 
 ```ts
+// an environment password, exactly as in v0.1
 HMAC-SHA256(key = that card's password, message = `karta-space:${slug}`)
+
+// a hash issued by the editor
+HMAC-SHA256(key = ACCESS_SECRET, message = `karta-space:${slug}:${passwordHash}`)
 ```
 
 This is the useful property: the token cannot be produced without knowing the
-password, so it cannot be forged, and no secret is stored anywhere in the
-client bundle. Verification recomputes the HMAC and compares it timing-safely.
+secret, so it cannot be forged, and no secret is stored anywhere in the client
+bundle. Verification recomputes the HMAC and compares it timing-safely.
+
+A hash-protected card **fails closed**. Without `ACCESS_SECRET` there is no key
+to sign a cookie with, so the card stays shut rather than falling open: the
+access route answers `503`, and `hasAccess` returns false even for the right
+password. Rotating `ACCESS_SECRET` signs everyone out of every hashed card.
 
 Cookie attributes: `HttpOnly`, `Secure` in production, `SameSite=Lax`,
 `Path=/c/<slug>`, **18 hour** lifetime (spec §17 suggests 12–24).
@@ -127,7 +192,8 @@ browser can hold access to any number of cards at once, opening a second card
 never evicts the first, and a card's cookie is not even sent to another card.
 
 Changing a card's password invalidates its outstanding cookies automatically,
-since the token is keyed by the password.
+since the token is keyed by the secret — a new hash is a new key, exactly as a
+new environment password is.
 
 ## Rate limiting
 

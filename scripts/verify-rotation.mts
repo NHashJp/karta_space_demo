@@ -12,7 +12,7 @@ import {
   textPanelPx,
 } from "../components/three/framing.ts";
 import { cards } from "../config/cards.config.ts";
-import { allProblems } from "../lib/cardRules.ts";
+import { allProblems, cardProblems } from "../lib/cardRules.ts";
 import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
 import { civilDate, isSatelliteDay, nextOccurrence, satelliteClock } from "../lib/orbitClock.ts";
 import {
@@ -27,6 +27,15 @@ import {
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
 import { toClientCard } from "../lib/clientCard.ts";
+import { accessToken, cardSecret, checkPassword } from "../lib/access.ts";
+import {
+  formatPassword,
+  generatePassword,
+  hashPassword,
+  isPasswordHash,
+  normalisePassword,
+  verifyPassword,
+} from "../lib/password.ts";
 import { resolveNow } from "../lib/devTime.ts";
 import {
   acceptsInput,
@@ -578,6 +587,121 @@ console.log("7. v0.2 foundations (spec v0.2 §17):");
   // @ts-expect-error restoring it again
   process.env.NODE_ENV = nodeEnv;
   check("?now= rejects nonsense", resolveNow("tomorrow", realNow).getTime() === realNow.getTime());
+}
+
+console.log("8. Access: forgiving passwords, hashes and precedence (spec v0.2 §14.9):");
+{
+  // ---- normalisation: the same answer, typed five different ways ----------
+  const groups: string[][] = [
+    ["カマクラ", "かまくら", "ｶﾏｸﾗ", " かまくら ", "か ま く ら"],
+    ["K7QM-2XPA", "k7qm 2xpa", "k7qm2xpa", "Ｋ７ＱＭ－２ＸＰＡ"],
+  ];
+  for (const group of groups) {
+    const [first, ...rest] = group;
+    const target = normalisePassword(first);
+    for (const variant of rest) {
+      check(`"${variant}" normalises like "${first}"`, normalisePassword(variant) === target,
+        `${normalisePassword(variant)} != ${target}`);
+    }
+  }
+  check("different answers stay different", normalisePassword("かまくら") !== normalisePassword("かまくらし"));
+
+  // ---- the hash round-trips, and only for the right password --------------
+  const hash = hashPassword("カマクラ");
+  check("a hash looks like a hash", isPasswordHash(hash), hash.slice(0, 24));
+  check("the same answer verifies", verifyPassword("かまくら", hash));
+  check("a katakana variant verifies", verifyPassword("ｶﾏｸﾗ", hash));
+  check("a wrong answer fails", !verifyPassword("えのしま", hash));
+  check("an empty answer fails", !verifyPassword("", hash));
+  check("two hashes of one password differ (salted)", hashPassword("カマクラ") !== hash);
+  check("a truncated hash fails", !verifyPassword("かまくら", hash.slice(0, -4)));
+  check("a flipped character fails",
+    !verifyPassword("かまくら", hash.slice(0, -1) + (hash.endsWith("A") ? "B" : "A")));
+
+  // ---- generated passwords are readable and unambiguous -------------------
+  const generated = generatePassword();
+  check("generated password is 8 characters", generated.length === 8, generated);
+  check("generated password avoids 0/O/1/I/L", !/[01OIL]/.test(generated), generated);
+  check("generated password is shown in two halves", formatPassword(generated).length === 9,
+    formatPassword(generated));
+  check("a generated password verifies against its own hash",
+    verifyPassword(formatPassword(generated), hashPassword(generated)));
+  const seen = new Set<string>();
+  for (let i = 0; i < 500; i++) seen.add(generatePassword());
+  check("generated passwords are not repeated", seen.size === 500, String(seen.size));
+
+  // ---- precedence: env per-card > config hash > shared env > none ---------
+  const slug = cards[0].slug;
+  const envKey = `CARD_PASSWORD_${slug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+  const before = { perCard: process.env[envKey], shared: process.env.CARD_PASSWORD };
+  const hashed = { ...cards[0], access: { passwordHash: hash } };
+  const plain = { ...cards[0], access: undefined };
+
+  delete process.env[envKey];
+  delete process.env.CARD_PASSWORD;
+  check("no password configured means no gate", cardSecret(slug, plain).kind === "none");
+  check("a config hash gates the card", cardSecret(slug, hashed).kind === "hash");
+
+  process.env.CARD_PASSWORD = "shared-one";
+  check("the shared env password gates an unprotected card",
+    cardSecret(slug, plain).kind === "env");
+  check("a config hash still wins over the shared env password",
+    cardSecret(slug, hashed).kind === "hash");
+
+  process.env[envKey] = "per-card-one";
+  const winner = cardSecret(slug, hashed);
+  check("the per-card env password wins over everything",
+    winner.kind === "env" && winner.password === "per-card-one", winner.kind);
+  check("a v0.1 env password still opens the card", checkPassword(slug, "per-card-one"));
+  check("env passwords are forgiving too", checkPassword(slug, " Per-Card One "));
+  check("a wrong env password is refused", checkPassword(slug, "something else") === false);
+
+  // ---- a hash with no signing key is a card nobody can open --------------
+  {
+    const keep = process.env.ACCESS_SECRET;
+    const nodeEnv = process.env.NODE_ENV;
+    delete process.env.ACCESS_SECRET;
+    check("a hash without ACCESS_SECRET is a note in development",
+      cardProblems(hashed).notes.some((n) => n.includes("ACCESS_SECRET")));
+    // @ts-expect-error NODE_ENV is typed as readonly, and this is the point of the check.
+    process.env.NODE_ENV = "production";
+    check("a hash without ACCESS_SECRET fails a production build",
+      cardProblems(hashed).errors.some((n) => n.includes("ACCESS_SECRET")));
+    process.env.ACCESS_SECRET = "a-signing-key";
+    check("with ACCESS_SECRET set there is no complaint",
+      !cardProblems(hashed).errors.some((n) => n.includes("ACCESS_SECRET")));
+    // @ts-expect-error restoring it again
+    process.env.NODE_ENV = nodeEnv;
+    if (keep === undefined) delete process.env.ACCESS_SECRET;
+    else process.env.ACCESS_SECRET = keep;
+  }
+
+  // ---- the cookie is derived from the secret, so it dies with it ---------
+  delete process.env[envKey];
+  delete process.env.CARD_PASSWORD;
+  const beforeAccess = process.env.ACCESS_SECRET;
+
+  process.env.ACCESS_SECRET = "";
+  check("no ACCESS_SECRET locks a hash-protected card",
+    accessToken(slug, hashed) === null);
+
+  process.env.ACCESS_SECRET = "a-signing-key";
+  const first = accessToken(slug, hashed);
+  check("with ACCESS_SECRET the card can issue a cookie", typeof first === "string");
+  check("the same hash gives the same cookie", accessToken(slug, hashed) === first);
+  check("a new password invalidates the old cookie",
+    accessToken(slug, { ...cards[0], access: { passwordHash: hashPassword("えのしま") } }) !== first);
+  process.env.ACCESS_SECRET = "a-different-signing-key";
+  check("rotating ACCESS_SECRET invalidates the old cookie",
+    accessToken(slug, hashed) !== first);
+  check("an unprotected card issues no cookie at all", accessToken(slug, plain) === null);
+
+  if (beforeAccess === undefined) delete process.env.ACCESS_SECRET;
+  else process.env.ACCESS_SECRET = beforeAccess;
+  if (before.perCard === undefined) delete process.env[envKey];
+  else process.env[envKey] = before.perCard;
+  if (before.shared === undefined) delete process.env.CARD_PASSWORD;
+  else process.env.CARD_PASSWORD = before.shared;
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
