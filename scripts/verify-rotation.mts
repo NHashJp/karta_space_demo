@@ -37,6 +37,7 @@ import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
 import { RAMP_SIZE } from "../components/three/shaders/ribbon.ts";
 import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
 import { landingNote, toClientCard } from "../lib/clientCard.ts";
+import { cometMail, formatSentAt, replyMail, satelliteMail } from "../lib/mail.ts";
 import {
   TRAIL_LATERAL,
   TRAIL_NEAR_Z,
@@ -1408,7 +1409,93 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   );
 }
 
-console.log("15. The deployment (spec v0.2 §8.2):");
+console.log("15. Email templates (spec v0.2 §14.8):");
+{
+  const keep = { ...process.env };
+  process.env.NOTIFY_TO = "SENTINEL-NOTIFY@example.com";
+  process.env.PUBLIC_BASE_URL = "https://karta.example.com/";
+  process.env.RESEND_API_KEY = "SENTINEL-RESEND";
+  process.env.MAIL_FROM = "KARTA_SPACE <cards@example.com>";
+
+  const sample = cards[0];
+  const sentAt = new Date("2026-09-23T12:04:00Z"); // 21:04 in Tokyo
+
+  const reply = replyMail({
+    slug: sample.slug,
+    title: sample.title,
+    name: "そら",
+    message: "こちらこそ、ありがとう。",
+    sentAt,
+    timeZone: sample.timeZone,
+  })!;
+  check("the reply mail is addressed", reply.to === "SENTINEL-NOTIFY@example.com", reply.to);
+  check("the reply subject names the card", reply.subject === "「2026年のあなたへ」に返事が届きました",
+    reply.subject);
+  check("the reply names the sender", reply.text.includes("そらさんから、返事が届きました。"));
+  check("the reply carries the message", reply.text.includes("こちらこそ、ありがとう。"));
+  // The stamp is in the card's time zone, not the server's.
+  check("the reply is stamped in the card's zone",
+    reply.text.includes("2026年9月23日 21:04"), reply.text.split("\n").at(-2));
+
+  const comet = cometMail({
+    slug: sample.slug,
+    title: sample.title,
+    name: "そら",
+    returnsOn: "2026-12-25",
+    token: "TOKEN123",
+  })!;
+  check("the comet subject carries the return date",
+    comet.subject === "そらさんが、彗星を放ちました（2026年12月25日に戻ってきます）", comet.subject);
+  check("the comet mail says it cannot be read yet",
+    comet.text.includes("戻ってくるまで、中身は読めません。"));
+  check("the comet link is absolute and has no double slash",
+    comet.text.includes("https://karta.example.com/comet/TOKEN123"));
+  // The link is the only copy there is; the email has to say so.
+  check("the comet mail warns the link is the only copy",
+    comet.text.includes("リンクがなくなると、彗星は見つけられなくなります。"));
+  check("a sealed comet mail never carries the message", !comet.text.includes("SENTINEL-BODY"));
+
+  const satellite = satelliteMail({
+    slug: sample.slug,
+    title: sample.title,
+    label: sample.satellite!.label,
+    message: sample.satellite!.message,
+    today: "2026-12-25",
+  })!;
+  check("the satellite subject is the label",
+    satellite.subject === "今日は「次のクリスマス」です", satellite.subject);
+  check("the satellite mail carries the promise",
+    satellite.text.includes(sample.satellite!.message));
+  check("the satellite mail links the card",
+    satellite.text.includes(`https://karta.example.com/c/${sample.slug}`));
+  check("the satellite mail asks the sender to reach out",
+    satellite.text.includes("相手に、連絡してみませんか。"));
+  // One per card per day, whatever the scheduler does.
+  check("the satellite mail is idempotent per day",
+    satellite.idempotencyKey === `satellite-${sample.slug}-2026-12-25`, satellite.idempotencyKey);
+
+  // No template ever leaks an environment value into the body.
+  for (const mail of [reply, comet, satellite]) {
+    check(`"${mail.subject.slice(0, 12)}…" never leaks the API key`,
+      !mail.text.includes("SENTINEL-RESEND") && !mail.subject.includes("SENTINEL-RESEND"));
+    check(`"${mail.subject.slice(0, 12)}…" never leaks the inbox into the body`,
+      !mail.text.includes("SENTINEL-NOTIFY"));
+  }
+
+  // Without an inbox there is nobody to write to, and no mail is built at all.
+  delete process.env.NOTIFY_TO;
+  check("no inbox means no mail",
+    replyMail({ slug: sample.slug, title: "x", name: "y", message: "z", sentAt }) === null);
+
+  for (const key of ["NOTIFY_TO", "PUBLIC_BASE_URL", "RESEND_API_KEY", "MAIL_FROM"]) {
+    if (keep[key] === undefined) delete process.env[key];
+    else process.env[key] = keep[key];
+  }
+
+  console.log(`  3 templates, stamped ${formatSentAt(sentAt, sample.timeZone)}`);
+}
+
+console.log("16. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);

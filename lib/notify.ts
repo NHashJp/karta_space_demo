@@ -5,9 +5,9 @@
  * into anything the browser sees.
  */
 
-/** `NOTIFY_TO`, or a per-card override `NOTIFY_TO_<SLUG>`. */
+/** `NOTIFY_TO`, or a per-card override `CARD_NOTIFY_TO_<SLUG>` (§14.7). */
 export function notifyTo(slug: string): string | undefined {
-  const key = `NOTIFY_TO_${slug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+  const key = `CARD_NOTIFY_TO_${slug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
   return process.env[key] || process.env.NOTIFY_TO || undefined;
 }
 
