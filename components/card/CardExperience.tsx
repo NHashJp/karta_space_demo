@@ -14,6 +14,8 @@ import { SatellitePanel } from "./SatellitePanel";
 import { CometPanel } from "./CometPanel";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
+import { SoundToggle } from "./SoundToggle";
+import * as sound from "@/lib/sound";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import { LAUNCH_MS, RELEASE_MS, duration } from "@/lib/timing";
 import { jumpEvents } from "@/lib/devJump";
@@ -111,6 +113,58 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
 
   const seed = useMemo(() => lightSeed(card.slug), [card.slug]);
 
+  // A warmer light on the day something comes back (§23.3), and the one cue
+  // in the sound palette that is allowed to be bright (§12.2).
+  const returned =
+    card.satelliteStatus === "returned" || card.senderComet?.status === "returned";
+
+  /* ---------------------------------------------------------------------
+   * Sound (spec v0.2 §12.2). Cues are fired by watching the state change,
+   * never from inside the reducer, which stays pure and testable.
+   * ------------------------------------------------------------------- */
+  const soundAvailable = card.sound !== false;
+  const [soundOn, setSoundOn] = useState(true);
+
+  useEffect(() => {
+    if (soundAvailable) setSoundOn(sound.readPreference());
+  }, [soundAvailable]);
+
+  useEffect(() => {
+    if (!soundAvailable) return;
+    sound.setEnabled(soundOn);
+  }, [soundAvailable, soundOn]);
+
+  useEffect(() => {
+    if (!soundAvailable) return;
+    // A background tab should be silent, and should not keep an oscillator
+    // running on someone's phone.
+    const onVisibility = () =>
+      document.visibilityState === "hidden" ? sound.suspend() : sound.resume();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      sound.stop();
+    };
+  }, [soundAvailable]);
+
+  const previousState = useRef(state);
+  useEffect(() => {
+    if (!soundAvailable) return;
+    const was = previousState.current;
+    previousState.current = state;
+    if (was === state) return;
+
+    if (state === "reading" && was === "transitioning") sound.cue("faceLand", activeFace);
+    else if (state === "reading" && (was === "entering" || was === "returning")) {
+      sound.cue("faceLand", activeFace);
+    } else if (state === "leaving") sound.cue("leave");
+    else if (state === "deploying") sound.cue("deploy");
+    else if (state === "remembering") sound.cue("memory", activeMemory);
+    else if (state === "launching") sound.cue("launch");
+    else if (state === "releasing") sound.cue("release");
+    else if (state === "orbit" && was === "deploying" && returned) sound.cue("returned");
+  }, [soundAvailable, state, activeFace, activeMemory, returned]);
+
   /**
    * The comets in the sky, as positions rather than as configuration. The
    * sender's is wherever its dates put it today; the receiver's appears only
@@ -143,9 +197,6 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
     }
     return out;
   }, [card.senderComet, card.receiverComet, card.today, released]);
-  // A warmer light on the day something comes back (§23.3).
-  const returned =
-    card.satelliteStatus === "returned" || card.senderComet?.status === "returned";
   const atRest = breathesAtRest(state);
 
   // The cube owns the deployment animation and says when it is done; this
@@ -207,7 +258,12 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           note={landingNote(card)}
           ready={ready}
           leaving={state === "entering"}
-          onOpen={() => dispatch({ type: "open" })}
+          onOpen={() => {
+            // The one user gesture the whole session gets: browsers will only
+            // start an AudioContext from inside one.
+            if (soundAvailable && soundOn) sound.start();
+            dispatch({ type: "open" });
+          }}
         />
       ) : null}
 
@@ -290,6 +346,10 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
             </button>
           </div>
         </div>
+      ) : null}
+
+      {soundAvailable && state !== "landing" ? (
+        <SoundToggle on={soundOn} onToggle={() => setSoundOn((on) => !on)} />
       ) : null}
 
       <AmbientOverlay />

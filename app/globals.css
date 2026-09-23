@@ -1372,3 +1372,61 @@ body {
   line-height: 1.8;
   color: var(--titanium);
 }
+
+/* ---------- the sound toggle (spec v0.2 §12.2) ---------- */
+
+/*
+ * Top-right from the landing screen onwards. Above every overlay, because a
+ * card that starts making noise has to be silenceable from wherever the reader
+ * happens to be when they notice.
+ */
+.sound-toggle {
+  position: fixed;
+  top: max(var(--space-2), env(safe-area-inset-top));
+  right: max(var(--space-2), env(safe-area-inset-right));
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-half);
+  width: var(--control-h);
+  height: var(--control-h);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--titanium);
+  cursor: pointer;
+  transition: color 240ms ease, border-color 240ms ease;
+}
+
+.sound-toggle:hover,
+.sound-toggle:focus-visible {
+  color: var(--starlight);
+  border-color: rgba(176, 180, 186, 0.25);
+}
+
+.sound-toggle:focus-visible {
+  outline: 2px solid var(--ion);
+  outline-offset: 3px;
+}
+
+.sound-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* The label is for screen readers and wide screens; the icon carries it. */
+.sound-toggle__label {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 720px) {
+  .sound-toggle__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
