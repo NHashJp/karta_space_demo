@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function PasswordGate({ slug }: { slug: string }) {
+export function PasswordGate({ slug, hint }: { slug: string; hint?: string }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +42,12 @@ export function PasswordGate({ slug }: { slug: string }) {
         <label className="gate__label" htmlFor="password" lang="ja">
           パスワードを入力してください
         </label>
+        {/* The sender's own hint, if they set one (spec v0.2 §7, §21). */}
+        {hint ? (
+          <p className="gate__hint" lang="ja">
+            ヒント: {hint}
+          </p>
+        ) : null}
         <input
           id="password"
           className="gate__input"

@@ -27,6 +27,29 @@ export const cards: CardConfig[] = [
     // A short line on the inside of the cube, reached from the closing screen.
     // Leave it out and the cube simply has no inside.
     secret: "ずっと、味方でいます。",
+
+    // ---- v0.2. Every field below is optional; remove any of them and the
+    // card simply loses that part of the journey (spec v0.2 §5).
+    from: "みお",
+    writtenAt: "2026-03",
+    timeZone: "Asia/Tokyo",
+    satellite: {
+      label: "次のクリスマス",
+      message: "次のクリスマスに、また会おう。",
+      date: "2026-12-25",
+      repeat: "yearly",
+    },
+    comet: {
+      message:
+        "この手紙を書いている今は、まだうまく言えないことがあります。あなたがこれを読むころには、きっと言えるようになっているはずなので、その日まで預けておきます。",
+      receiverCanRelease: true,
+    },
+    reply: {},
+    memories: [
+      { title: "はじめて会った日", date: "2023-04", approx: true },
+      { title: "夏の帰り道", date: "2023", season: "summer" },
+      { title: "最後の打ち上げ", date: "2026-02-14" },
+    ],
     // TODO: replace the handles below with your own. Any entry left with an
     // empty `href` is simply not rendered on the closing screen.
     social: [

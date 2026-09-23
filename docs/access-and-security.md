@@ -52,6 +52,29 @@ without touching `cards.config.ts`. **No password is ever written into the
 config file**, which is what makes that file safe to commit and to hand to
 whoever writes the messages.
 
+## One check per receiver-facing route
+
+`canView(slug)` is the single gate every route under `/c/[slug]/…` uses: a
+link-only card passes, a password card needs its cookie. Routes must live under
+that path precisely because the cookie is scoped to it (spec v0.2 §14).
+
+It is card access, not receiver authentication. The receiver never signs in,
+and v0.2 does not change that: a name typed into a reply form is the only
+identity they ever give.
+
+## Sealed content never reaches the browser
+
+A card may carry a message that is promised unreadable until a date — the
+sender's comet. `lib/clientCard.ts` is where that promise is kept: it builds
+the payload the page sends, and before the return date the message is simply
+not in it. Not hidden by CSS, not behind a flag — absent.
+
+`npm run verify` asserts both directions by searching `JSON.stringify` of the
+payload, and asserts that no environment value (`RESEND_API_KEY`, `NOTIFY_TO`,
+`COMET_SECRET`, `ACCESS_SECRET`) and no `access.passwordHash` ever appears in
+it. The dev-only `?now=` time travel is ignored in production for the same
+reason: a query parameter that unseals a message would be no seal at all.
+
 ## Content withholding
 
 The card page is a **server component**. The decision and the content live on

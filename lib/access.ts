@@ -58,6 +58,17 @@ export async function hasAccess(slug: string): Promise<boolean> {
   return Boolean(cookie) && safeEquals(cookie!, accessToken(slug));
 }
 
+/**
+ * The one check every receiver-facing route under /c/[slug] makes: a link-only
+ * card passes, a password card needs its cookie (spec v0.2 §14).
+ *
+ * This is *card* access, not receiver authentication — the receiver never signs
+ * in and has no identity here.
+ */
+export async function canView(slug: string): Promise<boolean> {
+  return !passwordRequired(slug) || (await hasAccess(slug));
+}
+
 export function accessCookie(slug: string) {
   return {
     name: accessCookieName(slug),

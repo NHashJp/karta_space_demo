@@ -13,6 +13,21 @@ import {
 } from "../components/three/framing.ts";
 import { cards } from "../config/cards.config.ts";
 import { allProblems } from "../lib/cardRules.ts";
+import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
+import { civilDate, isSatelliteDay, nextOccurrence, satelliteClock } from "../lib/orbitClock.ts";
+import {
+  APHELION,
+  PERIHELION,
+  cometWindow,
+  displayedProgress,
+  orbitPoint,
+  solveEccentricAnomaly,
+  tailLength,
+  ECCENTRICITY,
+} from "../lib/cometOrbit.ts";
+import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
+import { toClientCard } from "../lib/clientCard.ts";
+import { resolveNow } from "../lib/devTime.ts";
 import {
   acceptsInput,
   cameraPhase,
@@ -203,6 +218,8 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
     // does not, because it is the gate you run before deploying.
     for (const error of problems[index].errors) check(id(error), false);
     for (const warning of problems[index].warnings) check(id(warning), false);
+    // Notes are advice about a valid card, so they print and never fail.
+    for (const note of problems[index].notes) console.log(`    NOTE: ${note}`);
 
     // Below: only what those rules cannot know - whether the file is really
     // there, and whether the text physically fits a cube face on a phone.
@@ -360,6 +377,207 @@ console.log("6. Experience flow (card content never shows on the end screens):")
   check("only 'inside' reveals the secret", revealsSecret("inside"));
 
   console.log(`  walked ${seen.length} transitions, ending at ${exp.state}:${exp.activeFace + 1}`);
+}
+
+
+console.log("7. v0.2 foundations (spec v0.2 §17):");
+{
+  // ---- fuzzy dates: the table in §5, verbatim -----------------------------
+  const table: [string, { approx?: boolean; season?: "summer" }, string][] = [
+    ["2023-08-14", {}, "2023年8月14日"],
+    ["2023-08", {}, "2023年8月"],
+    ["2023-08", { approx: true }, "2023年8月頃"],
+    ["2023", { season: "summer" }, "2023年夏"],
+    ["2023", { approx: true }, "2023年頃"],
+  ];
+  for (const [input, options, expected] of table) {
+    const actual = formatFuzzyDate(input, options);
+    check(`fuzzyDate ${input} -> ${expected}`, actual === expected, actual);
+  }
+  check("fuzzyDate rejects 2023-13", parseFuzzyDate("2023-13") === null);
+  check("fuzzyDate rejects 2023-02-30", parseFuzzyDate("2023-02-30") === null);
+  check("fuzzyDate accepts 2024-02-29", parseFuzzyDate("2024-02-29") !== null);
+
+  const sorted = sortMemoriesNewestFirst([
+    { date: "2023-04", title: "a" },
+    { date: "2026-02-14", title: "b" },
+    { date: "2023", season: "summer" as const, title: "c" },
+  ]);
+  check("memories sort newest first", sorted.map((m) => m.title).join("") === "bca",
+    sorted.map((m) => m.title).join(""));
+
+  // ---- the clock: every comparison happens in the card's own zone ---------
+  const tz = "Asia/Tokyo";
+  const before = new Date("2026-12-24T14:59:00Z"); // 23:59 on the 24th in Tokyo
+  const after = new Date("2026-12-24T15:00:00Z"); // 00:00 on the 25th
+  check("civilDate before midnight", civilDate(before, tz) === "2026-12-24", civilDate(before, tz));
+  check("civilDate after midnight", civilDate(after, tz) === "2026-12-25", civilDate(after, tz));
+
+  const xmas = { label: "x", message: "m", date: "2026-12-25", repeat: "yearly" as const };
+  check("waiting at 23:59", satelliteClock(xmas, before, tz)?.status === "waiting");
+  check("returned at 00:00", satelliteClock(xmas, after, tz)?.status === "returned");
+  check("not the day at 23:59", !isSatelliteDay(xmas, before, tz));
+  check("is the day at 00:00", isSatelliteDay(xmas, after, tz));
+  check("countdown is 1 day out", satelliteClock(xmas, before, tz)?.daysUntil === 1);
+
+  // Yearly wrap-around, and 29 February observed on the 28th.
+  check("yearly wraps to next year", nextOccurrence("2026-12-25", "2027-06-01", true) === "2027-12-25",
+    nextOccurrence("2026-12-25", "2027-06-01", true));
+  check("yearly holds during the window", nextOccurrence("2026-12-25", "2027-01-02", true) === "2026-12-25",
+    nextOccurrence("2026-12-25", "2027-01-02", true));
+  check("29 Feb observed on the 28th", nextOccurrence("2024-02-29", "2027-01-01", true) === "2027-02-28",
+    nextOccurrence("2024-02-29", "2027-01-01", true));
+  check("29 Feb kept in a leap year", nextOccurrence("2024-02-29", "2028-01-01", true) === "2028-02-29",
+    nextOccurrence("2024-02-29", "2028-01-01", true));
+
+  // ---- the comet's orbit is a real orbit ----------------------------------
+  const q = orbitPoint(0).distance;
+  const back = orbitPoint(1).distance;
+  const far = orbitPoint(0.5).distance;
+  check("f=0 is perihelion", Math.abs(q - PERIHELION) < 1e-9, q.toFixed(9));
+  check("f=1 is perihelion", Math.abs(back - PERIHELION) < 1e-9, back.toFixed(9));
+  check("f=0.5 is aphelion", Math.abs(far - APHELION) < 1e-9, far.toFixed(9));
+  console.log(`  comet orbit: q=${q.toFixed(2)} Q=${far.toFixed(2)} tail at q=${tailLength(q).toFixed(2)}u`);
+
+  let worstKepler = 0;
+  for (let i = 0; i <= 2000; i++) {
+    const M = (2 * Math.PI * i) / 2000;
+    const E = solveEccentricAnomaly(M);
+    worstKepler = Math.max(worstKepler, Math.abs(E - ECCENTRICITY * Math.sin(E) - M));
+  }
+  check("Kepler solve within 1e-9", worstKepler < 1e-9, worstKepler.toExponential(2));
+
+  let outward = true;
+  let inward = true;
+  for (let i = 1; i <= 500; i++) {
+    const a = orbitPoint((i - 1) / 1000).distance;
+    const b = orbitPoint(i / 1000).distance;
+    if (b < a - 1e-9) outward = false;
+    const c = orbitPoint(0.5 + (i - 1) / 1000).distance;
+    const d = orbitPoint(0.5 + i / 1000).distance;
+    if (d > c + 1e-9) inward = false;
+  }
+  check("distance grows on the way out", outward);
+  check("distance falls on the way back", inward);
+  check("a just-released comet is already away", displayedProgress(0.001) >= 0.06);
+  check("no tail beyond 25 units", tailLength(25) === 0);
+
+  const restarted = cometWindow(
+    { releasedOn: "2025-12-25", returnsOn: "2026-12-25", yearly: true },
+    "2027-03-01",
+  );
+  check("yearly comet sets off again from its last return",
+    restarted.releasedOn === "2026-12-25" && restarted.returnsOn === "2027-12-25",
+    `${restarted.releasedOn} -> ${restarted.returnsOn}`);
+  check("yearly comet is away again", restarted.status === "away");
+  const holding = cometWindow({ releasedOn: "2025-12-25", returnsOn: "2026-12-25", yearly: true }, "2026-12-30");
+  check("a returned comet holds for the window", holding.status === "returned");
+
+  // ---- the trail's colours drift, smoothly and forever --------------------
+  const seed = trailSeed("2026-newyear-7k2m");
+  const same = trailSeed("2026-newyear-7k2m");
+  check("trail colour is deterministic",
+    trailColour(0.4, 12, seed).join() === trailColour(0.4, 12, same).join());
+  check("a different card gets different colours",
+    trailColour(0.4, 12, seed).join() !== trailColour(0.4, 12, trailSeed("thanks-sample-3f9q")).join());
+
+  let worstU = 0;
+  let worstT = 0;
+  let nan = false;
+  const reached = new Set<number>();
+  for (let t = 0; t < 600; t += 1) {
+    for (let u = 0; u <= 1; u += 0.01) {
+      const here = trailColour(u, t, seed);
+      const alongU = trailColour(u + 0.01, t, seed);
+      const alongT = trailColour(u, t + 0.1, seed);
+      for (let i = 0; i < 3; i++) {
+        if (!Number.isFinite(here[i])) nan = true;
+        worstU = Math.max(worstU, Math.abs(here[i] - alongU[i]));
+        worstT = Math.max(worstT, Math.abs(here[i] - alongT[i]));
+      }
+      // Which palette entry this sample is nearest to.
+      let nearest = 0;
+      let best = Infinity;
+      PALETTE.forEach((colour, index) => {
+        const d = Math.hypot(colour[0] - here[0], colour[1] - here[1], colour[2] - here[2]);
+        if (d < best) { best = d; nearest = index; }
+      });
+      reached.add(nearest);
+    }
+  }
+  console.log(
+    `  trail colour: worst delta du=${worstU.toFixed(4)} dt=${worstT.toFixed(4)}, ` +
+    `${reached.size}/5 palette colours reached within 10 minutes`,
+  );
+  check("trail colour is continuous along u", worstU < 0.08, worstU.toFixed(4));
+  check("trail colour is continuous in time", worstT < 0.08, worstT.toFixed(4));
+  check("trail colour is never NaN", !nan);
+  check("every palette colour appears within 10 minutes", reached.size === 5, `${reached.size}/5`);
+  check("reduced motion freezes the drift",
+    trailColour(0.4, 0, seed, true).join() === trailColour(0.4, 999, seed, true).join());
+
+  // ---- the payload: what the browser may and may not be told --------------
+  const sealed = cards.find((card) => card.comet?.message);
+  if (!sealed) {
+    check("a sample card carries a sealed comet", false);
+  } else {
+    const message = sealed.comet!.message!;
+    const env = { mailReady: true, cometReady: true };
+    const away = toClientCard(sealed, new Date("2026-06-01T00:00:00Z"), env);
+    const home = toClientCard(sealed, new Date("2026-12-26T00:00:00Z"), env);
+    check("a sealed comet's message is not in the payload before it returns",
+      !JSON.stringify(away).includes(message));
+    check("the comet is still shown as away", away.senderComet?.status === "away");
+    check("a returned comet's message is in the payload",
+      JSON.stringify(home).includes(message));
+    check("the comet is shown as returned", home.senderComet?.status === "returned");
+    check("the satellite's countdown is in the payload", typeof away.daysUntil === "number");
+    check("hasOrbit is true for a card with a satellite", away.hasOrbit);
+  }
+
+  // Nothing from the environment, and no password hash, may reach the browser.
+  const sentinels = {
+    RESEND_API_KEY: "SENTINEL-RESEND",
+    MAIL_FROM: "SENTINEL-FROM@example.com",
+    NOTIFY_TO: "SENTINEL-NOTIFY@example.com",
+    COMET_SECRET: "SENTINEL-COMET",
+    ACCESS_SECRET: "SENTINEL-ACCESS",
+  };
+  const restore: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(sentinels)) {
+    restore[key] = process.env[key];
+    process.env[key] = value;
+  }
+  const guarded = {
+    ...cards[0],
+    access: { passwordHash: "scrypt$16384$8$1$c2FsdA==$aGFzaA==", hint: "駅の名前" },
+  };
+  const payload = JSON.stringify(toClientCard(guarded, new Date("2026-06-01T00:00:00Z"), {
+    mailReady: true,
+    cometReady: true,
+  }));
+  for (const [key, value] of Object.entries(sentinels)) {
+    check(`payload never contains ${key}`, !payload.includes(value));
+  }
+  check("payload never contains the password hash", !payload.includes("scrypt$"));
+  check("payload does carry the hint", payload.includes("駅の名前"));
+  for (const [key, value] of Object.entries(restore)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+
+  // ---- dev-only time travel stays dev-only --------------------------------
+  const realNow = new Date("2026-06-01T00:00:00Z");
+  check("?now= moves the clock in development",
+    resolveNow("2026-12-25", realNow).getTime() !== realNow.getTime());
+  const nodeEnv = process.env.NODE_ENV;
+  // @ts-expect-error NODE_ENV is typed as readonly, and this is the point of the check.
+  process.env.NODE_ENV = "production";
+  check("?now= is ignored in production",
+    resolveNow("2026-12-25", realNow).getTime() === realNow.getTime());
+  // @ts-expect-error restoring it again
+  process.env.NODE_ENV = nodeEnv;
+  check("?now= rejects nonsense", resolveNow("tomorrow", realNow).getTime() === realNow.getTime());
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

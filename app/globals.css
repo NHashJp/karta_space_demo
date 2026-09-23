@@ -289,6 +289,12 @@ body {
   letter-spacing: 0.2em;
 }
 
+.gate__hint {
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--lunar);
+}
+
 .gate__error {
   font-size: 0.85rem;
   color: #ff8a8a;

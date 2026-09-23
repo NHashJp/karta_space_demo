@@ -50,7 +50,7 @@ export function CardsEditor({ initialCards, images, passwords }: Props) {
 
   const problems = useMemo(() => allProblems(cards), [cards]);
   const card = cards[selected];
-  const cardProblems = problems[selected] ?? { errors: [], warnings: [] };
+  const cardProblems = problems[selected] ?? { errors: [], warnings: [], notes: [] };
   const blocked = problems.some((p) => p.errors.length > 0);
 
   function edit(patch: Partial<CardConfig>) {
@@ -181,6 +181,11 @@ export function CardsEditor({ initialCards, images, passwords }: Props) {
             {cardProblems.warnings.map((problem) => (
               <p key={problem} className="editor__problem">
                 {problem}
+              </p>
+            ))}
+            {cardProblems.notes.map((note) => (
+              <p key={note} className="editor__hint">
+                {note}
               </p>
             ))}
 

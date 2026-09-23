@@ -142,6 +142,35 @@ answer first.
 `npm run verify` checks that each referenced file actually exists, which is the
 mistake this layout makes easy to catch and easy to make.
 
+## v0.2 additions, and two decisions the spec left open
+
+[Spec v0.2](./spec-v0.2.md) adds optional fields — `from`, `writtenAt`,
+`timeZone`, `memories`, `satellite`, `comet`, `reply`, `access`, `signature`,
+`sound` — and §0.3 makes it an acceptance criterion that **a card using none of
+them behaves exactly as it did in v0.1**. That is why every new rule in
+`cardRules.ts` runs only when its field is present.
+
+It also added a third severity, which the spec does not have: **notes**. §5
+marks "closing line over 18 characters" and "short random slug" as warnings,
+while §17 wants the slug one reported as a NOTE that does not fail. Since this
+project's `verify` fails on warnings, and §18 requires a v0.1 card to stay
+clean, both became notes: printed, never fatal. Errors and warnings are
+unchanged.
+
+Two constants deviate from the spec, both because the spec's own verification
+bound (§17: colour continuous to < 0.08 per channel between samples 0.01 apart
+in `u`) contradicts its suggested numbers:
+
+| §9.1 says | Implemented | Why |
+|---|---|---|
+| `BAND_SCALE` 3.0 | 1.2 | 3.0 measures 0.21 per channel — and puts more than the "two to four" bands §9.1 describes on the trail |
+| exhaust ramp 5% of `u` | 30% | ramping to white across 5% moves a channel 0.18 per sample step on its own |
+
+Measured worst cases are printed by `npm run verify` section 7. Seeding for
+both the trail and each comet's orbit lives in `lib/seed.ts`, which the spec's
+file map does not mention — it is one FNV-1a hash plus value noise, shared
+rather than written twice.
+
 ## The content model
 
 ```ts
