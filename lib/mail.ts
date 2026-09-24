@@ -52,13 +52,40 @@ export async function sendMail(mail: Mail): Promise<SendResult> {
       }),
     });
 
-    // The body may carry a reason, but it is never surfaced to the receiver:
-    // a failure to deliver is the sender's problem, and an error from an email
-    // provider is not something the person writing a reply can act on.
-    return response.ok ? { ok: true } : { ok: false, reason: "failed" };
-  } catch {
+    if (response.ok) return { ok: true };
+
+    /*
+     * The reason never reaches the receiver — a failure to deliver is the
+     * sender's problem, and an error from an email provider is not something
+     * the person writing a reply can do anything about.
+     *
+     * It does reach the **operator**, though, and for a long time it did not:
+     * every failure came back as a bare 502 with the provider's explanation
+     * thrown on the floor, so the one person who could fix it had nothing to
+     * go on. Almost every real failure here is one of three things, and the
+     * provider names which in its body: an unverified `MAIL_FROM` domain, an
+     * account still in test mode (which will only deliver to the address that
+     * owns it), or a key that is wrong or revoked.
+     */
+    const detail = await response.text().catch(() => "");
+    report(`${response.status} ${response.statusText} ${detail}`.trim());
+    return { ok: false, reason: "failed" };
+  } catch (error) {
+    // No network at all, DNS, TLS: the request never reached the provider.
+    report(error instanceof Error ? error.message : String(error));
     return { ok: false, reason: "failed" };
   }
+}
+
+/**
+ * Server-side only, and never the key.
+ *
+ * Deliberately `console.error` rather than anything cleverer: the operator is
+ * looking at the terminal running the server when a send fails, and that is
+ * where this has to appear.
+ */
+function report(detail: string) {
+  console.error(`[karta-space] mail send failed: ${detail}`);
 }
 
 /** `PUBLIC_BASE_URL`, without a trailing slash. */
