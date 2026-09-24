@@ -100,6 +100,7 @@ export function MessageCube({
   const cube = useRef<THREE.Group>(null);
   const idle = useRef<THREE.Group>(null);
   const thruster = useRef<THREE.PointLight>(null);
+  const shell = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.Mesh>(null);
 
   // 0 = the letter, 1 = a satellite in orbit. It lives here because the cube
@@ -186,6 +187,22 @@ export function MessageCube({
     // React only needs to hear about this when it crosses a threshold that
     // mounts or unmounts something; the rest is written straight to the scene.
     if ((now.panels > 0) !== (phase.panels > 0)) setPhase(now);
+
+    /*
+     * The body stops being glass.
+     *
+     * While it is a letter the cube is translucent — you are meant to feel
+     * that there is something inside it. A satellite is not translucent, and
+     * without this the deployment was four panels appearing on an unchanged
+     * object rather than the object itself becoming something else. Opacity
+     * and roughness both climb with the deployment.
+     */
+    if (shell.current) {
+      const material = shell.current.material as THREE.MeshPhysicalMaterial;
+      material.opacity = 0.46 + 0.42 * now.turn;
+      material.roughness = 0.2 + 0.18 * now.turn;
+      material.metalness = 0.6 + 0.25 * now.turn;
+    }
 
     if (thruster.current) thruster.current.intensity = now.thruster * 2;
     if (glow.current) {
@@ -315,7 +332,7 @@ export function MessageCube({
           />
         </mesh>
 
-        <mesh>
+        <mesh ref={shell}>
           <boxGeometry args={[2, 2, 2]} />
           <meshPhysicalMaterial
             color="#26304a"

@@ -38,6 +38,9 @@ type Props = {
   reducedMotion: boolean;
 };
 
+const clamp = (value: number, min: number, max: number) =>
+  value < min ? min : value > max ? max : value;
+
 export function CubeSatPanels({ open, seed, returned, reducedMotion }: Props) {
   const hinges = useRef<(THREE.Group | null)[]>([]);
   const material = useRef<THREE.ShaderMaterial>(null);
@@ -63,10 +66,19 @@ export function CubeSatPanels({ open, seed, returned, reducedMotion }: Props) {
       material.current.uniforms.uOpacity.value = Math.min(open * 6, 1);
     }
 
+    /*
+     * Once open, the panels turn a few degrees to face the sun — and because
+     * the sun moves (§23.3), they keep adjusting. A solar panel that ignores
+     * where the light is coming from is a decoration; one that tracks it is a
+     * machine doing its job, and that reading is most of what makes the
+     * deployed cube feel like hardware rather than a cube with wings.
+     */
+    const tracking = reducedMotion ? 0 : Math.asin(clamp(sun.dir[1], -1, 1)) * 0.18;
+
     hinges.current.forEach((hinge, index) => {
       if (!hinge) return;
       const local = stagger(open, index);
-      hinge.rotation.x = -local * (Math.PI / 2);
+      hinge.rotation.x = -local * (Math.PI / 2) + tracking * local;
       hinge.visible = open > 0.001;
     });
   });
