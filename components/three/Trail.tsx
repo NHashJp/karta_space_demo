@@ -25,6 +25,14 @@ const SEGMENTS = 220;
 const WIDTH_NEAR = 0.1;
 const WIDTH_FAR = 0.02;
 
+/**
+ * How close the ribbon may come to the lens before it fades out entirely.
+ *
+ * Comfortably more than the camera's own offset from the curve, so the stretch
+ * of trail the reader is flying beside dims rather than flares.
+ */
+const NEAR_FADE = 2.6;
+
 type Props = {
   /** The card's curve seed. The ribbon stages the curve itself (§4.5). */
   curveSeed: number;
@@ -46,7 +54,7 @@ export function Trail({ curveSeed, seed, memoryCount, reducedMotion, intensity =
     const positions = new Float32Array(memoryCount * 3);
     const us = new Float32Array(memoryCount);
     for (let i = 0; i < memoryCount; i++) {
-      const u = memoryU(i, memoryCount);
+      const u = memoryU(points, i, memoryCount);
       const [x, y, z] = trailPoint(points, u);
       positions[i * 3] = x;
       positions[i * 3 + 1] = y;
@@ -64,6 +72,7 @@ export function Trail({ curveSeed, seed, memoryCount, reducedMotion, intensity =
     () => ({
       uRamp: { value: Array.from({ length: RAMP_SIZE }, () => new THREE.Color()) },
       uIntensity: { value: intensity },
+      uNearFade: { value: NEAR_FADE },
     }),
     [intensity],
   );

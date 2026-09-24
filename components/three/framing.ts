@@ -1,6 +1,6 @@
 /** Camera framing maths, kept out of the component so it can be checked. */
 import { DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
-import { trailControlPoints } from "../../lib/trailCurve.ts";
+import { trailControlPoints, trailPoint, trailTangent } from "../../lib/trailCurve.ts";
 import { SAT_SCALE, displayDirection } from "../../lib/deployment.ts";
 
 export const FOV = 45;
@@ -465,6 +465,73 @@ export const orbitPose = hubPose;
 /* ---------------------------------------------------------------------------
  * The trail (spec v0.2 §9.2, §9.3)
  * ------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+ * Travelling the trail (spec v0.2 §9.3)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * How far off the curve's own axis the camera flies, as a share of its
+ * distance from the memory it is reading.
+ *
+ * Not zero, and that is the whole point. The camera used to sit *on* the
+ * curve, backed straight off along the tangent — which put the ribbon's
+ * centreline two tenths of a unit from the lens and pointed the camera down
+ * its length. A 0.1-unit ribbon passing that close, additively blended, fills
+ * the frame with a white wedge; the memory behind it is a wireframe in fog.
+ *
+ * Flown to one side and a little above, the ribbon sweeps past the corner of
+ * the frame and away to the vanishing point, and the reader can see they are
+ * moving along something. Seventeen degrees off axis costs 4% of the panel's
+ * width to foreshortening and buys the entire shot.
+ */
+export const TRAIL_OFFSET_SIDE = 0.26;
+export const TRAIL_OFFSET_LIFT = 0.16;
+
+/**
+ * Where the camera stands to look at the point `u` along the trail.
+ *
+ * Shared with verify, which checks the one thing that matters here: that the
+ * flight path never passes close enough to the ribbon to blow it out.
+ */
+export function trailPose(points: Vec3[], u: number, distance: number): Pose {
+  const at = trailPoint(points, u);
+  const tangent = trailTangent(points, u);
+
+  // A frame around the curve: across it, and up from it.
+  const side = unit(cross(tangent, [0, 1, 0]));
+  const lift = unit(cross(side, tangent));
+
+  // The direction from the memory back towards the camera, as a unit vector,
+  // so the distance to the panel is exactly the framing distance.
+  const away = unit([
+    -tangent[0] + side[0] * TRAIL_OFFSET_SIDE + lift[0] * TRAIL_OFFSET_LIFT,
+    -tangent[1] + side[1] * TRAIL_OFFSET_SIDE + lift[1] * TRAIL_OFFSET_LIFT,
+    -tangent[2] + side[2] * TRAIL_OFFSET_SIDE + lift[2] * TRAIL_OFFSET_LIFT,
+  ]);
+
+  return {
+    position: [
+      at[0] + away[0] * distance,
+      at[1] + away[1] * distance,
+      at[2] + away[2] * distance,
+    ],
+    lookAt: at,
+  };
+}
+
+function cross(a: Vec3, b: Vec3): Vec3 {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+function unit(v: Vec3): Vec3 {
+  const length = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / length, v[1] / length, v[2] / length];
+}
 
 /** The panel's world size. The cube's face is 2 units; a photograph earns more. */
 export const MEMORY_PANEL_WORLD = 2.4;

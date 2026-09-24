@@ -26,20 +26,28 @@ export const ribbonVertexShader = /* glsl */ `
 
   varying float vU;
   varying float vSide;
+  varying float vRange;
 
   void main() {
     vU = aU;
     vSide = aSide;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 view = modelViewMatrix * vec4(position, 1.0);
+    // Distance from the lens, not depth along it: the ribbon passes *beside*
+    // the camera on the way down the trail, and it is that passing-by that
+    // has to fade rather than only what is dead ahead.
+    vRange = length(view.xyz);
+    gl_Position = projectionMatrix * view;
   }
 `;
 
 export const ribbonFragmentShader = /* glsl */ `
   uniform vec3 uRamp[${RAMP_SIZE}];
   uniform float uIntensity;
+  uniform float uNearFade;
 
   varying float vU;
   varying float vSide;
+  varying float vRange;
 
   vec3 sampleRamp(float u) {
     float x = clamp(u, 0.0, 1.0) * float(${RAMP_SIZE} - 1);
@@ -57,7 +65,17 @@ export const ribbonFragmentShader = /* glsl */ `
     float lengthwise = 0.95 * pow(1.0 - clamp(vU, 0.0, 1.0), 1.3);
     float across = 1.0 - smoothstep(0.0, 1.0, abs(vSide));
 
-    float alpha = lengthwise * across * across * uIntensity;
+    /*
+     * And fading as it comes close to the lens.
+     *
+     * Without this the trail scene is unusable: the camera travels the length
+     * of the ribbon, so some part of it is always near, and an additively
+     * blended strip a fraction of a unit away stacks into a white wedge across
+     * the whole frame. Every segment is individually correct; the sum is not.
+     */
+    float near = smoothstep(0.0, uNearFade, vRange);
+
+    float alpha = lengthwise * across * across * near * uIntensity;
     if (alpha < 0.002) discard;
 
     // Premultiplied, so the additive blend does not brighten the thin edges

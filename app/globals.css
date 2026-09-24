@@ -1048,15 +1048,29 @@ body {
 }
 
 /*
- * The memory's own words. They fade rather than move: text must never travel
- * while it is being read (§23.5).
+ * The words, the hint and the way out, as one column off the bottom edge.
+ *
+ * Each of these used to measure up from the floor by itself, and a caption of
+ * any length landed on top of the scroll hint. Stacked, they cannot.
  */
-.trail-ui__memory {
+.trail-ui__foot {
   position: absolute;
   left: 50%;
-  bottom: var(--space-10);
+  bottom: max(var(--space-3), env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  width: min(480px, calc(100% - var(--space-4)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(480px, calc(100vw - var(--space-4)));
+}
+
+/*
+ * The memory's own words. They fade rather than move: text must never travel
+ * while it is being read (§23.5), and the hidden ones keep their space so that
+ * revealing one does not shift the button under the reader's thumb.
+ */
+.trail-ui__memory {
   text-align: center;
   opacity: 0;
   transition: opacity 600ms ease;
@@ -1088,10 +1102,6 @@ body {
 }
 
 .trail-ui__hint {
-  position: absolute;
-  left: 50%;
-  bottom: var(--space-8);
-  transform: translateX(-50%);
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   color: var(--titanium);
@@ -1104,10 +1114,6 @@ body {
 }
 
 .trail-ui__back {
-  position: absolute;
-  left: 50%;
-  bottom: max(var(--space-3), env(safe-area-inset-bottom));
-  transform: translateX(-50%);
   min-height: var(--control-h);
   pointer-events: auto;
 }

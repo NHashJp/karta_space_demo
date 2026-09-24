@@ -12,11 +12,13 @@ import {
   hubPose,
   hubTargets,
   memoryPanelFraming,
+  memoryViewDistance,
   orbitClearance,
   orbitPose,
   orbitPosition,
   satelliteHull,
   stagedTrail,
+  trailPose,
   SECRET_PLANE_Z,
   cameraDistance,
   insideVisibleWidth,
@@ -1438,12 +1440,57 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
       Math.hypot(...far).toFixed(1));
   }
 
-  // ---- memories are evenly spaced, newest nearest ------------------------
-  const spacing = new Set<string>();
-  for (let i = 1; i < 8; i++) spacing.add((memoryU(i, 8) - memoryU(i - 1, 8)).toFixed(9));
-  check("memories are evenly spaced along the trail", spacing.size === 1);
-  check("the newest memory is the nearest", memoryU(0, 8) < memoryU(7, 8));
-  check("a single memory still has a place", Number.isFinite(memoryU(0, 1)));
+  // ---- memories are an even *journey* apart, newest nearest --------------
+  /*
+   * Evenly spaced in world units, not in curve parameter. The curve's z is
+   * quadratic, so even steps of `u` put the first two memories 5 units apart
+   * and the last two 50 — one scroll barely moved you and the next threw you a
+   * third of the way down the trail. The check is on distance for that reason:
+   * a spacing check on `u` would have passed throughout.
+   */
+  {
+    const points = trailControlPoints(seeds[0]);
+    const hops: number[] = [];
+    for (let i = 1; i < 8; i++) {
+      const a = trailPoint(points, memoryU(points, i - 1, 8));
+      const b = trailPoint(points, memoryU(points, i, 8));
+      hops.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+    }
+    const shortest = Math.min(...hops);
+    const longest = Math.max(...hops);
+    check("memories are an even journey apart", longest / shortest <= 1.06,
+      `${shortest.toFixed(1)}u to ${longest.toFixed(1)}u`);
+    check("the newest memory is the nearest", memoryU(points, 0, 8) < memoryU(points, 7, 8));
+    check("a single memory still has a place", Number.isFinite(memoryU(points, 0, 1)));
+
+    /*
+     * And the camera flies *beside* the ribbon, never down the middle of it.
+     *
+     * It used to back straight off along the tangent, which put the ribbon's
+     * centreline two tenths of a unit from the lens with the camera pointed
+     * along its length. Additively blended, that is a white wedge across the
+     * whole frame — the memory behind it a wireframe in fog.
+     */
+    for (const [label, w, h] of [["portrait", 390, 844], ["landscape", 1512, 945]] as const) {
+      const staged = stagedTrail(seeds[0], w, h);
+      const distance = memoryViewDistance(w, h);
+      let closest = Infinity;
+
+      for (let leg = 0; leg < 5; leg++) {
+        const camera = trailPose(staged, memoryU(staged, leg, 5), distance).position;
+        for (let i = 0; i <= 600; i++) {
+          const p = trailPoint(staged, i / 600);
+          closest = Math.min(
+            closest,
+            Math.hypot(p[0] - camera[0], p[1] - camera[1], p[2] - camera[2]),
+          );
+        }
+      }
+
+      check(`${label}: the camera flies clear of the ribbon`, closest >= 1.2,
+        `${closest.toFixed(2)}u`);
+    }
+  }
 
   // ---- leaving the trail retraces it, rather than cutting across ---------
   // The retrace walks the curve parameter back to zero over the first 72% of
@@ -1451,7 +1498,7 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
   // straight line home would throw away the shape the reader just learned.
   {
     const points = trailControlPoints(seeds[0]);
-    const fromUValue = memoryU(4, 5);
+    const fromUValue = memoryU(points, 4, 5);
     let worstOff = 0;
     let previous = trailPoint(points, fromUValue);
     let monotonic = true;

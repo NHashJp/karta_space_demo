@@ -54,7 +54,7 @@ export function MemoryPanel({
   const size = useThree((state) => state.size);
   const panelPx = memoryPanelFraming(size.width, size.height).screenPx;
 
-  const u = memoryU(index, count);
+  const u = memoryU(points, index, count);
 
   const { position, quaternion } = useMemo(() => {
     const at = trailPoint(points, u);

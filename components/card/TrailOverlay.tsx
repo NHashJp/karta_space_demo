@@ -31,31 +31,41 @@ export function TrailOverlay({ memories, active, revealed, onBack }: Props) {
         ))}
       </div>
 
-      <div className="trail-ui__memory" data-visible={revealed}>
-        {memory ? (
-          <>
-            <p className="trail-ui__date" lang="ja">
-              {formatFuzzyDate(memory.date, memory)}
-            </p>
-            <h2 className="trail-ui__title" lang="ja">
-              {memory.title}
-            </h2>
-            {memory.caption ? (
-              <p className="trail-ui__caption" lang="ja">
-                {memory.caption}
+      {/*
+        One bottom-anchored column rather than three boxes each measuring up
+        from the floor on its own. They used to, and on a long caption the
+        words landed on top of the scroll hint: every value was on the grid and
+        the sum was still wrong. In flow they cannot overlap whatever the text
+        does, and because the hidden ones keep their space, nothing moves as a
+        memory is revealed — which §23.5 asks for.
+      */}
+      <div className="trail-ui__foot">
+        <div className="trail-ui__memory" data-visible={revealed}>
+          {memory ? (
+            <>
+              <p className="trail-ui__date" lang="ja">
+                {formatFuzzyDate(memory.date, memory)}
               </p>
-            ) : null}
-          </>
-        ) : null}
+              <h2 className="trail-ui__title" lang="ja">
+                {memory.title}
+              </h2>
+              {memory.caption ? (
+                <p className="trail-ui__caption" lang="ja">
+                  {memory.caption}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+
+        <p className="trail-ui__hint" data-visible={revealed && !oldest} lang="ja">
+          スクロールで、さらに昔へ
+        </p>
+
+        <button className="button button--quiet trail-ui__back" onClick={onBack} lang="ja">
+          軌道に戻る
+        </button>
       </div>
-
-      <p className="trail-ui__hint" data-visible={revealed && !oldest} lang="ja">
-        スクロールで、さらに昔へ
-      </p>
-
-      <button className="button button--quiet trail-ui__back" onClick={onBack} lang="ja">
-        軌道に戻る
-      </button>
     </div>
   );
 }

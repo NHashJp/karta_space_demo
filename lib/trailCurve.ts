@@ -101,13 +101,73 @@ export function trailTangent(points: Point3[], u: number): Point3 {
 }
 
 /**
- * Where memory `index` of `count` sits along the curve. Evenly spaced rather
- * than proportional to the time between memories: two photographs a week apart
- * and two five years apart should take the same effort to travel between, or
- * the reader spends the whole trail waiting.
+ * How far along the curve, in world units, each of `SAMPLES` steps of `u` is.
+ *
+ * The curve's z is quadratic, so equal steps in `u` are wildly unequal steps
+ * in space — at the far end one step is nearly ten times the length of one at
+ * the near end. Anything that wants *even travel* has to go through here.
  */
-export function memoryU(index: number, count: number): number {
+const SAMPLES = 256;
+
+function arcTable(points: Point3[]): number[] {
+  const table = [0];
+  let previous = trailPoint(points, 0);
+  let total = 0;
+
+  for (let i = 1; i <= SAMPLES; i++) {
+    const at = trailPoint(points, i / SAMPLES);
+    total += Math.hypot(at[0] - previous[0], at[1] - previous[1], at[2] - previous[2]);
+    table.push(total);
+    previous = at;
+  }
+
+  return table;
+}
+
+/** The `u` at which the curve has travelled `fraction` of its total length. */
+export function uAtArc(points: Point3[], fraction: number): number {
+  const table = arcTable(points);
+  const target = Math.min(Math.max(fraction, 0), 1) * table[SAMPLES];
+
+  let lo = 0;
+  let hi = SAMPLES;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (table[mid] <= target) lo = mid;
+    else hi = mid;
+  }
+
+  const span = table[hi] - table[lo];
+  const within = span > 1e-9 ? (target - table[lo]) / span : 0;
+  return (lo + within) / SAMPLES;
+}
+
+/**
+ * Where memory `index` of `count` sits along the curve.
+ *
+ * Evenly spaced **by distance travelled**, not by curve parameter, and not
+ * proportional to the time between memories: two photographs a week apart and
+ * two five years apart should take the same effort to travel between, or the
+ * reader spends the whole trail waiting.
+ *
+ * The first version of this spaced `u` evenly and claimed the same thing in
+ * its comment. It was not true, and it showed: on a five-memory card the first
+ * hop was 5 world units and the last was 50, so one scroll moved you barely
+ * past the frame and the next threw you a third of the way down the trail.
+ */
+export function memoryU(points: Point3[], index: number, count: number): number {
   if (count <= 1) return MEMORY_START_U;
-  const step = (MEMORY_END_U - MEMORY_START_U) / (count - 1);
-  return MEMORY_START_U + index * step;
+
+  const from = arcFractionAt(points, MEMORY_START_U);
+  const to = arcFractionAt(points, MEMORY_END_U);
+  return uAtArc(points, from + ((to - from) * index) / (count - 1));
+}
+
+/** The inverse of `uAtArc`: how much of the curve's length is behind `u`. */
+function arcFractionAt(points: Point3[], u: number): number {
+  const table = arcTable(points);
+  const x = Math.min(Math.max(u, 0), 1) * SAMPLES;
+  const i = Math.min(Math.floor(x), SAMPLES - 1);
+  const within = x - i;
+  return (table[i] + (table[i + 1] - table[i]) * within) / table[SAMPLES];
 }

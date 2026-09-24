@@ -5,6 +5,12 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { FOV, hubComet, hubPlanet } from "./framing";
 import {
+  comaFragmentShader,
+  comaVertexShader,
+  tailFragmentShader,
+  tailVertexShader,
+} from "./shaders/comet";
+import {
   DISPLAY_FAR,
   DISPLAY_NEAR,
   SEGMENT_AHEAD,
@@ -143,6 +149,16 @@ export function Comet({
   // Bigger than the nucleus by enough to be findable at orbit distance.
   const comaRadius = THREE.MathUtils.clamp(0.9 / distance, 0.26, 0.85);
 
+  const comaUniforms = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color(colours.ion) },
+      uCore: { value: new THREE.Color(colours.nucleus) },
+      uSize: { value: comaRadius },
+      uOpacity: { value: 1 },
+    }),
+    [colours.ion, colours.nucleus, comaRadius],
+  );
+
   useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime;
 
@@ -158,15 +174,19 @@ export function Comet({
       material.opacity = pulse;
     }
     if (coma.current) {
-      const material = coma.current.material as THREE.Material & { opacity: number };
-      material.opacity = 0.35 * pulse;
+      const material = coma.current.material as THREE.ShaderMaterial;
+      material.uniforms.uSize.value = comaRadius;
+      // Brighter as it comes home. Far out it is a speck you have to hunt for;
+      // in the last weeks it should be the brightest thing in the corner.
+      const near = THREE.MathUtils.clamp((DISPLAY_FAR - distance) / (DISPLAY_FAR - DISPLAY_NEAR), 0, 1);
+      material.uniforms.uOpacity.value = (0.5 + 0.6 * near) * pulse;
     }
 
     // The dust tail flickers a little; the ion tail does not. Ion tails are
     // straight and steady in reality, and the contrast is what tells them apart.
     if (dust.current && !reducedMotion) {
-      const material = dust.current.material as THREE.Material & { opacity: number };
-      material.opacity = 0.3 + 0.08 * Math.sin(t * 1.7);
+      const material = dust.current.material as THREE.ShaderMaterial;
+      material.uniforms.uOpacity.value = 0.3 + 0.08 * Math.sin(t * 1.7);
     }
 
     // The segment ahead is always drawn in the hub (§4.1); the chart raises it.
@@ -199,12 +219,18 @@ export function Comet({
           />
         </mesh>
 
-        <mesh ref={coma}>
-          <sphereGeometry args={[comaRadius, 16, 16]} />
-          <meshBasicMaterial
-            color={colours.ion}
+        {/*
+          The coma. A billboarded falloff rather than a sphere: a sphere of
+          constant colour has a silhouette, and a silhouette is the one thing
+          a cloud of gas does not have.
+        */}
+        <mesh ref={coma} frustumCulled={false}>
+          <planeGeometry args={[2, 2]} />
+          <shaderMaterial
+            uniforms={comaUniforms}
+            vertexShader={comaVertexShader}
+            fragmentShader={comaFragmentShader}
             transparent
-            opacity={0.35}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
             toneMapped={false}
@@ -262,31 +288,42 @@ function Tail({
   color: string;
   opacity: number;
 }) {
+  /*
+   * Only the spine is built here: where the tail runs, how wide it is at each
+   * point, and which side of it each vertex is on. The widening itself happens
+   * in the vertex shader, in view space, so the strip turns to face the camera
+   * — a tail that can be caught edge-on is a tail that can disappear.
+   */
   const geometry = useMemo(() => {
-    const across = new THREE.Vector3()
+    const lag = new THREE.Vector3()
       .crossVectors(direction, new THREE.Vector3(0, 1, 0));
-    if (across.lengthSq() < 1e-8) across.set(1, 0, 0);
-    across.normalize();
+    if (lag.lengthSq() < 1e-8) lag.set(1, 0, 0);
+    lag.normalize();
 
     const positions = new Float32Array((TAIL_SEGMENTS + 1) * 2 * 3);
-    const alphas = new Float32Array((TAIL_SEGMENTS + 1) * 2);
+    const ts = new Float32Array((TAIL_SEGMENTS + 1) * 2);
+    const sides = new Float32Array((TAIL_SEGMENTS + 1) * 2);
+    const halves = new Float32Array((TAIL_SEGMENTS + 1) * 2);
     const indices: number[] = [];
 
     for (let i = 0; i <= TAIL_SEGMENTS; i++) {
       const t = i / TAIL_SEGMENTS;
       const along = direction.clone().multiplyScalar(length * t);
-      // The curve grows with the square of the distance travelled, which is
-      // what a lagging trail of dust actually does.
-      along.addScaledVector(across, curve * length * t * t);
-      // Widening as it goes, and fading: the far end of a tail is not an edge.
-      const halfWidth = width * (0.35 + t * 1.4);
+      // The lag grows with the square of the distance travelled, which is what
+      // a trailing cloud of dust actually does. This one is a real direction
+      // in the world, so it stays on the CPU.
+      along.addScaledVector(lag, curve * length * t * t);
+      // Widening as it goes: the far end of a tail is not an edge.
+      const half = width * (0.35 + t * 1.4);
 
       for (const side of [-1, 1]) {
-        const index = (i * 2 + (side === -1 ? 0 : 1)) * 3;
-        positions[index] = along.x + across.x * halfWidth * side;
-        positions[index + 1] = along.y + across.y * halfWidth * side;
-        positions[index + 2] = along.z + across.z * halfWidth * side;
-        alphas[i * 2 + (side === -1 ? 0 : 1)] = Math.pow(1 - t, 1.6);
+        const v = i * 2 + (side === -1 ? 0 : 1);
+        positions[v * 3] = along.x;
+        positions[v * 3 + 1] = along.y;
+        positions[v * 3 + 2] = along.z;
+        ts[v] = t;
+        sides[v] = side;
+        halves[v] = half;
       }
 
       if (i < TAIL_SEGMENTS) {
@@ -297,18 +334,26 @@ function Tail({
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute("aAlpha", new THREE.BufferAttribute(alphas, 1));
+    geo.setAttribute("aT", new THREE.BufferAttribute(ts, 1));
+    geo.setAttribute("aSide", new THREE.BufferAttribute(sides, 1));
+    geo.setAttribute("aHalf", new THREE.BufferAttribute(halves, 1));
     geo.setIndex(indices);
     return geo;
   }, [direction, length, width, curve]);
 
+  const uniforms = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color(color) },
+      uOpacity: { value: opacity },
+      uDirection: { value: direction.clone() },
+    }),
+    [color, opacity, direction],
+  );
+
   return (
     <mesh ref={ref} geometry={geometry} frustumCulled={false}>
       <shaderMaterial
-        uniforms={{
-          uColor: { value: new THREE.Color(color) },
-          uOpacity: { value: opacity },
-        }}
+        uniforms={uniforms}
         vertexShader={tailVertexShader}
         fragmentShader={tailFragmentShader}
         transparent
@@ -320,25 +365,3 @@ function Tail({
     </mesh>
   );
 }
-
-const tailVertexShader = /* glsl */ `
-  attribute float aAlpha;
-  varying float vAlpha;
-
-  void main() {
-    vAlpha = aAlpha;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const tailFragmentShader = /* glsl */ `
-  uniform vec3 uColor;
-  uniform float uOpacity;
-  varying float vAlpha;
-
-  void main() {
-    float alpha = vAlpha * uOpacity;
-    if (alpha < 0.002) discard;
-    gl_FragColor = vec4(uColor * alpha, alpha);
-  }
-`;

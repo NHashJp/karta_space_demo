@@ -6,6 +6,7 @@ import { trailSeed } from "@/lib/trailColour";
 import { orbitRotation } from "@/lib/cometOrbit";
 import { trailSeedFor } from "@/lib/trailCurve";
 import { Canvas } from "@react-three/fiber";
+import { SpeedStreaks } from "./SpeedStreaks";
 import type { CardFace } from "@/types/card";
 import type { CameraPhase } from "@/lib/experienceState";
 import { CameraRig } from "./CameraRig";
@@ -208,6 +209,23 @@ export function CubeScene({
 
       {/* Once, on the day, and never again while the page is open. */}
       {deployed && returned ? <MeteorShower reducedMotion={cube.reducedMotion} /> : null}
+
+      {/*
+        Speed. Only in the two scenes that are actually moving: the hub, where
+        the satellite holds its mark and something has to carry the sense of
+        orbital velocity, and the trail, where the camera really is travelling.
+        Never where a letter is being read — a paragraph with particles
+        streaming past it is a paragraph nobody finishes.
+      */}
+      {cameraPhase === "orbit" || cameraPhase === "trail" ? (
+        <SpeedStreaks
+          seed={curveSeed}
+          reducedMotion={cube.reducedMotion}
+          // The hub camera barely moves, so its speed is given rather than
+          // measured; on the trail the camera's own travel is the whole story.
+          idle={cameraPhase === "orbit" ? 0.16 : 0}
+        />
+      ) : null}
 
       {/*
         The trail exists from the landing screen onwards, faintly, so the card

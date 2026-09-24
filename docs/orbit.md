@@ -93,6 +93,41 @@ one of them building it and handing it to the others. It is pure in the seed
 and the viewport, so they cannot disagree, and none of them can be left holding
 a curve from before the last rotation.
 
+### The trail is flown beside, not down
+
+The camera used to back straight off along the curve's own tangent, which put
+it *on* the ribbon: the centreline passed two tenths of a unit from the lens,
+with the camera pointed down its length. Additively blended, a strip that close
+stacks into a white wedge across the whole frame, and the memory behind it is a
+wireframe in fog. Every segment was individually correct; the sum was not.
+
+`trailPose` flies seventeen degrees off the axis — to one side and a little
+above. The ribbon then sweeps past the corner of the frame and away to the
+vanishing point, which is both legible and the thing that says *you are moving
+along something*. It costs 4% of the panel's width to foreshortening. The
+ribbon also fades within 2.6 units of the lens, so no camera position can bring
+that failure back.
+
+Memories are spaced by **distance travelled**, not by curve parameter. The
+curve's z is quadratic, so even steps of `u` put the first two memories five
+world units apart and the last two fifty — one scroll barely moved you and the
+next threw you a third of the way down the trail. The old code spaced `u`
+evenly and its comment claimed even effort; the comment was aspirational.
+
+### Speed is drawn, not simulated
+
+A satellite that holds its place on screen is the right picture and the wrong
+sensation: nothing in the frame moves, so nothing says the thing is travelling.
+The station-keeping drift and the turning sky are both true and both far too
+slow to read as motion.
+
+`SpeedStreaks` is the cue — short streaks sweeping past the lens, where the
+*length of the streak is the speed*. It appears only in the hub and on the
+trail, never where a letter is being read, and its opacity is the speed itself,
+so a still scene is a still scene. On the trail the rate is measured from how
+far the camera actually moved last frame, which is the one way a streak field
+can never disagree with the motion it describes.
+
 ### The satellite is a promise, not a calendar entry
 
 One date, one line, and then: *{from} will be in touch.*

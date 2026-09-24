@@ -13,12 +13,13 @@ import {
   ZOOM_REDUCED_MS,
   cameraDistance,
   orbitPose,
+  trailPose,
   type Pose,
 } from "./framing";
 import { easeInOutQuint } from "./rotationPresets";
 import { DRIFT_MS, REWIND_MS, RESURFACE_MS } from "@/lib/timing";
 import { cameraBreath } from "@/lib/sceneLight";
-import { memoryU, trailPoint, trailTangent, type Point3 } from "@/lib/trailCurve";
+import { memoryU, type Point3 } from "@/lib/trailCurve";
 import { useStagedTrail } from "./useStagedTrail";
 import type { CameraPhase } from "@/lib/experienceState";
 
@@ -143,8 +144,8 @@ export function CameraRig({
     startedAt.current = performance.now();
 
     // Where along the curve this move starts and ends, when it follows one.
-    fromU.current = memoryU(previousLeg, Math.max(memoryCount, 1));
-    toU.current = memoryU(leg, Math.max(memoryCount, 1));
+    fromU.current = memoryU(trail, previousLeg, Math.max(memoryCount, 1));
+    toU.current = memoryU(trail, leg, Math.max(memoryCount, 1));
     mode.current =
       enteringTrail && leavingTrail
         ? "along"
@@ -285,28 +286,21 @@ function scalePose(pose: Pose, factor: number): Pose {
 
 /**
  * Where the camera stands to read memory `index`: back along the curve's own
- * direction by `MEMORY_VIEW_DISTANCE`, looking straight at it. Backing off
- * along the tangent rather than along +z is what makes the trail feel like a
- * path being travelled instead of a line being looked at from outside.
+ * direction, and a little to one side of it, looking straight at the memory.
+ * Backing off along the tangent rather than along +z is what makes the trail
+ * feel like a path being travelled instead of a line looked at from outside;
+ * the offset to the side is what keeps the ribbon out of the lens.
  */
 function memoryPose(points: Point3[], index: number, count: number, distance: number): Pose {
-  return poseOnTrail(points, memoryU(index, Math.max(count, 1)), distance);
+  return poseOnTrail(points, memoryU(points, index, Math.max(count, 1)), distance);
 }
 
 /**
- * The camera's pose at any point `u` along the curve — backed off along the
- * curve's own tangent, looking at it. Every trail move is a walk through this
- * function, which is why the path it takes is always the trail's own shape.
+ * The camera's pose at any point `u` along the curve. Every trail move is a
+ * walk through this function, which is why the path it takes is always the
+ * trail's own shape. The pose itself lives in `framing`, where verify can
+ * measure how close it comes to the ribbon.
  */
 function poseOnTrail(points: Point3[], u: number, distance: number): Pose {
-  const at = trailPoint(points, u);
-  const tangent = trailTangent(points, u);
-  return {
-    position: [
-      at[0] - tangent[0] * distance,
-      at[1] - tangent[1] * distance,
-      at[2] - tangent[2] * distance,
-    ],
-    lookAt: at,
-  };
+  return trailPose(points, u, distance);
 }
