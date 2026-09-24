@@ -58,6 +58,15 @@ Either end returns to orbit rather than stopping dead. Nobody should be
 stranded at the far end of someone else's memories with no way out but the
 browser's back button.
 
+**Every move along the trail follows the curve**, and so does the way back. The
+camera never interpolates between two memories in a straight line through
+space: `poseOnTrail(u)` walks the curve parameter, so the path it takes is the
+trail's own shape. Leaving the trail *retraces* it — the camera runs `u` back
+down to the near end over the first 72% of the move, then pulls out to orbit —
+and it does so much faster than the way out, about 320 ms per memory against
+1100 going forward. Cutting straight home would throw away the one thing the
+reader has just learned about this card: what its trail looks like.
+
 The colours drift — two to four of the palette blending along its length, any
 one point taking 20–40 seconds to become another colour. It should never be
 *caught* changing. Each card's trail has its own colours and its own bend, both
@@ -103,16 +112,38 @@ and the panel says so instead.
 
 | Object | Where |
 |---|---|
-| Planet 「あなたの星」 | radius 2.2, centred (0, −3.4, −1), low in the frame |
-| Satellite | a tilted ellipse, 3.4 × 2.6, one lap every 48 s |
-| Orbit ring | one hairline at 18% — without it the satellite is a wandering speck |
+| The cube | a small tilted ellipse, 2.9 × 2.1, near the middle of the frame, one lap every 48 s |
+| Orbit ring | one hairline at 18% — without it the cube is a wandering speck |
+| Planet 「あなたの星」 | radius 2.9, down in the lower-right and deliberately cropped, turning once every two minutes |
 | Trail | a curve from just behind the ring out to z ≈ −70 |
-| Comets | wherever their dates put them, on orbits tilted 22° off the satellite's |
+| The comet | wherever its dates put it, on an orbit tilted 22° off the cube's |
 
-`orbitPose()` frames the whole ellipse and the planet at every viewport with at
-least 8% margin, solved per sample point — see
-[framing and text](./framing-and-text.md) for why a bounding box was the wrong
-answer there.
+**This departs from the spec's §8.9, on purpose.** There the planet is centred
+and low and the cube rings it — which put the planet in the middle of the frame
+and, because the orbit's semi-minor axis (2.6) barely cleared the planet's
+radius (2.2), sent the cube *through* the planet's disc twice a lap.
+
+So the two are separated. The **cube is the subject**: it travels a small
+ellipse near the middle, where the eye already is. The planet is scenery —
+larger, further away, in the corner, turning visibly. They move alongside each
+other rather than one around the other.
+
+Two consequences worth recording:
+
+- `orbitSamples()` frames **the cube's orbit only**. Framing the planet as well
+  pushed the camera from 15 units back to 41 on a phone, which made the subject
+  a speck. The planet is instead *placed* so this frame crops it: its upper-left
+  arc rises into the lower-right corner, which is how a planet you are near
+  actually looks. Verify checks its near limb is still in frame, and that it
+  stays below and right of the camera, so "planet in the corner" cannot quietly
+  become "no planet".
+- `orbitClearance()` is a checked number, currently **2.76 units**. The two
+  objects shared a centre once and the result was a cube falling into a planet;
+  a positive clearance is what stops that coming back.
+
+The planet turns once every two minutes rather than §22's twenty. Twenty
+minutes is right for a planet you are standing on and wrong for one you look at
+for ninety seconds — at that rate nothing visibly moves.
 
 ## The rule that holds all of it together
 

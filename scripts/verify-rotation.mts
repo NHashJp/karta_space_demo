@@ -6,6 +6,7 @@ import {
   PLANET_CENTRE,
   PLANET_RADIUS,
   memoryPanelFraming,
+  orbitClearance,
   orbitPose,
   orbitPosition,
   SECRET_PLANE_Z,
@@ -44,6 +45,7 @@ import { COMET_MAX, NAME_MAX, REPLY_MAX, validate } from "../lib/submission.ts";
 import { open, seal } from "../lib/cometSeal.ts";
 import { randomBytes } from "node:crypto";
 import {
+  MEMORY_START_U,
   TRAIL_LATERAL,
   TRAIL_NEAR_Z,
   memoryU,
@@ -1143,55 +1145,56 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
   ];
   const halfV = ((FOV * Math.PI) / 180) / 2;
 
-  // ---- the whole ellipse, and the planet's visible arc, fit the frame -----
+  // ---- the cube's whole orbit fits, with the planet cropped into a corner --
   for (const [label, w, h] of viewports) {
     const aspect = w / h;
     const halfH = Math.atan(Math.tan(halfV) * aspect);
     const pose = orbitPose(w, h);
     const camera: [number, number, number] = pose.position;
 
-    let worstMargin = Infinity;
-    const consider = (point: [number, number, number]) => {
-      // The camera looks straight down -z at the target, so the projection is
-      // the offset from the target over the distance along the view axis.
+    const project = (point: [number, number, number]) => {
       const depth = camera[2] - point[2];
-      if (depth <= 0) return;
-      const halfWidth = Math.tan(halfH) * depth;
-      const halfHeight = Math.tan(halfV) * depth;
-      const dx = Math.abs(point[0] - camera[0]);
-      const dy = Math.abs(point[1] - camera[1]);
-      worstMargin = Math.min(worstMargin, 1 - dx / halfWidth, 1 - dy / halfHeight);
+      return {
+        depth,
+        x: Math.abs(point[0] - camera[0]) / (Math.tan(halfH) * depth),
+        y: Math.abs(point[1] - camera[1]) / (Math.tan(halfV) * depth),
+      };
     };
 
-    // The full ellipse.
-    for (let i = 0; i < 360; i++) consider(orbitPosition((i * Math.PI) / 180));
-    // The planet's silhouette, sampled around its circumference.
+    let worstMargin = Infinity;
     for (let i = 0; i < 360; i++) {
-      const a = (i * Math.PI) / 180;
-      consider([
-        PLANET_CENTRE[0] + Math.cos(a) * PLANET_RADIUS,
-        PLANET_CENTRE[1] + Math.sin(a) * PLANET_RADIUS,
-        PLANET_CENTRE[2],
-      ]);
+      const seen = project(orbitPosition((i * Math.PI) / 180));
+      worstMargin = Math.min(worstMargin, 1 - seen.x, 1 - seen.y);
     }
-
-    check(`${label}: orbit frame keeps 8% margin`, worstMargin >= 0.08,
+    check(`${label}: the cube's orbit keeps 8% margin`, worstMargin >= 0.08,
       `${(worstMargin * 100).toFixed(1)}%`);
+
+    /*
+     * The planet is scenery, and deliberately cropped — but it has to be
+     * *there*. Its nearest limb must be inside the frame, and its centre
+     * below and right of the middle, or the "planet in the corner" reading
+     * silently becomes "no planet at all" on some viewport.
+     */
+    const limb = project([
+      PLANET_CENTRE[0] - PLANET_RADIUS,
+      PLANET_CENTRE[1] + PLANET_RADIUS,
+      PLANET_CENTRE[2],
+    ]);
+    check(`${label}: the planet's near limb is in frame`, limb.x <= 1 && limb.y <= 1,
+      `x=${limb.x.toFixed(2)} y=${limb.y.toFixed(2)}`);
+    check(`${label}: the planet sits right of centre`, PLANET_CENTRE[0] > camera[0]);
+    check(`${label}: and below it`, PLANET_CENTRE[1] < camera[1]);
+
     console.log(
       `  ${label.padEnd(18)} orbit camera z=${camera[2].toFixed(1)}u, ` +
       `margin ${(worstMargin * 100).toFixed(1)}%`,
     );
   }
 
-  // The satellite always clears the planet, or it would fly through it.
-  let closest = Infinity;
-  for (let i = 0; i < 720; i++) {
-    const [x, y, z] = orbitPosition((i * Math.PI) / 360);
-    closest = Math.min(closest, Math.hypot(
-      x - PLANET_CENTRE[0], y - PLANET_CENTRE[1], z - PLANET_CENTRE[2]));
-  }
-  check("the satellite never flies through the planet", closest > PLANET_RADIUS,
-    `${closest.toFixed(2)}u vs r=${PLANET_RADIUS}`);
+  // The cube and the planet are separate objects now, and must stay so: they
+  // shared a centre in revision 4 and the cube crossed the planet's disc.
+  const clearance = orbitClearance();
+  check("the cube's orbit clears the planet", clearance > 0.5, `${clearance.toFixed(2)}u`);
 
   // ---- the memory panel fills the same share of the frame as a face ------
   for (const [label, w, h] of viewports) {
@@ -1246,6 +1249,40 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
   check("memories are evenly spaced along the trail", spacing.size === 1);
   check("the newest memory is the nearest", memoryU(0, 8) < memoryU(7, 8));
   check("a single memory still has a place", Number.isFinite(memoryU(0, 1)));
+
+  // ---- leaving the trail retraces it, rather than cutting across ---------
+  // The retrace walks the curve parameter back to zero over the first 72% of
+  // the move. The property that matters is that it *stays on the curve*: a
+  // straight line home would throw away the shape the reader just learned.
+  {
+    const points = trailControlPoints(seeds[0]);
+    const fromUValue = memoryU(4, 5);
+    let worstOff = 0;
+    let previous = trailPoint(points, fromUValue);
+    let monotonic = true;
+    let lastU = fromUValue;
+
+    for (let i = 1; i <= 200; i++) {
+      const local = i / 200;
+      const u = fromUValue * (1 - local);
+      if (u > lastU + 1e-9) monotonic = false;
+      lastU = u;
+
+      const here = trailPoint(points, u);
+      // Each step is a step along the curve, so consecutive samples are close.
+      worstOff = Math.max(worstOff, Math.hypot(
+        here[0] - previous[0], here[1] - previous[1], here[2] - previous[2]));
+      previous = here;
+    }
+
+    check("the retrace runs the curve backwards", monotonic);
+    check("and never leaves it", worstOff < 1.2, `${worstOff.toFixed(3)}u per step`);
+
+    // It ends where the trail begins, which is where the camera came in.
+    const end = trailPoint(points, 0);
+    const start = trailPoint(points, MEMORY_START_U);
+    check("the retrace ends at the near end of the trail", end[2] > start[2] - 1e-9);
+  }
 
   // ---- and the camera arrives square-on, every time ----------------------
   // A drift lands with the bank back at exactly zero, the same guarantee the

@@ -62,6 +62,12 @@ type Props = {
    */
   deploying?: "out" | "in" | null;
   /**
+   * Whether the cube *should* be a satellite right now, regardless of whether
+   * the animation ever played. The two can disagree — see the reconcile in
+   * `useFrame` — and when they do, this is the truth.
+   */
+  deployed?: boolean;
+  /**
    * Written every frame, read by whatever else needs to know how far along the
    * deployment is — the carrier that flies the cube to its orbit, and the ring
    * that fades in under it. A ref rather than state, because this changes 60
@@ -85,6 +91,7 @@ export function MessageCube({
   reducedMotion,
   onTransitionEnd,
   deploying = null,
+  deployed = false,
   progress,
   onDeployEnd,
   seed = 0,
@@ -137,7 +144,26 @@ export function MessageCube({
     const group = cube.current;
     if (!group) return;
 
-    // ---- the deployment ---------------------------------------------------
+    /*
+     * ---- the deployment ---------------------------------------------------
+     *
+     * Reconcile first. `local` only moves while `deploying` is set, so any
+     * route into orbit that skips the animation — the editor's `?at=` jump,
+     * which replays deploy and deployEnd in one go, or a `deployEnd` that
+     * lands in `departing` before a frame runs — used to leave the cube
+     * sitting in orbit as an un-unfolded cube. It is rare, it looks broken,
+     * and it is invisible in any test that does not render.
+     */
+    if (!deploying) {
+      const target = deployed ? 1 : 0;
+      if (local.current !== target) {
+        // Caught up over ~200ms rather than snapped, so a genuine near-miss at
+        // the end of an animation finishes smoothly instead of jumping.
+        local.current = THREE.MathUtils.damp(local.current, target, 14, delta);
+        if (Math.abs(local.current - target) < 0.002) local.current = target;
+      }
+    }
+
     if (deploying) {
       const target = deploying === "out" ? 1 : 0;
       const span = Math.abs(target - deployFrom.current) || 1;

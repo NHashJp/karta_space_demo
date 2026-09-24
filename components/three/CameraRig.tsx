@@ -104,6 +104,17 @@ export function CameraRig({
 
   const from = useRef<Pose>(target);
   const to = useRef<Pose>(target);
+  /**
+   * How this move is travelled.
+   *
+   * `pose` is a straight interpolation between two poses — right for a dolly,
+   * where there is no path to follow. The other two follow the **curve**: the
+   * trail is a road, and moving along it in a straight line through space
+   * would cut the corners the reader just watched the camera take.
+   */
+  const mode = useRef<"pose" | "along" | "retrace">("pose");
+  const fromU = useRef(0);
+  const toU = useRef(0);
   const startedAt = useRef(0);
   const duration = useRef(0);
   const running = useRef(false);
@@ -133,11 +144,22 @@ export function CameraRig({
 
     const leavingTrail = previousPose.current.startsWith("trail:");
     const enteringTrail = phase === "trail";
+    const previousLeg = Number(previousPose.current.split(":")[1] ?? 0);
     previousPose.current = pose;
 
     from.current = currentPose(camera);
     to.current = target;
     startedAt.current = performance.now();
+
+    // Where along the curve this move starts and ends, when it follows one.
+    fromU.current = memoryU(previousLeg, Math.max(memoryCount, 1));
+    toU.current = memoryU(leg, Math.max(memoryCount, 1));
+    mode.current =
+      enteringTrail && leavingTrail
+        ? "along"
+        : leavingTrail && phase === "orbit"
+          ? "retrace"
+          : "pose";
     // A bank only on the leg between two memories: it is the one move that
     // travels *along* something, and banking into a dolly reads as a stumble.
     banking.current = enteringTrail && leavingTrail;
@@ -151,9 +173,15 @@ export function CameraRig({
             ? leavingTrail
               ? DRIFT_MS
               : REWIND_MS
-            : leavingTrail
-              ? RESURFACE_MS
-              : ZOOM_OUT_MS;
+            : mode.current === "retrace"
+              ? // Coming back is the same road, rewound: it costs time per
+                // memory travelled, but each one passes far faster than it did
+                // on the way out. Five memories back takes about as long as
+                // one and a half drifts forward.
+                RESURFACE_MS + previousLeg * RETRACE_PER_MEMORY_MS
+              : leavingTrail
+                ? RESURFACE_MS
+                : ZOOM_OUT_MS;
     running.current = true;
   }, [camera, phase, pose, target, reducedMotion]);
 
@@ -161,7 +189,7 @@ export function CameraRig({
     if (running.current) {
       const raw = Math.min((performance.now() - startedAt.current) / duration.current, 1);
       const t = easeInOutQuint(raw);
-      apply(camera, lerpPose(from.current, to.current, t), bank(banking.current, raw));
+      apply(camera, poseAt(raw, t), bank(banking.current, raw));
 
       if (raw >= 1) {
         // Land exactly on the pose, square-on, with the bank returned to zero:
@@ -183,7 +211,39 @@ export function CameraRig({
   });
 
   return null;
+
+  /** Where the camera is at `raw` (un-eased) / `t` (eased) through this move. */
+  function poseAt(raw: number, t: number): Pose {
+    const distance = memoryViewDistance(size.width, size.height);
+
+    // Along the trail: interpolate the curve parameter, not the two endpoints.
+    if (mode.current === "along") {
+      return poseOnTrail(trail, fromU.current + (toU.current - fromU.current) * t, distance);
+    }
+
+    /*
+     * Leaving it: retrace the way back. The camera walks the curve down to its
+     * near end — the same road, in reverse — and only then pulls out to the
+     * orbit pose. Cutting straight across would throw away the one thing the
+     * reader has just learned about the shape of this card's trail.
+     */
+    if (mode.current === "retrace") {
+      if (raw < RETRACE_SHARE) {
+        const local = easeInOutQuint(raw / RETRACE_SHARE);
+        return poseOnTrail(trail, fromU.current * (1 - local), distance);
+      }
+      const local = easeInOutQuint((raw - RETRACE_SHARE) / (1 - RETRACE_SHARE));
+      return lerpPose(poseOnTrail(trail, 0, distance), to.current, local);
+    }
+
+    return lerpPose(from.current, to.current, t);
+  }
 }
+
+/** How much of a retrace is spent on the trail before pulling out. */
+const RETRACE_SHARE = 0.72;
+/** Each memory rewound costs this much — far less than the drift out did. */
+const RETRACE_PER_MEMORY_MS = 320;
 
 /** Peak bank angle along a drift, in radians. Under the 4° the spec allows. */
 const BANK = (3.4 * Math.PI) / 180;
@@ -239,7 +299,15 @@ function scalePose(pose: Pose, factor: number): Pose {
  * path being travelled instead of a line being looked at from outside.
  */
 function memoryPose(points: Point3[], index: number, count: number, distance: number): Pose {
-  const u = memoryU(index, Math.max(count, 1));
+  return poseOnTrail(points, memoryU(index, Math.max(count, 1)), distance);
+}
+
+/**
+ * The camera's pose at any point `u` along the curve — backed off along the
+ * curve's own tangent, looking at it. Every trail move is a walk through this
+ * function, which is why the path it takes is always the trail's own shape.
+ */
+function poseOnTrail(points: Point3[], u: number, distance: number): Pose {
   const at = trailPoint(points, u);
   const tangent = trailTangent(points, u);
   return {

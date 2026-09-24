@@ -25,13 +25,31 @@ export const SECRET_PLANE_Z = -0.94;
  * The orbit composition (spec v0.2 §8.3)
  * ------------------------------------------------------------------------- */
 
-/** 「あなたの星」. The receiver's planet, low in the frame. */
-export const PLANET_RADIUS = 2.2;
-export const PLANET_CENTRE: Vec3 = [0, -3.4, -1];
+/*
+ * The orbit view's composition.
+ *
+ * This departs from the spec's §8.9, deliberately and at the sender's request.
+ * There, the planet sits centred and low and the satellite rings it — which
+ * put the planet in the middle of the frame and, because the orbit's semi-minor
+ * axis (2.6) barely cleared the planet's radius (2.2), sent the satellite
+ * *through* the planet's disc twice a lap. Whatever the depth buffer did with
+ * that, it read as the letter falling into the planet.
+ *
+ * So the two are separated. The **cube is the subject**: it travels a small
+ * ellipse near the middle of the frame, where the eye already is. The planet
+ * is scenery — larger and further away, down in the bottom-right corner,
+ * turning visibly. They move alongside each other rather than one around the
+ * other, and nothing ever passes through anything.
+ */
 
-/** The satellite's tilted ellipse, around the planet's centre. */
-export const ORBIT_SEMI_MAJOR = 3.4;
-export const ORBIT_SEMI_MINOR = 2.6;
+/** 「あなたの星」. The receiver's planet, in the lower-right of the frame. */
+export const PLANET_RADIUS = 2.9;
+export const PLANET_CENTRE: Vec3 = [4.9, -4.6, -3.2];
+
+/** The cube's own small ellipse, near the centre of the frame. */
+export const ORBIT_CENTRE: Vec3 = [-0.4, 0.5, 0];
+export const ORBIT_SEMI_MAJOR = 2.9;
+export const ORBIT_SEMI_MINOR = 2.1;
 export const ORBIT_TILT = (14 * Math.PI) / 180;
 
 /**
@@ -39,7 +57,7 @@ export const ORBIT_TILT = (14 * Math.PI) / 180;
  * it, which is what puts the planet low in the frame and leaves the sky — the
  * satellite, the comets, the trail — the upper two-thirds it needs.
  */
-export const ORBIT_TARGET: Vec3 = [0, -2.2, -1];
+export const ORBIT_TARGET: Vec3 = [0.2, -0.7, -0.6];
 
 /**
  * Margin beyond the composition. §17 requires 8%; designing to 12% leaves the
@@ -55,10 +73,29 @@ export function orbitPosition(theta: number): Vec3 {
   const x = ORBIT_SEMI_MAJOR * Math.cos(theta);
   const flat = ORBIT_SEMI_MINOR * Math.sin(theta);
   return [
-    PLANET_CENTRE[0] + x,
-    PLANET_CENTRE[1] + flat * Math.cos(ORBIT_TILT),
-    PLANET_CENTRE[2] + flat * Math.sin(ORBIT_TILT),
+    ORBIT_CENTRE[0] + x,
+    ORBIT_CENTRE[1] + flat * Math.cos(ORBIT_TILT),
+    ORBIT_CENTRE[2] + flat * Math.sin(ORBIT_TILT),
   ];
+}
+
+/**
+ * How close the cube's orbit ever comes to the planet's surface.
+ *
+ * Checked rather than eyeballed: the two used to share a centre, and the
+ * result was a satellite that crossed the planet's disc. A positive clearance
+ * here is what guarantees it cannot happen again.
+ */
+export function orbitClearance(): number {
+  let closest = Infinity;
+  for (let i = 0; i < 720; i++) {
+    const [x, y, z] = orbitPosition((i * Math.PI) / 360);
+    closest = Math.min(
+      closest,
+      Math.hypot(x - PLANET_CENTRE[0], y - PLANET_CENTRE[1], z - PLANET_CENTRE[2]),
+    );
+  }
+  return closest - PLANET_RADIUS;
 }
 
 /**
@@ -66,27 +103,18 @@ export function orbitPosition(theta: number): Vec3 {
  * the whole ellipse, and as much of the planet as is above the frame's floor.
  */
 /**
- * Everything the orbit view has to hold: the whole of the satellite's ellipse,
- * and the planet's silhouette. Returned as points rather than as a bounding
- * box, because a box would be framed at its nearest depth and the composition
- * is over four units deep — the widest parts of it are not the nearest parts,
- * and sizing for the worst of both at once pushes the camera needlessly far
- * back.
+ * What the orbit view has to hold: **the cube's whole ellipse**, and nothing
+ * else.
+ *
+ * The planet is deliberately not in here. Framing it as well pushed the camera
+ * from 15 units back to 41 on a phone, which made the cube — the subject — a
+ * speck. Instead the planet is placed so that this frame crops it: its upper-
+ * left arc rises into the lower-right corner, which is where it was asked to
+ * be and how a planet you are near actually looks.
  */
 export function orbitSamples(): Vec3[] {
   const points: Vec3[] = [];
-  for (let i = 0; i < 180; i++) {
-    const a = (i * 2 * Math.PI) / 180;
-    points.push(orbitPosition(a));
-    // The planet's silhouette. Its near pole is the closest thing in the
-    // composition, so it is included as its own sample.
-    points.push([
-      PLANET_CENTRE[0] + Math.cos(a) * PLANET_RADIUS,
-      PLANET_CENTRE[1] + Math.sin(a) * PLANET_RADIUS,
-      PLANET_CENTRE[2],
-    ]);
-  }
-  points.push([PLANET_CENTRE[0], PLANET_CENTRE[1], PLANET_CENTRE[2] + PLANET_RADIUS]);
+  for (let i = 0; i < 180; i++) points.push(orbitPosition((i * 2 * Math.PI) / 180));
   return points;
 }
 

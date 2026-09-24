@@ -255,6 +255,7 @@ export function CubeScene({
             {...cube}
             dimmed={dimmed}
             deploying={deploying}
+            deployed={deployed}
             progress={presence}
             onDeployEnd={onDeployEnd}
             seed={seed}

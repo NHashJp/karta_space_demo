@@ -8,9 +8,18 @@ import { atmosphereFragmentShader, atmosphereVertexShader } from "./shaders/atmo
 import { planetFragmentShader, planetVertexShader } from "./shaders/planet";
 import { keyLight } from "@/lib/sceneLight";
 
-/** One turn of the surface, and of the clouds, in seconds (spec v0.2 §22). */
-const SURFACE_PERIOD_S = 20 * 60;
-const CLOUD_PERIOD_S = 14 * 60;
+/**
+ * One turn of the surface, and of the clouds.
+ *
+ * §22 says 20 minutes and 14. That is the right number for a planet you are
+ * *on*, and the wrong one for a planet you are looking at for ninety seconds:
+ * at that rate nothing visibly turns, and the sender asked for a planet that
+ * reads as moving alongside the cube. Two minutes a turn is slow enough to
+ * stay calm — under a degree a second — and fast enough that the coastline
+ * under the terminator is somewhere else by the time you look back.
+ */
+const SURFACE_PERIOD_S = 120;
+const CLOUD_PERIOD_S = 86;
 
 /** The atmosphere shell, as a fraction of the planet's radius. */
 const SHELL_SCALE = 1.14;
