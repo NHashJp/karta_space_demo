@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { starsFragmentShader, starsVertexShader } from "./shaders/stars";
+import { skyTurn } from "@/lib/sceneLight";
 
 const COUNT = 1500;
 const INNER_RADIUS = 28;
@@ -31,7 +32,14 @@ function makeRandom(seed: number) {
   };
 }
 
-export function Starfield({ reducedMotion }: { reducedMotion: boolean }) {
+export function Starfield({
+  reducedMotion,
+  turning = false,
+}: {
+  reducedMotion: boolean;
+  /** The hub's slow turn about the planet's axis (rev 6 §3.2). */
+  turning?: boolean;
+}) {
   const material = useRef<THREE.ShaderMaterial>(null);
   const field = useRef<THREE.Points>(null);
   const dpr = useThree((state) => state.viewport.dpr);
@@ -94,7 +102,10 @@ export function Starfield({ reducedMotion }: { reducedMotion: boolean }) {
     // unrelated periods make the drift wander instead of scroll.
     if (field.current && !reducedMotion) {
       const t = clock.elapsedTime;
-      field.current.rotation.y = t * 0.0035 + Math.sin(t * 0.0131) * 0.26;
+      // The hub adds a steady turn on top of the wander: 0.6 degrees per ten
+      // seconds, which is the orbit made visible without drawing it.
+      field.current.rotation.y =
+        t * 0.0035 + Math.sin(t * 0.0131) * 0.26 + (turning ? skyTurn(t) : 0);
       field.current.rotation.x = Math.sin(t * 0.0093 + 1.12) * 0.13;
       field.current.rotation.z = Math.sin(t * 0.0071 + 2.34) * 0.09;
     }

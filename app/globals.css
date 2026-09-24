@@ -879,11 +879,15 @@ body {
     max(var(--space-2), env(safe-area-inset-bottom));
 }
 
+/*
+ * The hint sits near the top (rev 6 §3.1): the satellite now fills the middle
+ * of the frame, so a centred line would land on top of it.
+ */
 .orbit-ui__tip {
   position: absolute;
-  top: 50%;
+  top: var(--space-8);
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   font-size: 0.78rem;
   letter-spacing: 0.12em;
   color: var(--titanium);

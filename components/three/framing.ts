@@ -1,4 +1,6 @@
 /** Camera framing maths, kept out of the component so it can be checked. */
+import { DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
+import { SAT_SCALE } from "../../lib/deployment.ts";
 
 export const FOV = 45;
 
@@ -26,47 +28,40 @@ export const SECRET_PLANE_Z = -0.94;
  * ------------------------------------------------------------------------- */
 
 /*
- * The orbit view's composition.
+ * The orbit hub's composition (spec v0.2 rev 6, §3.1) — the sender's sketch.
  *
- * This departs from the spec's §8.9, deliberately and at the sender's request.
- * There, the planet sits centred and low and the satellite rings it — which
- * put the planet in the middle of the frame and, because the orbit's semi-minor
- * axis (2.6) barely cleared the planet's radius (2.2), sent the satellite
- * *through* the planet's disc twice a lap. Whatever the depth buffer did with
- * that, it read as the letter falling into the planet.
+ * The planet is a small arc in the bottom-right corner. The satellite is large
+ * and centred, on a diagonal. The trail comes in at the top-left and the comet
+ * passes by at the top-right.
  *
- * So the two are separated. The **cube is the subject**: it travels a small
- * ellipse near the middle of the frame, where the eye already is. The planet
- * is scenery — larger and further away, down in the bottom-right corner,
- * turning visibly. They move alongside each other rather than one around the
- * other, and nothing ever passes through anything.
+ * The world itself is unchanged: the planet is where it is and the satellite
+ * is on its orbit. What `hubPose` does is *place the camera* so that those
+ * things land where the sketch puts them on screen — which is why the targets
+ * below are fractions of the viewport rather than world coordinates.
  */
 
-/** 「あなたの星」. The receiver's planet, low and right of centre. */
-export const PLANET_RADIUS = 1.5;
-export const PLANET_CENTRE: Vec3 = [1.4, -2.1, -1.3];
+/** 「あなたの星」, mostly off the bottom-right corner. */
+export const PLANET_RADIUS = 2.2;
+export const PLANET_CENTRE: Vec3 = [3.5, -3.9, -2.2];
 
-/**
- * The cube **orbits the planet**, on an ellipse centred on it.
- *
- * Two numbers here are doing specific work.
- *
- * The **minor axis** (3.1) has to clear the planet's radius (1.5) by enough
- * that neither the bus nor its solar arrays ever cross the disc. The spec's
- * 2.6 against 2.2 left four tenths of a unit — not even enough for the cube,
- * let alone wings. The 1.85 units here is sized against the deployed wingspan:
- * see `wingReach()` in `lib/deployment.ts`, and the check in verify.
- *
- * The **tilt** (34°, against the spec's 14°) is what makes it read as an
- * orbit at all. Near edge-on, an ellipse projects to a line and the cube just
- * slides left and right — which looks like a thing wandering, not a thing
- * going round. At 34° you see the ellipse as an ellipse, and the cube visibly
- * passes behind the planet and comes back.
- */
+/** The satellite's orbit around it. Drawn only in the chart (rev 6, R20). */
 export const ORBIT_CENTRE: Vec3 = PLANET_CENTRE;
 export const ORBIT_SEMI_MAJOR = 4.4;
 export const ORBIT_SEMI_MINOR = 3.35;
 export const ORBIT_TILT = (34 * Math.PI) / 180;
+
+/**
+ * Where the satellite sits in the hub, in world space.
+ *
+ * In revision 6 it does **not** travel round the ring on screen: it holds this
+ * place and keeps station (§3.2). The orbit is still real — the chart shows it
+ * — but the hub is a view from alongside, not from a fixed point in space, so
+ * the satellite stays put and the sky turns behind it.
+ */
+export const HUB_SATELLITE: Vec3 = [0, 0, 0];
+
+/** The satellite's display attitude: the wing axis at −50° on screen. */
+export const WING_AXIS_DEG = -50;
 
 /**
  * What the orbit camera looks at. Not the planet's centre but a point above
@@ -129,20 +124,32 @@ export function orbitClearance(): number {
  * left arc rises into the lower-right corner, which is where it was asked to
  * be and how a planet you are near actually looks.
  */
+/**
+ * What the hub frame has to hold: the satellite's whole deployed hull.
+ *
+ * The planet is deliberately not in here. It is scenery, and cropping it into
+ * the corner is the composition — framing it as well would push the camera
+ * back until the subject was a speck, which is what revision 5 did.
+ */
 export function orbitSamples(): Vec3[] {
-  const points: Vec3[] = [];
-  for (let i = 0; i < 180; i++) points.push(orbitPosition((i * 2 * Math.PI) / 180));
-  // The planet's silhouette too: it is inside the orbit, so this costs nothing
-  // in camera distance and guarantees it is never clipped.
-  for (let i = 0; i < 60; i++) {
-    const a = (i * 2 * Math.PI) / 60;
-    points.push([
-      PLANET_CENTRE[0] + Math.cos(a) * PLANET_RADIUS,
-      PLANET_CENTRE[1] + Math.sin(a) * PLANET_RADIUS,
-      PLANET_CENTRE[2],
-    ]);
-  }
-  return points;
+  return satelliteHull().map(([x, y, z]) => [
+    HUB_SATELLITE[0] + x,
+    HUB_SATELLITE[1] + y,
+    HUB_SATELLITE[2] + z,
+  ]);
+}
+
+/** The deployed satellite's hull, at satellite scale, in its display attitude. */
+export function satelliteHull(): Vec3[] {
+  const yaw = (WING_AXIS_DEG * Math.PI) / 180;
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+
+  return hullPoints(1, 1).map(([x, y, z]) => [
+    (x * cos - z * sin) * SAT_SCALE,
+    y * SAT_SCALE,
+    (x * sin + z * cos) * SAT_SCALE,
+  ]);
 }
 
 /**
@@ -153,33 +160,107 @@ export function orbitSamples(): Vec3[] {
  * 0.46 aspect ratio makes width the binding constraint by a long way, which is
  * why the orbit view sits further back on a phone than it looks like it should.
  */
-export function orbitPose(width: number, height: number): Pose {
+/* ---------------------------------------------------------------------------
+ * The hub, staged from its screen targets (rev 6 §3.1)
+ * ------------------------------------------------------------------------- */
+
+/** Tip to tip, in world units, at satellite scale. */
+const SPAN_WORLD = DEPLOYED_SPAN * SAT_SCALE;
+
+type HubTargets = {
+  /** Body centre, as fractions of the viewport from the left and the top. */
+  centre: [number, number];
+  /** Tip to tip along the wing axis, as a fraction of the width. */
+  tip: number;
+  planet: { centre: [number, number]; radius: number };
+};
+
+/**
+ * §3.1's two reference columns. Portrait and landscape are genuinely different
+ * compositions rather than one scaled: on a phone the satellite fills four
+ * fifths of the width, on a desktop barely a third.
+ */
+const PORTRAIT: HubTargets = {
+  centre: [0.44, 0.55],
+  tip: 0.81,
+  planet: { centre: [1.21, 1.22], radius: 1.07 },
+};
+const LANDSCAPE: HubTargets = {
+  centre: [0.47, 0.5],
+  tip: 0.36,
+  planet: { centre: [1.11, 1.44], radius: 0.55 },
+};
+
+export function hubTargets(aspect: number): HubTargets {
+  return aspect < 1 ? PORTRAIT : LANDSCAPE;
+}
+
+/**
+ * The half-angles as *tangents*, which is what projection arithmetic wants.
+ * (The `halfAngles` further down returns radians, for a different job.)
+ */
+function hubHalfTangents(aspect: number) {
+  const halfV = Math.tan(((FOV * Math.PI) / 180) / 2);
+  return { halfV, halfH: Math.tan(Math.atan(halfV * aspect)) };
+}
+
+/**
+ * Where the camera stands in the hub.
+ *
+ * Solved from the composition rather than chosen: the distance is whatever
+ * makes the satellite's tip-to-tip the target fraction of the width, and the
+ * offset is whatever puts its body centre on the target point. Revision 5's
+ * `orbitPose` framed an *orbit*; the hub no longer shows one (R20), so what it
+ * frames now is the satellite itself.
+ */
+export function hubPose(width: number, height: number): Pose {
   const aspect = width / height;
-  const halfV = ((FOV * Math.PI) / 180) / 2;
-  const halfH = Math.atan(Math.tan(halfV) * aspect);
-  const tanH = Math.tan(halfH);
-  const tanV = Math.tan(halfV);
+  const { halfV, halfH } = hubHalfTangents(aspect);
+  const target = hubTargets(aspect);
 
-  // For each point, the camera distance at which it sits exactly on the
-  // margin; the answer is the furthest of them. Solving point by point rather
-  // than from a bounding box is what keeps the composition as large as it can
-  // be while still passing §17 at every viewport.
-  let distance = 0;
-  for (const [x, y, z] of orbitSamples()) {
-    const ahead = z - ORBIT_TARGET[2];
-    const dx = Math.abs(x - ORBIT_TARGET[0]) * ORBIT_MARGIN;
-    const dy = Math.abs(y - ORBIT_TARGET[1]) * ORBIT_MARGIN;
-    distance = Math.max(distance, dx / tanH + ahead, dy / tanV + ahead);
-  }
+  const distance = SPAN_WORLD / 2 / (target.tip * halfH);
+  const x = HUB_SATELLITE[0] + (0.5 - target.centre[0]) * 2 * halfH * distance;
+  const y = HUB_SATELLITE[1] + (target.centre[1] - 0.5) * 2 * halfV * distance;
 
-  // Straight down -z through the target. The planet already sits low in the
-  // frame because the target is above it; tilting as well would only make the
-  // framing harder to reason about and the ellipse harder to fit.
   return {
-    position: [ORBIT_TARGET[0], ORBIT_TARGET[1], ORBIT_TARGET[2] + distance],
-    lookAt: ORBIT_TARGET,
+    position: [x, y, HUB_SATELLITE[2] + distance],
+    lookAt: [x, y, HUB_SATELLITE[2]],
   };
 }
+
+/**
+ * Where the planet stands **in the hub**.
+ *
+ * This is a staged position, and that deserves saying plainly. §3.1 fixes the
+ * planet's radius at 2.2 world units *and* asks it to fill a given fraction of
+ * the screen in both portrait and landscape — and those two demands cannot both
+ * be met by one fixed world position, because the camera distance is already
+ * spoken for by the satellite. A planet that satisfied the phone would swallow
+ * the desktop.
+ *
+ * Revision 6 makes that affordable: in the hub the satellite no longer travels
+ * a visible orbit (R20), so nothing on screen depends on the two being a fixed
+ * distance apart. The orbit is still real and still drawn — in the chart, which
+ * uses the true placement. The hub is a view from alongside, composed.
+ */
+export function hubPlanet(width: number, height: number): Vec3 {
+  const aspect = width / height;
+  const { halfV, halfH } = hubHalfTangents(aspect);
+  const target = hubTargets(aspect);
+  const camera = hubPose(width, height).position;
+
+  // Close enough that its limb reads as the target fraction of the width.
+  const depth = PLANET_RADIUS / (2 * halfH * target.planet.radius);
+
+  return [
+    camera[0] + (target.planet.centre[0] - 0.5) * 2 * halfH * depth,
+    camera[1] - (target.planet.centre[1] - 0.5) * 2 * halfV * depth,
+    camera[2] - depth,
+  ];
+}
+
+/** The old name, kept so nothing has to change twice. */
+export const orbitPose = hubPose;
 
 /* ---------------------------------------------------------------------------
  * The trail (spec v0.2 §9.2, §9.3)

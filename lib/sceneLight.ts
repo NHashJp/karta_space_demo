@@ -124,3 +124,44 @@ export function cameraBreath(t: number, seed: number, options: LightOptions = {}
     roll: BREATH_ROLL_DEG * DEG * Math.sin(angle * 0.5),
   };
 }
+
+/* ---------------------------------------------------------------------------
+ * The hub's co-moving camera (spec v0.2 rev 6, §3.2)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Station keeping.
+ *
+ * In the hub the satellite does not travel round a ring on screen — the camera
+ * moves with it, the way a chase view does. What is left is the small drift of
+ * a thing holding its position: ±1.5% and ±1.2° over 30 seconds.
+ *
+ * This is why the hub feels like *being alongside* rather than watching from a
+ * fixed point. A satellite sliding across the frame every 48 seconds reads as
+ * a diagram of an orbit; one that holds still while the sky turns behind it
+ * reads as the place you are.
+ */
+export const STATION_PERIOD_S = 30;
+export const STATION_DRIFT = 0.015;
+export const STATION_ROLL_DEG = 1.2;
+
+/** The sky turns instead, at 0.6° per 10 s — the orbit, felt rather than drawn. */
+export const SKY_TURN_DEG_PER_S = 0.06;
+
+export function stationKeeping(t: number, seed: number, options: LightOptions = {}) {
+  if (options.reducedMotion) return { offsetX: 0, offsetY: 0, roll: 0 };
+
+  const phase = seededUnit(seed, 31) * Math.PI * 2;
+  const angle = (2 * Math.PI * t) / STATION_PERIOD_S + phase;
+  return {
+    // Two axes on different multiples, so it wanders rather than swings.
+    offsetX: STATION_DRIFT * Math.sin(angle),
+    offsetY: STATION_DRIFT * Math.sin(angle * 0.63 + 1.1),
+    roll: STATION_ROLL_DEG * DEG * Math.sin(angle * 0.81),
+  };
+}
+
+/** How far the sky has turned by `t`, in radians. */
+export function skyTurn(t: number, options: LightOptions = {}): number {
+  return options.reducedMotion ? 0 : (t * SKY_TURN_DEG_PER_S * Math.PI) / 180;
+}

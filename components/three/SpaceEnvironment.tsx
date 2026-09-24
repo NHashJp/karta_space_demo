@@ -18,19 +18,31 @@ type Props = {
   seed: number;
   /** The satellite or a comet has come back: the day is a warmer one. */
   returned?: boolean;
+  /**
+   * In the hub the sky turns slowly about the planet's axis (rev 6 §3.2).
+   * That turn *is* the orbit: the satellite holds its place, so the only way
+   * the motion can be felt is from behind it.
+   */
+  skyTurning?: boolean;
 };
 
 /**
  * Near-black void, nebula dust, shining stars, drifting lights (spec §14),
  * layered front to back as spec v0.2 §23.2 sets out.
  */
-export function SpaceEnvironment({ reducedMotion, dimmed, seed, returned = false }: Props) {
+export function SpaceEnvironment({
+  reducedMotion,
+  dimmed,
+  seed,
+  returned = false,
+  skyTurning = false,
+}: Props) {
   return (
     <>
       <color attach="background" args={["#05070c"]} />
 
       <NebulaBackdrop reducedMotion={reducedMotion} dimmed={dimmed} />
-      <Starfield reducedMotion={reducedMotion} />
+      <Starfield reducedMotion={reducedMotion} turning={skyTurning} />
       <BrightStars reducedMotion={reducedMotion} />
 
       {/* Ambient and a violet fill; the sun itself moves, below. */}

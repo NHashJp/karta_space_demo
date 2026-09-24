@@ -154,6 +154,7 @@ export function CubeScene({
         dimmed={dimmed}
         seed={seed}
         returned={returned}
+        skyTurning={cameraPhase === "orbit"}
       />
       {/* A card without an orbit never pays for a planet it does not have. */}
       {deployed ? (
@@ -250,6 +251,7 @@ export function CubeScene({
           presence={presence}
           reducedMotion={cube.reducedMotion}
           returned={returned}
+          seed={seed}
         >
           <MessageCube
             {...cube}

@@ -2,13 +2,19 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import * as THREE from "three";
 import {
   FOV,
+  HUB_SATELLITE,
   INSIDE_DISTANCE,
   PLANET_CENTRE,
   PLANET_RADIUS,
+  WING_AXIS_DEG,
+  hubPlanet,
+  hubPose,
+  hubTargets,
   memoryPanelFraming,
   orbitClearance,
   orbitPose,
   orbitPosition,
+  satelliteHull,
   SECRET_PLANE_Z,
   cameraDistance,
   insideVisibleWidth,
@@ -57,7 +63,7 @@ import {
   trailSeedFor,
 } from "../lib/trailCurve.ts";
 import { DEPLOY_MS } from "../lib/timing.ts";
-import { PANELS, RISE, THRUSTER, TURN, deploymentAt, wingReach } from "../lib/deployment.ts";
+import { PANELS, RISE, SAT_SCALE, THRUSTER, TURN, deploymentAt, wingReach } from "../lib/deployment.ts";
 import {
   BOOM_WINDOW,
   DEPLOYED_SPAN,
@@ -1159,66 +1165,117 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
   ];
   const halfV = ((FOV * Math.PI) / 180) / 2;
 
-  // ---- the cube's whole orbit fits, with the planet cropped into a corner --
-  for (const [label, w, h] of viewports) {
-    const aspect = w / h;
-    const halfH = Math.atan(Math.tan(halfV) * aspect);
-    const pose = orbitPose(w, h);
-    const camera: [number, number, number] = pose.position;
+  // ---- the hub is the sender's sketch, to the number (rev 6 §3.1, §7) ----
+  const hubViewports: [string, number, number][] = [
+    ["portrait 390x844", 390, 844],
+    ["portrait 430x932", 430, 932],
+    ["landscape 1280x800", 1280, 800],
+    ["desktop 1512x945", 1512, 945],
+  ];
 
+  for (const [label, w, h] of hubViewports) {
+    const aspect = w / h;
+    const tanV = Math.tan(halfV);
+    const tanH = Math.tan(Math.atan(tanV * aspect));
+    const camera = hubPose(w, h).position;
+    const target = hubTargets(aspect);
+
+    /** Screen fractions: x from the left, y from the top. */
     const project = (point: [number, number, number]) => {
       const depth = camera[2] - point[2];
-      return {
-        depth,
-        x: Math.abs(point[0] - camera[0]) / (Math.tan(halfH) * depth),
-        y: Math.abs(point[1] - camera[1]) / (Math.tan(halfV) * depth),
-      };
+      return [
+        0.5 + (point[0] - camera[0]) / (2 * tanH * depth),
+        0.5 - (point[1] - camera[1]) / (2 * tanV * depth),
+      ] as [number, number];
     };
 
-    let worstMargin = Infinity;
-    for (let i = 0; i < 360; i++) {
-      const seen = project(orbitPosition((i * Math.PI) / 180));
-      worstMargin = Math.min(worstMargin, 1 - seen.x, 1 - seen.y);
-    }
-    check(`${label}: the cube's orbit keeps 8% margin`, worstMargin >= 0.08,
-      `${(worstMargin * 100).toFixed(1)}%`);
+    // The satellite: where its body sits, how wide it is, and that all of it
+    // is on screen with room to spare.
+    const centre = project(HUB_SATELLITE);
+    check(`${label}: the body centre is on target`,
+      Math.abs(centre[0] - target.centre[0]) <= 0.04 &&
+      Math.abs(centre[1] - target.centre[1]) <= 0.04,
+      `${centre[0].toFixed(3)},${centre[1].toFixed(3)}`);
 
-    /*
-     * The planet is scenery, and deliberately cropped — but it has to be
-     * *there*. Its nearest limb must be inside the frame, and its centre
-     * below and right of the middle, or the "planet in the corner" reading
-     * silently becomes "no planet at all" on some viewport.
-     */
-    const limb = project([
-      PLANET_CENTRE[0] - PLANET_RADIUS,
-      PLANET_CENTRE[1] + PLANET_RADIUS,
-      PLANET_CENTRE[2],
+    const half = (DEPLOYED_SPAN / 2) * SAT_SCALE;
+    const yaw = (WING_AXIS_DEG * Math.PI) / 180;
+    const tipA = project([
+      HUB_SATELLITE[0] + half * Math.cos(yaw),
+      HUB_SATELLITE[1] - half * Math.sin(yaw),
+      HUB_SATELLITE[2],
     ]);
-    check(`${label}: the planet's near limb is in frame`, limb.x <= 1 && limb.y <= 1,
-      `x=${limb.x.toFixed(2)} y=${limb.y.toFixed(2)}`);
-    check(`${label}: the planet sits right of centre`, PLANET_CENTRE[0] > camera[0]);
-    check(`${label}: and below it`, PLANET_CENTRE[1] < camera[1]);
+    const tipB = project([
+      HUB_SATELLITE[0] - half * Math.cos(yaw),
+      HUB_SATELLITE[1] + half * Math.sin(yaw),
+      HUB_SATELLITE[2],
+    ]);
+    // In width units, so portrait and landscape are comparable.
+    const tip = Math.hypot(tipA[0] - tipB[0], (tipA[1] - tipB[1]) * (h / w));
+    check(`${label}: tip to tip is in range`, Math.abs(tip - target.tip) <= 0.05,
+      `${(tip * 100).toFixed(0)}% vs ${(target.tip * 100).toFixed(0)}%`);
+
+    // The wing axis, measured on screen rather than assumed from the constant.
+    const axis =
+      (Math.atan2((tipA[1] - tipB[1]) * (h / w), tipA[0] - tipB[0]) * 180) / Math.PI;
+    check(`${label}: the wing axis is -50deg ± 6`, Math.abs(axis - WING_AXIS_DEG) <= 6,
+      `${axis.toFixed(1)}deg`);
+
+    const hull = satelliteHull().map((p) =>
+      project([HUB_SATELLITE[0] + p[0], HUB_SATELLITE[1] + p[1], HUB_SATELLITE[2] + p[2]]),
+    );
+    const margin = Math.min(
+      ...hull.map((p) => Math.min(p[0], p[1], 1 - p[0], 1 - p[1])),
+    );
+    check(`${label}: the whole hull is in frame with 4% margin`, margin >= 0.04,
+      `${(margin * 100).toFixed(1)}%`);
+
+    // The planet: a small arc in the bottom-right, mostly off screen.
+    const planet = hubPlanet(w, h);
+    const planetCentre = project(planet);
+    const planetRadius = Math.abs(
+      planetCentre[0] - project([planet[0] - PLANET_RADIUS, planet[1], planet[2]])[0],
+    );
+    check(`${label}: the planet's centre is off the bottom-right`,
+      Math.abs(planetCentre[0] - target.planet.centre[0]) <= 0.05 &&
+      Math.abs(planetCentre[1] - target.planet.centre[1]) <= 0.05,
+      `${planetCentre[0].toFixed(2)},${planetCentre[1].toFixed(2)}`);
+    /*
+     * The planet is staged closer to the camera than the satellite, so the
+     * thing to check is not depth but overlap: no part of the satellite may
+     * fall inside the planet's disc, or the planet would occlude it.
+     * Distances are in width units, the same units the radius is measured in.
+     */
+    const overlaps = hull.some(
+      (p) =>
+        Math.hypot(p[0] - planetCentre[0], (p[1] - planetCentre[1]) * (h / w)) <=
+        planetRadius,
+    );
+    check(`${label}: the planet never covers the satellite`, !overlaps);
+
+    // How much of the frame it actually covers: 8-15%, or it stops being an
+    // arc in a corner and becomes a backdrop.
+    let inside = 0;
+    const samples = 60;
+    for (let ix = 0; ix < samples; ix++) {
+      for (let iy = 0; iy < samples; iy++) {
+        const px = (ix + 0.5) / samples;
+        const py = (iy + 0.5) / samples;
+        // Compared in width units, since the projected disc is circular there.
+        const dx = px - planetCentre[0];
+        const dy = (py - planetCentre[1]) * (h / w);
+        if (Math.hypot(dx, dy) <= planetRadius) inside++;
+      }
+    }
+    const area = inside / (samples * samples);
+    check(`${label}: the planet covers 8-15% of the frame`, area >= 0.08 && area <= 0.15,
+      `${(area * 100).toFixed(1)}%`);
 
     console.log(
-      `  ${label.padEnd(18)} orbit camera z=${camera[2].toFixed(1)}u, ` +
-      `margin ${(worstMargin * 100).toFixed(1)}%`,
+      `  ${label.padEnd(19)} body ${centre[0].toFixed(2)},${centre[1].toFixed(2)} ` +
+      `tip ${(tip * 100).toFixed(0)}% axis ${axis.toFixed(0)}deg ` +
+      `margin ${(margin * 100).toFixed(0)}% planet ${(area * 100).toFixed(0)}%`,
     );
   }
-
-  // The cube and the planet are separate objects now, and must stay so: they
-  // shared a centre in revision 4 and the cube crossed the planet's disc.
-  const clearance = orbitClearance();
-  check("the satellite's orbit clears the planet", clearance > 0.5, `${clearance.toFixed(2)}u`);
-
-  /*
-   * And so do its wings. The bus clearing the planet is not enough once the
-   * arrays are out on booms: a tip reaching further than the clearance would
-   * sweep through the planet twice a lap, which is precisely the failure this
-   * composition was rebuilt to remove — just moved out to the wingtips.
-   */
-  const reach = wingReach();
-  check("the deployed wings clear it too", reach < clearance - 0.2,
-    `tip ${reach.toFixed(2)}u vs clearance ${clearance.toFixed(2)}u`);
 
   // ---- the memory panel fills the same share of the frame as a face ------
   for (const [label, w, h] of viewports) {

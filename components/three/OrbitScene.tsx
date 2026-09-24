@@ -1,13 +1,12 @@
 "use client";
 
-import { useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { RING_OPACITY, useOrbitRing } from "./OrbitRing";
 import { Planet } from "./Planet";
-import { orbitPosition } from "./framing";
-import { ORBIT_PERIOD_S } from "@/lib/timing";
+import { FOV, HUB_SATELLITE, hubPlanet, hubPose } from "./framing";
 import { deploymentAt, SAT_SCALE } from "@/lib/deployment";
+import { stationKeeping } from "@/lib/sceneLight";
 
 export { SAT_SCALE } from "@/lib/deployment";
 
@@ -32,49 +31,57 @@ type Props = {
  * the closing screen rather than on first load.
  */
 export function OrbitScene({ seed, returned, reducedMotion, presence }: Props) {
-  const ring = useOrbitRing();
+  const planet = useRef<THREE.Group>(null);
+  const size = useThree((state) => state.size);
+
+  /*
+   * The planet's hub placement (rev 6 §3.1). It is staged per aspect rather
+   * than fixed in the world — see `hubPlanet` for why — so it moves when the
+   * viewport changes, and is set here rather than baked into the mesh.
+   */
+  const at = useMemo(() => hubPlanet(size.width, size.height), [size.width, size.height]);
 
   useFrame(() => {
-    // The ring fades in under the satellite rather than appearing with it:
-    // nothing at all until the cube is on its way, then up to full as it
-    // settles onto the ellipse.
-    const material = ring.material as THREE.Material & { opacity: number };
-    material.opacity = RING_OPACITY * Math.max(0, presence.current * 2 - 1);
-    ring.visible = material.opacity > 0.002;
+    planet.current?.position.set(...at);
   });
 
   return (
     <group>
-      <Planet seed={seed} returned={returned} reducedMotion={reducedMotion} />
-      <primitive object={ring} />
+      <group ref={planet}>
+        <Planet seed={seed} returned={returned} reducedMotion={reducedMotion} />
+      </group>
+      {/* No orbit ring in the hub (R20): the orbit is felt, not drawn. */}
     </group>
   );
 }
 
 /**
- * Carries the cube around its orbit.
+ * Holds the satellite in its place in the hub (rev 6 §3.2).
  *
- * It is a separate group from the cube itself so that the two motions stay
- * independent: the cube keeps turning to whichever face is being read, and
- * this only decides *where in the sky* that cube is. During deployment
- * `presence` eases from 0 to 1, which slides the cube out of the reading
- * position and onto the ellipse without either component knowing about the
- * other's timing.
+ * Revision 5 flew it round a visible ellipse once every 48 seconds. Revision 6
+ * does not: the camera moves with it, so what is left on screen is the small
+ * drift of a thing keeping station, while the sky turns behind it. A satellite
+ * sliding across the frame reads as a diagram of an orbit; one holding still
+ * while the stars move reads as the place you are.
+ *
+ * The orbit is still real, and the chart still draws it.
  */
 export function SatelliteCarrier({
   presence,
   reducedMotion,
   returned = false,
+  seed = 0,
   children,
 }: {
   presence: React.RefObject<number>;
   reducedMotion: boolean;
-  /** The satellite's day has come: it gains a warm glow and a slow halo. */
   returned?: boolean;
+  seed?: number;
   children: React.ReactNode;
 }) {
   const group = useRef<THREE.Group>(null);
   const halo = useRef<THREE.PointLight>(null);
+  const size = useThree((state) => state.size);
 
   useFrame(({ clock }) => {
     const carrier = group.current;
@@ -82,23 +89,30 @@ export function SatelliteCarrier({
 
     if (halo.current) {
       // Steady, with a four-second breath under it. Not a blink: the satellite
-      // is not signalling, it is simply warm today (§8.4).
+      // is not signalling, it is simply warm today (§8.10).
       const pulse = reducedMotion
         ? 1
         : 0.82 + 0.18 * Math.sin((clock.elapsedTime / 4) * Math.PI * 2);
       halo.current.intensity = returned ? 2.6 * pulse * presence.current : 0;
     }
 
-    const theta = reducedMotion ? 0.9 : (clock.elapsedTime / ORBIT_PERIOD_S) * Math.PI * 2 + 0.9;
-    const [x, y, z] = orbitPosition(theta);
-
     // Only the last part of the deployment moves the cube — it turns and
-    // unfolds where it is, then leaves (spec v0.2 §8.2, the RISE window).
+    // unfolds where it is, then leaves (§8.2, the RISE window).
     const rise = deploymentAt(presence.current).rise;
+    const station = stationKeeping(clock.elapsedTime, seed, { reducedMotion });
 
-    // Docked, the cube is at the origin at full size; deployed, it is on the
-    // ellipse at satellite scale. Everything between is the journey.
-    carrier.position.set(x * rise, y * rise, z * rise);
+    // The drift is a fraction of the viewport, so it is converted through the
+    // frame's own width at this distance rather than being a raw world offset.
+    const pose = hubPose(size.width, size.height);
+    const span = Math.abs(pose.position[2] - HUB_SATELLITE[2]);
+    const scale = span * 2 * Math.tan((FOV * Math.PI) / 360);
+
+    carrier.position.set(
+      HUB_SATELLITE[0] * rise + station.offsetX * scale * rise,
+      HUB_SATELLITE[1] * rise + station.offsetY * scale * rise,
+      HUB_SATELLITE[2] * rise,
+    );
+    carrier.rotation.z = station.roll * rise;
     carrier.scale.setScalar(1 + (SAT_SCALE - 1) * rise);
   });
 
