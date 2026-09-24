@@ -57,7 +57,18 @@ import {
   trailSeedFor,
 } from "../lib/trailCurve.ts";
 import { DEPLOY_MS } from "../lib/timing.ts";
-import { PANELS, RISE, THRUSTER, TURN, deploymentAt, stagger } from "../lib/deployment.ts";
+import {
+  BOOM,
+  INNER,
+  OUTER,
+  PANELS,
+  RISE,
+  THRUSTER,
+  TURN,
+  deploymentAt,
+  wingAt,
+  wingReach,
+} from "../lib/deployment.ts";
 import { JUMP_TARGETS, jumpEvents } from "../lib/devJump.ts";
 import { accessToken, cardSecret, checkPassword } from "../lib/access.ts";
 import {
@@ -1197,7 +1208,17 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
   // The cube and the planet are separate objects now, and must stay so: they
   // shared a centre in revision 4 and the cube crossed the planet's disc.
   const clearance = orbitClearance();
-  check("the cube's orbit clears the planet", clearance > 0.5, `${clearance.toFixed(2)}u`);
+  check("the satellite's orbit clears the planet", clearance > 0.5, `${clearance.toFixed(2)}u`);
+
+  /*
+   * And so do its wings. The bus clearing the planet is not enough once the
+   * arrays are out on booms: a tip reaching further than the clearance would
+   * sweep through the planet twice a lap, which is precisely the failure this
+   * composition was rebuilt to remove — just moved out to the wingtips.
+   */
+  const reach = wingReach();
+  check("the deployed wings clear it too", reach < clearance - 0.2,
+    `tip ${reach.toFixed(2)}u vs clearance ${clearance.toFixed(2)}u`);
 
   // ---- the memory panel fills the same share of the frame as a face ------
   for (const [label, w, h] of viewports) {
@@ -1982,18 +2003,45 @@ console.log("20. The deployment (spec v0.2 §8.2):");
   }
   check("every part of the deployment only ever goes forwards", monotonic);
 
-  // ---- the panels open in turn, and all of them finish -------------------
-  for (let index = 0; index < 4; index++) {
-    check(`panel ${index + 1} starts closed`, stagger(0, index) === 0);
-    check(`panel ${index + 1} ends fully open`, stagger(1, index) === 1);
+  // ---- a wing deploys boom, then array, then its outer segment -----------
+  check("the boom goes first", BOOM.from === 0 && BOOM.to < INNER.to);
+  check("the array swings before the boom has finished", INNER.from < BOOM.to);
+  check("the outer segment unfolds before the inner has finished",
+    OUTER.from < INNER.to);
+  check("and the wing is done exactly at the end", OUTER.to === 1);
+
+  for (let wing = 0; wing < 2; wing++) {
+    const stowed = wingAt(0, wing);
+    const flown = wingAt(1, wing);
+    check(`wing ${wing + 1} starts stowed`,
+      stowed.boom === 0 && stowed.inner === 0 && stowed.outer === 0);
+    check(`wing ${wing + 1} ends fully deployed`,
+      flown.boom === 1 && flown.inner === 1 && flown.outer === 1);
   }
-  for (let index = 1; index < 4; index++) {
-    check(`panel ${index + 1} lags the one before it`,
-      stagger(0.5, index) < stagger(0.5, index - 1));
+
+  // The second wing lags the first — two mechanisms, not one mirrored object.
+  const lead = wingAt(0.5, 0);
+  const lag = wingAt(0.5, 1);
+  check("the second wing lags the first", lag.inner < lead.inner,
+    `${lead.inner.toFixed(3)} vs ${lag.inner.toFixed(3)}`);
+  check("but not by so much that it reads as a queue",
+    lead.inner - lag.inner < 0.3, (lead.inner - lag.inner).toFixed(3));
+
+  // Nothing in a wing ever goes backwards, or the array would fold mid-flight.
+  let wingMonotonic = true;
+  let previousWing = wingAt(0, 0);
+  for (let i = 1; i <= 2000; i++) {
+    const now = wingAt(i / 2000, 0);
+    if (
+      now.boom < previousWing.boom - 1e-12 ||
+      now.inner < previousWing.inner - 1e-12 ||
+      now.outer < previousWing.outer - 1e-12
+    ) {
+      wingMonotonic = false;
+    }
+    previousWing = now;
   }
-  const spread = stagger(0.5, 0) - stagger(0.5, 3);
-  check("the stagger is visible but not a queue", spread > 0.15 && spread < 0.55,
-    spread.toFixed(3));
+  check("a wing only ever opens", wingMonotonic);
 
   console.log(
     `  turn 0-${TURN.to}, panels ${PANELS.from}-${PANELS.to}, ` +

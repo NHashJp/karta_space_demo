@@ -43,7 +43,7 @@ export const SECRET_PLANE_Z = -0.94;
  */
 
 /** 「あなたの星」. The receiver's planet, low and right of centre. */
-export const PLANET_RADIUS = 1.6;
+export const PLANET_RADIUS = 1.5;
 export const PLANET_CENTRE: Vec3 = [1.4, -2.1, -1.3];
 
 /**
@@ -51,10 +51,11 @@ export const PLANET_CENTRE: Vec3 = [1.4, -2.1, -1.3];
  *
  * Two numbers here are doing specific work.
  *
- * The **minor axis** (2.8) has to clear the planet's radius (1.6) by enough
- * that the cube never crosses the disc — the spec's 2.6 against 2.2 left four
- * tenths of a unit, which in projection meant the letter passed through the
- * planet twice a lap.
+ * The **minor axis** (3.1) has to clear the planet's radius (1.5) by enough
+ * that neither the bus nor its solar arrays ever cross the disc. The spec's
+ * 2.6 against 2.2 left four tenths of a unit — not even enough for the cube,
+ * let alone wings. The 1.85 units here is sized against the deployed wingspan:
+ * see `wingReach()` in `lib/deployment.ts`, and the check in verify.
  *
  * The **tilt** (34°, against the spec's 14°) is what makes it read as an
  * orbit at all. Near edge-on, an ellipse projects to a line and the cube just
@@ -63,8 +64,8 @@ export const PLANET_CENTRE: Vec3 = [1.4, -2.1, -1.3];
  * passes behind the planet and comes back.
  */
 export const ORBIT_CENTRE: Vec3 = PLANET_CENTRE;
-export const ORBIT_SEMI_MAJOR = 3.8;
-export const ORBIT_SEMI_MINOR = 2.8;
+export const ORBIT_SEMI_MAJOR = 4.4;
+export const ORBIT_SEMI_MINOR = 3.35;
 export const ORBIT_TILT = (34 * Math.PI) / 180;
 
 /**

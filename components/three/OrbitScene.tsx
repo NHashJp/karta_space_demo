@@ -7,10 +7,9 @@ import { RING_OPACITY, useOrbitRing } from "./OrbitRing";
 import { Planet } from "./Planet";
 import { orbitPosition } from "./framing";
 import { ORBIT_PERIOD_S } from "@/lib/timing";
-import { deploymentAt } from "@/lib/deployment";
+import { deploymentAt, SAT_SCALE } from "@/lib/deployment";
 
-/** The satellite's size once the cube has become one (spec v0.2 §22). */
-export const SAT_SCALE = 0.42;
+export { SAT_SCALE } from "@/lib/deployment";
 
 type Props = {
   seed: number;

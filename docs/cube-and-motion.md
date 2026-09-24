@@ -190,19 +190,39 @@ every frame, and none of those 60 reads a second should be a React render. The
 only thing that goes through state is the panel mount, which crosses a
 threshold once per deployment.
 
-### Why the panels hinge at the top
+### The arrays, and why the spec's mechanism was replaced
 
-Each panel lies flat against one of the four side faces and swings **up** 90°
-on a hinge along that face's top edge, until all four are level with the top
-face — a cross, seen from above.
+§8.2 describes four plates hinged flat against the cube's side faces, swinging
+up into a cross. It is a tidy idea, and it does not read as a satellite: the
+plates are the same size as the body and never leave it, so the result looks
+like a box that opened rather than a spacecraft that deployed.
 
-A bottom hinge would have each folded panel hanging *down* past the cube's
-lower edge, so a docked cube would sit there with four plates dangling under
-it. Hinged at the top, a folded panel reaches exactly to the bottom edge (1.9
-of the cube's 2 units) and the closed cube is still a cube.
+Real arrays are **carried away from the bus on a boom** and are much larger
+than it, and that proportion is most of what makes the silhouette recognisable:
 
-They open 80 ms apart rather than together, which is the difference between one
-mechanism with four arms and four latches releasing.
+```
+┌───┐
+│bus│──┬──[ segment 1 ][ segment 2 ]
+└───┘  └── the boom, and the joint the array pivots on
+```
+
+Two wings rather than four, because port-and-starboard is the shape everyone
+already knows and two large arrays read better at 30 px on a phone than four
+small ones. They deploy in the order the real ones do — boom telescopes out,
+folded array swings off the joint, outer segment unfolds from the inner — with
+each starting before the last has finished, so it reads as one mechanism. The
+second wing lags the first by a beat, which is the difference between two
+mechanisms and one object mirrored.
+
+Once open they tilt a few degrees toward the sun, and keep adjusting as it
+moves. An array that ignores where the light comes from is a decoration.
+
+**The wingspan is load-bearing.** A deployed tip reaches 1.43 units from the
+bus at satellite scale, and the orbit's clearance over the planet is 1.85 —
+sized against it. `wingReach()` and `orbitClearance()` both live in modules
+verify can read, and it asserts the first is comfortably inside the second:
+the bus clearing the planet is not enough once the arrays are out, and a tip
+sweeping through the planet twice a lap is the same bug moved to the wingtips.
 
 ### The glint comes free
 
