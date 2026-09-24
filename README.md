@@ -56,7 +56,7 @@ after the last face, with the title and closing screens rushing past the viewer
 as it moves. Face text is attached to the cube **only** in the `reading` state,
 so card content never shows through the title or closing screen.
 
-`npm run verify` walks this whole machine — 41 transitions — and asserts that
+`npm run verify` walks this whole machine — 57 transitions — and asserts that
 text stays hidden in every other phase.
 
 ## Controls
@@ -204,9 +204,17 @@ and decorative rotation stays inside the spec's 360–540° budget.
 | ------------------- | ------------------------------------------------------------------ |
 | `npm run dev`       | dev server                                                         |
 | `npm run build`     | production build                                                   |
-| `npm run verify`    | rotation maths, plus every card's content                          |
+| `npm run verify`    | the whole checkable surface: geometry, framing, flow, content      |
 | `npm run typecheck` | `tsc --noEmit`                                                     |
 | `npm run images`    | regenerate placeholder images for a card (`npm run images <slug>`) |
+
+`npm run lint` is currently broken — Next 16 removed `next lint`, which is what
+the script still calls. Run ESLint directly, or fix the script, before relying
+on it.
+
+For what to check by hand once those pass — every feature, what it should do,
+and the query parameters that make it quick — see
+[docs/testing.md](./docs/testing.md).
 
 ## Deploying to Vercel
 

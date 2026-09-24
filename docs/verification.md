@@ -133,8 +133,8 @@ when needed.
 
 ## v0.2 sections
 
-The suite grew from six sections to eighteen, plus a second script. Rather than
-listing each, here is what each group is *for*:
+The suite grew from six sections to twenty-one, plus a second script. Rather
+than listing each, here is what each group is *for*:
 
 | Sections | What they protect |
 |---|---|
@@ -142,7 +142,7 @@ listing each, here is what each group is *for*:
 | 6 | the v0.1 journey, transition for transition — the regression baseline |
 | 7 | fuzzy dates, the orbit clock, the comet's orbit, the trail's colours, the payload's seal |
 | 8 | the gate: normalisation, hashing, precedence, cookie invalidation |
-| 9 | orbit, the trail, panels, both one-way animations, all 14 preview targets |
+| 9 | orbit, the trail, panels, both one-way animations, all 15 preview targets |
 | 10 | the moving sun, and where the camera may and may not breathe |
 | 11 | the hub composition at every viewport: satellite, planet, comet, trail |
 | 12 | the satellite through a full year, and the landing line |
@@ -152,7 +152,17 @@ listing each, here is what each group is *for*:
 | 16 | what the receiver may send, and what is stripped from it |
 | 17 | the seal: round-trip, and every way it must fail |
 | 18 | the reminder's date logic and its idempotency key |
+| 19 | that a save would write the header the file already has |
+| 20 | the deployment's four overlapping windows |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
+
+Section 11 is the one that has caught the most. It projects the satellite's
+actual hull, the planet, the comet and the trail into each of four viewports
+and measures them against revision 6 §3.1's numbers — body centre, tip to tip,
+wing axis, frame margin, how much of the frame the planet may cover, which
+quadrant the comet passes through, and how far the flight path down the trail
+stays from the ribbon. Every one of those is a number in the spec, so every one
+of them can be wrong in a way a screenshot would not settle.
 
 ## Two checks worth explaining
 
@@ -189,13 +199,25 @@ searched.
 | The trail left unstaged at the world origin | rev 6 puts the satellite on that origin: the contrail came out of the middle of the spacecraft |
 | Newlines stripped from reply messages | a paragraph break was impossible; a newline in a *name* was header injection |
 | Comet key length checked in only one place | a short key threw from inside node's cipher instead of being refused |
+| The hull rotated about Y, the cube about three axes | wings drawn near-horizontal while the check reported −50°: it measured a construct, not the hull |
+| Camera distance divided by the *world* span | the wing axis leans into the screen, so the satellite drew a tenth of the frame too small |
+| The trail left unstaged at the world origin | rev 6 puts the satellite on that origin: the contrail came out of the middle of the spacecraft |
+| The camera flew down the middle of the ribbon | 0.197u from the lens, pointed along its length — an additive white wedge over the whole frame |
+| Memories spaced evenly in `u`, not in distance | hops of 5u and 50u on one card; the comment claimed even effort and the check measured `u` |
 
 ## Limits
 
 This suite checks maths, not pixels. It cannot tell you whether the nebula
 looks good, whether the rotation feels nice, or whether the type is beautiful —
-only that the numbers underneath are right. Real-device QA (spec §31, phase 7)
-is still a human job.
+only that the numbers underneath are right.
+
+Nor does it touch anything that leaves the machine: no email is sent, no
+network call is made, no browser is opened. The templates are checked as
+*strings* and the seal as a round-trip, which says nothing about whether your
+provider will accept the message.
+
+So it is necessary and not sufficient. [Testing](./testing.md) is the other
+half, and it is a human job.
 
 It checks content and logic, not delivery. It says nothing about whether an
 email actually arrives, whether a deployed card is reachable, or whether the

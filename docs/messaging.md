@@ -81,6 +81,39 @@ updated in exchange for saving six lines.
 A send failure never surfaces the provider's error to the receiver. "It didn't
 go" is actionable; a 422 from an email API is not, and it is not their problem.
 
+## Nobody needs an account
+
+Not the receiver, and not to read a comet later. There is no user system: no
+sign-up, no login, no database, no row anywhere with a person in it. A receiver
+opens a link, types a name and a message, and it arrives in the sender's inbox.
+
+The one account in the product is the **deployment's** — a single Resend key,
+belonging to whoever runs the server, which is the only thing that can put mail
+on the wire at all. With it unset the reply and the comet are simply not
+offered, and the card works without them.
+
+## When a send fails, say why — to the operator
+
+Every optional feature here fails quietly at the receiver, deliberately: a
+reply that is never offered is better than an error in the middle of someone
+reading a letter. The cost is that the failure has to surface *somewhere*, and
+for a while it surfaced nowhere.
+
+`sendMail` used to read the provider's response, check `ok`, and throw the body
+away — so a failed comet came back as a bare 502 and the one person who could
+fix it had nothing to go on. The provider's status and body now go to
+`console.error`, never the key. The receiver still sees only that it did not
+send, because an error from an email provider is not something the person
+writing a message can act on.
+
+Nearly every real failure is one of three, and the provider names which:
+
+| What you see | Almost always |
+|---|---|
+| 403, "domain is not verified" | `MAIL_FROM` is on a domain not verified in the dashboard. Use `onboarding@resend.dev` locally |
+| 403, "you can only send to your own address" | the account is still in test mode; `NOTIFY_TO` must be the address that owns the key |
+| 401 | the key is wrong or revoked |
+
 ## What is never sent
 
 - The receiver is **never** emailed. They gave no address, and asking for one

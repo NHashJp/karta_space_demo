@@ -193,6 +193,41 @@ linearly, displayed as sRGB, and come out muddy and over-saturated.
 `THREE.Color` converts hex to linear working space on the way in, so uniform
 colours and output conversion agree.
 
+## A comet is a density, not a shape
+
+The comet was first drawn as an additively blended sphere for the coma and a
+flat strip for each tail. Both are *shapes*, and that is the problem: a sphere
+of constant colour has a silhouette, and the eye finds a silhouette instantly —
+it read as a bead of glass rather than gas coming off a rock. A strip has two
+hard edges running its whole length, which is the one thing a tail never has.
+
+`shaders/comet.ts` makes both falloffs instead.
+
+- The coma is a **core plus a much wider skirt** (`exp(-r²·11)` and
+  `exp(-r·2.6)`), whiter at the centre than at the edge, faded to nothing
+  before the quad's own boundary so the billboard never shows a border of its
+  own at any brightness. It brightens as the comet comes home, so the object
+  that is a speck at aphelion is the brightest thing in the corner by the end.
+- The tails fade **across their width as well as along their length**, and are
+  widened in *view* space, so they turn to face the camera and can never be
+  caught edge-on and vanish. Only the spine is built on the CPU — including the
+  dust tail's lag, which is a real direction in the world and grows with the
+  square of the distance travelled.
+
+## Speed is drawn, not simulated
+
+`SpeedStreaks` is short line segments sweeping past the lens, where the
+**length of each streak is the speed**. That is the whole trick, and it is why
+it cannot be done with round points.
+
+It exists because a satellite that holds its place on screen is the right
+picture and the wrong sensation — the station-keeping drift and the turning sky
+are both true and both far too slow to read as motion. Two rules keep it
+honest: its opacity *is* the speed, so a still scene is a still scene and
+nothing sparkles behind a paragraph; and on the trail the rate is measured from
+how far the camera actually moved last frame, which is the one way a streak
+field can never disagree with the motion it is describing.
+
 ## Performance budget
 
 Spec §27 asks for ~60fps on desktop and 30+ on ordinary phones. A full-screen
@@ -203,6 +238,7 @@ fractal noise shader is the only thing here that can threaten that.
 | Canvas `dpr` | capped at 1.75 |
 | Nebula octaves | 4, dropping to 3 below 700px wide |
 | Star count | 1500 |
+| Speed streaks | 150 line segments, hub and trail only |
 | Point lights | 3, plus 2 directionals and an ambient |
 | Post-processing | none |
 

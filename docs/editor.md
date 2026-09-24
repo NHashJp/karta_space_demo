@@ -53,12 +53,26 @@ receiver* would be worse. The cost is that the sender has no way to discover
 why, so the Setup chip is where they find out: a tick, the variable's name, and
 what it enables.
 
-**Values are never shown**, and never leave the server — the editor page sends
-booleans. `ACCESS_SECRET`, `COMET_SECRET` and `CRON_SECRET` have a Generate
-button, because nobody should be expected to produce 32 random bytes by hand;
-it appends to `.env.local` only if absent (overwriting one would invalidate
-every cookie and comet issued under the old value) and returns nothing but a
-tick.
+**Secrets are never shown**, and never leave the server — the editor page sends
+booleans for them. `ACCESS_SECRET`, `COMET_SECRET` and `CRON_SECRET` have a
+Generate button, because nobody should be expected to produce 32 random bytes
+by hand; it appends to `.env.local` only if absent (overwriting one would
+invalidate every cookie and comet issued under the old value) and returns
+nothing but a tick.
+
+The two mail **addresses** are the exception, and are shown in full. They are
+not secrets — one of them is printed on every email that leaves — and a tick
+beside `NOTIFY_TO` answers the wrong question. What the sender needs to know
+before they test anything is *which inbox this is going to*, and a tick cannot
+tell them they are pointed at an address they had forgotten about.
+
+### A trap worth knowing
+
+Next.js does **not** override variables already present in the environment. If
+the shell that started the server exports `MAIL_FROM` or `NOTIFY_TO`, the shell
+wins and `.env.local` is ignored for those keys — including the values the
+Setup panel is showing you, which come from `process.env` and are therefore the
+shell's. Start the server from a clean shell if the two ever disagree.
 
 ## Share: the last mile
 

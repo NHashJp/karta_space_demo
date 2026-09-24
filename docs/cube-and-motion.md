@@ -224,10 +224,46 @@ verify can read, and it asserts the first is comfortably inside the second:
 the bus clearing the planet is not enough once the arrays are out, and a tip
 sweeping through the planet twice a lap is the same bug moved to the wingtips.
 
+The shape itself lives in `lib/satelliteGeometry.ts`, not in the component that
+draws it, because three different things have to agree about where a panel is:
+`SolarWings` draws it, the framing checks measure its projected silhouette, and
+verify asserts that no panel passes through the body or through another panel
+at any point in the deployment. A shape that only exists inside a component
+cannot be checked — and a wing that clips through the bus for four frames is
+exactly the kind of thing nobody sees until it is in front of someone.
+
+### The display attitude, and measuring the thing you drew
+
+Once deployed the satellite holds a three-quarter view: yaw −35°, pitch −20°,
+roll +36.5°. The first two are the pose; the **roll is what puts the wing axis
+on the composition's −50° diagonal**, and without it the wings run at about
+−13°, very nearly horizontal. The yaw is negative so the +X wing leans *towards
+the camera*, which is what revision 6 §3.1 asks for in so many words: the near
+wing is the upper-right one and the larger one. Yawed the other way the picture
+still reads, but the wing drawn big is the one going away, and the satellite
+looks like it is receding rather than keeping station.
+
+Two traps here, both of which were live for a while:
+
+**A check must go through the same rotation as the drawing.** `MessageCube`
+turned the cube by three angles while `satelliteHull` rotated about Y alone by
+`WING_AXIS_DEG`, so every composition check reported a tidy −50° while the
+wings were drawn nearly horizontal. The checks were measuring a construct that
+could not disagree with itself. There is now one `displayDirection`, and the
+cube, the hull and the tip-to-tip measurement all go through it.
+
+**Euler order is not the order you say it in.** Yaw, then pitch, then roll is
+`"ZXY"` in three.js, because it applies the axes right to left. `"YXZ"` — which
+is what the sequence reads like — is about twenty degrees out: small enough to
+look deliberate, large enough to put the wings somewhere the checks never
+looked. `DISPLAY_EULER_ORDER` is a named constant so verify can assert that a
+three quaternion built from those angles agrees with `displayDirection` to
+within 1e-9.
+
 ### The glint comes free
 
 `shaders/panelCells.ts` draws the cells rather than texturing them, and gives
 them a hard specular (exponent 68) — glass over silicon is nearly black until
 the sun's angle lines up, and then it flares. Because the sun *moves* on its
-own (§23.3), that flare sweeps across the four panels in turn every couple of
+own (§23.3), that flare sweeps across the six panels in turn every couple of
 minutes without anyone animating it.
