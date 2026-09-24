@@ -32,6 +32,18 @@ const ROWS: Row[] = [
   { key: "CRON_SECRET", enables: "The satellite-day reminder", generatable: true },
 ];
 
+/**
+ * The address itself, where there is one to show.
+ *
+ * Only for the two that are addresses. Everything else stays a tick — the
+ * point of this panel is that a browser never holds a secret.
+ */
+function value(key: keyof EnvFlags, env: EnvFlags): string | undefined {
+  if (key === "NOTIFY_TO") return env.notifyTo;
+  if (key === "MAIL_FROM") return env.mailFrom;
+  return undefined;
+}
+
 export function SetupChecklist({
   env,
   onChanged,
@@ -62,7 +74,9 @@ export function SetupChecklist({
                   <td data-set={env[row.key]}>{env[row.key] ? "✓" : "✗"}</td>
                   <td>
                     <code>{row.key}</code>
-                    <span className="editor__hint">{row.enables}</span>
+                    <span className="editor__hint">
+                      {value(row.key, env) ?? row.enables}
+                    </span>
                   </td>
                   <td>
                     {env[row.key] ? null : row.generatable ? (

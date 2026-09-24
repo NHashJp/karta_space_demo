@@ -13,7 +13,18 @@ export type SectionProps = {
   env: EnvFlags;
 };
 
-/** Which features the environment allows, never the values (§15.2). */
+/**
+ * Which features the environment allows (§15.2).
+ *
+ * Secrets are booleans and nothing else: there is no reason for a browser to
+ * hold one, and passing them around is how they end up in a screenshot.
+ *
+ * The two mail *addresses* are the exception, and deliberately so. They are
+ * not secrets — one of them is printed on every email that leaves — and a tick
+ * beside `NOTIFY_TO` answers the wrong question. What the sender needs to know
+ * before they test anything is **which inbox this is going to**, and a tick
+ * cannot tell them they are still pointed at an address they stopped using.
+ */
 export type EnvFlags = {
   PUBLIC_BASE_URL: boolean;
   ACCESS_SECRET: boolean;
@@ -22,6 +33,10 @@ export type EnvFlags = {
   NOTIFY_TO: boolean;
   COMET_SECRET: boolean;
   CRON_SECRET: boolean;
+  /** Where replies and comets arrive, shown so it can be checked. */
+  notifyTo?: string;
+  /** Who they arrive from. */
+  mailFrom?: string;
 };
 
 export const EMPTY_ENV: EnvFlags = {

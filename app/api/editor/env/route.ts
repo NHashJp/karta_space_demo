@@ -59,5 +59,9 @@ export async function GET() {
     NOTIFY_TO: present("NOTIFY_TO"),
     COMET_SECRET: present("COMET_SECRET"),
     CRON_SECRET: present("CRON_SECRET"),
+    // Addresses, not secrets — and knowing *which inbox* the test mail is
+    // going to is the whole question a tick cannot answer.
+    notifyTo: process.env.NOTIFY_TO,
+    mailFrom: process.env.MAIL_FROM,
   });
 }

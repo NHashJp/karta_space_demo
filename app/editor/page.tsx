@@ -45,6 +45,8 @@ export default function EditorPage() {
     NOTIFY_TO: Boolean(process.env.NOTIFY_TO),
     COMET_SECRET: Boolean(process.env.COMET_SECRET),
     CRON_SECRET: Boolean(process.env.CRON_SECRET),
+    notifyTo: process.env.NOTIFY_TO,
+    mailFrom: process.env.MAIL_FROM,
   };
 
   // An environment password wins over anything the Share tab could issue, so
