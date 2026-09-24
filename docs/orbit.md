@@ -108,7 +108,7 @@ It plays **only after the server has accepted the message**. The animation is a
 confirmation, never a guess — if the send fails there is nothing to confirm,
 and the panel says so instead.
 
-## Composition
+## Composition (revision 6)
 
 | Object | Where |
 |---|---|

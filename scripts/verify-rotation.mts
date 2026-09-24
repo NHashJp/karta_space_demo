@@ -7,6 +7,7 @@ import {
   PLANET_CENTRE,
   PLANET_RADIUS,
   WING_AXIS_DEG,
+  hubComet,
   hubPlanet,
   hubPose,
   hubTargets,
@@ -37,6 +38,8 @@ import {
   displayOrbitPoint,
   cometCycle,
   displayedProgress,
+  HUB_ORBIT_HEADING,
+  SEED_ROTATION_MAX,
   orbitPoint,
   orbitRotation,
   solveEccentricAnomaly,
@@ -1270,6 +1273,31 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
     check(`${label}: the planet covers 8-15% of the frame`, area >= 0.08 && area <= 0.15,
       `${(area * 100).toFixed(1)}%`);
 
+    /*
+     * The comet passes by in the top-right, clear of the satellite (§4.1).
+     * "Clear" is the load-bearing half: a comet crossing the hull would read
+     * as hitting the thing it is supposed to be keeping company with.
+     */
+    const reach = (f: number) =>
+      (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
+
+    for (const f of [0.06, 0.25, 0.5, 0.75, 0.94]) {
+      const at = project(hubComet(reach(f), w, h));
+      check(`${label}: the comet at f=${f} is in the top-right`,
+        at[0] >= 0.5 && at[1] <= 0.45, `${at[0].toFixed(2)},${at[1].toFixed(2)}`);
+
+      const gap =
+        Math.min(...hull.map((p) => Math.hypot(p[0] - at[0], (p[1] - at[1]) * (h / w)))) * w;
+      check(`${label}: and 24px clear of the satellite at f=${f}`, gap >= 24,
+        `${gap.toFixed(0)}px`);
+    }
+
+    // Home again, it sits beside the planet at the right edge (§3.1).
+    const home = project(hubComet(0, w, h));
+    check(`${label}: the returned comet is beside the planet`,
+      home[0] >= 0.8 && home[1] >= 0.55 && home[1] <= 0.78,
+      `${home[0].toFixed(2)},${home[1].toFixed(2)}`);
+
     console.log(
       `  ${label.padEnd(19)} body ${centre[0].toFixed(2)},${centre[1].toFixed(2)} ` +
       `tip ${(tip * 100).toFixed(0)}% axis ${axis.toFixed(0)}deg ` +
@@ -1661,11 +1689,19 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   }
   check("the tail only grows as it comes home", growing);
 
-  // ---- two comets never sit on top of each other ------------------------
+  /*
+   * The seeded rotation is now bounded (rev 6 §4.1). It used to be a full
+   * turn, back when two comets had to avoid each other; there is one comet
+   * now, and the hub composition instead needs it to always pass by in the
+   * top-right — which a seed that can put it anywhere cannot promise.
+   */
   const a = orbitRotation(sample.slug, "2026-03-01");
   const b = orbitRotation(sample.slug, "2026-09-23");
-  check("two comets get different orbits", Math.abs(a - b) > 0.2,
-    `${a.toFixed(2)} vs ${b.toFixed(2)}`);
+  for (const [label, value] of [["a", a], ["b", b]] as const) {
+    check(`the seeded orbit ${label} stays within 6 degrees of its heading`,
+      Math.abs(value - HUB_ORBIT_HEADING) <= SEED_ROTATION_MAX + 1e-9,
+      `${(((value - HUB_ORBIT_HEADING) * 180) / Math.PI).toFixed(1)}deg`);
+  }
 
   // ---- and everything stays inside the sky ------------------------------
   let furthest = 0;

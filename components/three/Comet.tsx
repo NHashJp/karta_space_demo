@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_CENTRE } from "./framing";
+import { FOV, hubComet, hubPlanet } from "./framing";
 import {
+  DISPLAY_FAR,
+  DISPLAY_NEAR,
+  SEGMENT_AHEAD,
   displayOrbitPoint,
   displayedProgress,
-  orbitRotation,
   tailLength,
-  toWorld,
 } from "@/lib/cometOrbit";
 
 /**
@@ -32,6 +33,22 @@ const FAR_DISTANCE = 2.6;
 const PULSE_PERIOD_S = 6;
 
 const TAIL_SEGMENTS = 24;
+
+/** How far behind the satellite the comet is staged, for the pixel maths. */
+const COMET_VIEW_DEPTH = 3.4;
+
+/** 0 when the comet is home, 1 when it is as far away as it goes. */
+function reach(f: number): number {
+  return (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
+}
+
+/** The shortest tail worth drawing, in world units at the comet's depth. */
+function minimumTail(width: number, height: number): number {
+  const pixels = width < height ? 24 : 36;
+  const tanH = Math.tan(Math.atan(Math.tan((FOV * Math.PI) / 360) * (width / height)));
+  // Width in world units at that depth, times the fraction of it we want.
+  return (pixels / width) * 2 * tanH * COMET_VIEW_DEPTH;
+}
 
 export type CometTone = "sender" | "receiver";
 
@@ -69,60 +86,60 @@ export function Comet({
   const dust = useRef<THREE.Mesh>(null);
 
   const colours = TONES[tone];
-  const rotation = useMemo(() => orbitRotation(slug, releasedOn), [slug, releasedOn]);
+  const size = useThree((state) => state.size);
 
   const { position, distance } = useMemo(() => {
     const f = displayedProgress(progress);
-    // Drawn, not true: the real orbit runs far outside the frame (§11.2).
     const point = displayOrbitPoint(f);
-    const world = toWorld(point, rotation);
     return {
-      position: new THREE.Vector3(
-        PLANET_CENTRE[0] + world.x,
-        PLANET_CENTRE[1] + world.y,
-        PLANET_CENTRE[2] + world.z,
-      ),
+      position: new THREE.Vector3(...hubComet(reach(f), size.width, size.height)),
       distance: point.distance,
     };
-  }, [progress, rotation]);
+  }, [progress, size.width, size.height]);
 
-  /** The dotted ellipse, built once: the shape is what says "it comes back". */
+  /**
+   * The short dotted segment ahead of it (rev 6 §4.1).
+   *
+   * The full ellipse belongs to the chart. Here a hint of where it is going is
+   * enough — and it is what makes the comet read as *passing by* rather than
+   * as a bright dot parked in the corner.
+   */
   const orbitLine = useMemo(() => {
+    const f = displayedProgress(progress);
     const points: THREE.Vector3[] = [];
-    for (let i = 0; i <= 256; i++) {
-      const world = toWorld(displayOrbitPoint(i / 256), rotation);
-      points.push(
-        new THREE.Vector3(
-          PLANET_CENTRE[0] + world.x,
-          PLANET_CENTRE[1] + world.y,
-          PLANET_CENTRE[2] + world.z,
-        ),
-      );
+    for (let i = 0; i <= 24; i++) {
+      const ahead = Math.min(f + (SEGMENT_AHEAD * i) / 24, 1);
+      points.push(new THREE.Vector3(...hubComet(reach(ahead), size.width, size.height)));
     }
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineDashedMaterial({
       color: colours.ion,
-      dashSize: 0.9,
-      gapSize: 1.4,
+      dashSize: 0.06,
+      gapSize: 0.18,
       transparent: true,
-      opacity: 0,
+      opacity: 0.7,
       depthWrite: false,
       toneMapped: false,
     });
     const line = new THREE.Line(geometry, material);
     line.computeLineDistances();
     return line;
-  }, [rotation, colours.ion]);
+  }, [progress, size.width, size.height, colours.ion]);
 
   /** Away from the planet: where both tails point. */
   const away = useMemo(() => {
     const direction = position
       .clone()
-      .sub(new THREE.Vector3(...PLANET_CENTRE));
+      .sub(new THREE.Vector3(...hubPlanet(size.width, size.height)));
     return direction.lengthSq() > 1e-9 ? direction.normalize() : new THREE.Vector3(0, 1, 0);
-  }, [position]);
+  }, [position, size.width, size.height]);
 
-  const tail = tailLength(distance);
+  /*
+   * A minimum on-screen tail (rev 6 §5). Far out, the distance formula gives
+   * almost nothing, and a comet without a tail is just a star — the tail is
+   * how you know which of the lights up there is the one coming back.
+   */
+  const tail = Math.max(tailLength(distance), minimumTail(size.width, size.height));
   // Bigger than the nucleus by enough to be findable at orbit distance.
   const comaRadius = THREE.MathUtils.clamp(0.9 / distance, 0.26, 0.85);
 
@@ -149,15 +166,12 @@ export function Comet({
     // straight and steady in reality, and the contrast is what tells them apart.
     if (dust.current && !reducedMotion) {
       const material = dust.current.material as THREE.Material & { opacity: number };
-      material.opacity = 0.3 + 0.08 * Math.sin(t * 1.7 + rotation);
+      material.opacity = 0.3 + 0.08 * Math.sin(t * 1.7);
     }
 
+    // The segment ahead is always drawn in the hub (§4.1); the chart raises it.
     const material = orbitLine.material as THREE.Material & { opacity: number };
-    // r3f owns the clock, so the frame delta comes in as an argument —
-    // calling clock.getDelta() here would consume it and stall everything else
-    // that reads elapsedTime.
-    material.opacity = THREE.MathUtils.damp(material.opacity, showOrbit ? 0.22 : 0, 4, delta);
-    orbitLine.visible = material.opacity > 0.004;
+    material.opacity = THREE.MathUtils.damp(material.opacity, showOrbit ? 0.9 : 0.7, 4, delta);
   });
 
   return (

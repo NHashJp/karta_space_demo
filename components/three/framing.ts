@@ -259,6 +259,65 @@ export function hubPlanet(width: number, height: number): Vec3 {
   ];
 }
 
+/* ---------------------------------------------------------------------------
+ * The comet, staged in the hub (rev 6 §4.1)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Where the comet's path runs on screen: perihelion beside the planet at the
+ * bottom-right, aphelion up in the top-right, bowing outward in between.
+ */
+const COMET_NEAR_SCREEN: [number, number] = [0.9, 0.66];
+/**
+ * The far end sits where §3.1 puts the sample comet, around (0.82, 0.22): the
+ * sample is already most of the way out, so "as far as it goes" is barely
+ * beyond where it is today.
+ */
+const COMET_FAR_SCREEN: [number, number] = [0.81, 0.19];
+/** Pushed right of the straight line, so the path reads as an arc. */
+const COMET_BOW = 0.07;
+
+/** How far behind the satellite the comet is staged. */
+const COMET_DEPTH = 3.4;
+
+/**
+ * Where the comet is drawn in the hub, for a radius already compressed by
+ * `displayRadius` (0 = home, 1 = as far as it goes).
+ *
+ * Staged in screen space, like the planet, and for the same reason: the hub is
+ * a composition. What has to survive is the *reading* — the comet passes by in
+ * the top-right, well clear of the satellite, and comes home beside the planet
+ * — and screen space is where those words mean something.
+ */
+export function hubComet(u: number, width: number, height: number): Vec3 {
+  const aspect = width / height;
+  const { halfV, halfH } = hubHalfTangents(aspect);
+  const camera = hubPose(width, height).position;
+  const t = Math.min(Math.max(u, 0), 1);
+
+  // A quadratic through near → bow → far, so the path curves the way an orbit
+  // seen edge-on does rather than running straight.
+  const control: [number, number] = [
+    (COMET_NEAR_SCREEN[0] + COMET_FAR_SCREEN[0]) / 2 + COMET_BOW,
+    (COMET_NEAR_SCREEN[1] + COMET_FAR_SCREEN[1]) / 2,
+  ];
+  const x =
+    (1 - t) * (1 - t) * COMET_NEAR_SCREEN[0] +
+    2 * (1 - t) * t * control[0] +
+    t * t * COMET_FAR_SCREEN[0];
+  const y =
+    (1 - t) * (1 - t) * COMET_NEAR_SCREEN[1] +
+    2 * (1 - t) * t * control[1] +
+    t * t * COMET_FAR_SCREEN[1];
+
+  const depth = camera[2] - HUB_SATELLITE[2] + COMET_DEPTH;
+  return [
+    camera[0] + (x - 0.5) * 2 * halfH * depth,
+    camera[1] - (y - 0.5) * 2 * halfV * depth,
+    camera[2] - depth,
+  ];
+}
+
 /** The old name, kept so nothing has to change twice. */
 export const orbitPose = hubPose;
 

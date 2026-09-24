@@ -116,10 +116,32 @@ export function tailLength(distance: number): number {
   return Math.min(1.7, 4.2 / (distance * distance));
 }
 
-/** A small per-comet rotation of the orbit, so two comets never sit on top of each other. */
+/**
+ * A small per-comet rotation of the orbit.
+ *
+ * Revision 6 limits this to ±6°. It used to be a full turn, which put the
+ * comet anywhere at all — and the hub composition now requires it to pass by
+ * in the **top-right quadrant**, clear of the satellite, with perihelion just
+ * outside the planet's limb at the bottom-right (§4.1). A seed that can put it
+ * anywhere cannot promise that.
+ */
+export const SEED_ROTATION_MAX = (6 * Math.PI) / 180;
+
 export function orbitRotation(slug: string, releasedOn: string): number {
-  return seededUnit(hashSeed(`${slug}:${releasedOn}`)) * Math.PI * 2;
+  const unit = seededUnit(hashSeed(`${slug}:${releasedOn}`));
+  return HUB_ORBIT_HEADING + (unit * 2 - 1) * SEED_ROTATION_MAX;
 }
+
+/**
+ * Which way the comet's orbit runs in the hub.
+ *
+ * Chosen so the outbound leg rises from the planet up the right-hand side and
+ * recedes toward the top centre-right, which is where the sketch puts it.
+ */
+export const HUB_ORBIT_HEADING = (-62 * Math.PI) / 180;
+
+/** The next 6% of the orbit, drawn dotted ahead of the comet (§4.1). */
+export const SEGMENT_AHEAD = 0.06;
 
 /** The orbit plane in world space: tilted, then rotated by the comet's own seed. */
 export function toWorld(point: OrbitPoint, rotation: number, tilt = ORBIT_TILT) {
