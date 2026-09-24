@@ -1894,3 +1894,147 @@ body {
   gap: var(--space-1);
   justify-content: flex-end;
 }
+
+/* ---------- gestures are not text selection ---------- */
+
+/*
+ * The card is read by swiping and scrolling, so a drag across the letter
+ * selected it and painted it blue instead of turning the cube. Nothing here is
+ * text anyone needs to copy — it is a letter to one person, not a document —
+ * so selection is off wherever a gesture might land.
+ *
+ * The forms are the exception: a reply is something you type, edit and select.
+ */
+.experience,
+.screen,
+.comet-page,
+.face-text,
+.memory {
+  -webkit-user-select: none;
+  user-select: none;
+  /* Long-press on iOS pops a selection/callout menu over the card. */
+  -webkit-touch-callout: none;
+}
+
+.message-form,
+.message-form input,
+.message-form textarea,
+.editor {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* ---------- the comet sheet (spec v0.2 rev 5, §8.6) ---------- */
+
+/*
+ * A bottom sheet rather than a centred panel. The chart behind it is the
+ * point — the comet's place on its orbit — so the sheet sits under it and
+ * leaves the sky visible above.
+ */
+.sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--space-2);
+  background: linear-gradient(to bottom, transparent 40%, rgba(5, 7, 12, 0.5));
+  animation: panel-arrive 240ms ease both;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(420px, 100%);
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: var(--space-3);
+  text-align: left;
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-3);
+  background: rgba(10, 12, 16, 0.94);
+  backdrop-filter: blur(10px);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* `次の冬 · 約3か月後` — the promise's own precision, never a raw date. */
+.sheet__when {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--ion);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet__promise {
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+  color: var(--starlight);
+  text-wrap: balance;
+}
+
+.sheet__from,
+.sheet__invite,
+.sheet__aboard,
+.sheet__note {
+  font-size: 0.85rem;
+  line-height: 1.9;
+  color: var(--cosmic-silver);
+}
+
+.sheet__invite {
+  color: var(--starlight);
+}
+
+.sheet__aboard {
+  color: var(--ion);
+}
+
+/* ---------- the crossroads (§8.8) ---------- */
+
+.crossroads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.crossroads .button {
+  width: 100%;
+  min-height: var(--control-h);
+}
+
+/* Where their words got to, in the hub. */
+.orbit-ui__aboard {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-10);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--lunar);
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+
+.orbit-ui__aboard[data-visible="true"] {
+  opacity: 1;
+}
+
+.orbit-ui__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f3d7a4;
+}

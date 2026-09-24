@@ -25,8 +25,13 @@ export const RESURFACE_MS = 1600;
 /** One memory to the next. */
 export const DRIFT_MS = 1100;
 
-export const LAUNCH_MS = 2600;
-export const RELEASE_MS = 3200;
+export const LAUNCH_MS = 3000;
+
+/** The comet moment (spec v0.2 rev 5, §8.4-§8.7). */
+export const DEPART_MS = 3600;
+export const CHART_MS = 2600;
+export const BOARD_MS = 2400;
+export const HOME_MS = 1600;
 export const SIGNATURE_DRAW_MS = 1800;
 
 /** The orbit view's first-arrival hint, before it fades. */

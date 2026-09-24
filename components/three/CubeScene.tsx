@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useRef } from "react";
 import type { ClientMemory } from "@/lib/clientCard";
 import { trailSeed } from "@/lib/trailColour";
+import { orbitRotation } from "@/lib/cometOrbit";
 import { trailControlPoints, trailSeedFor } from "@/lib/trailCurve";
 import { Canvas } from "@react-three/fiber";
 import type { CardFace } from "@/types/card";
@@ -12,7 +13,8 @@ import { MessageCube } from "./MessageCube";
 import { OrbitScene, SatelliteCarrier } from "./OrbitScene";
 import { Comet, type CometTone } from "./Comet";
 import { MemoryPanel } from "./MemoryPanel";
-import { CometRelease } from "./CometRelease";
+import { CapsuleBoarding } from "./CapsuleBoarding";
+import { CometDeparture } from "./CometDeparture";
 import { MeteorShower } from "./MeteorShower";
 import { ReplyStar } from "./ReplyStar";
 import { RocketLaunch } from "./RocketLaunch";
@@ -20,12 +22,13 @@ import { Trail } from "./Trail";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { FOV } from "./framing";
 
-/** One comet, already resolved to the numbers the scene needs. */
+/** The one comet, resolved to the numbers the scene needs. */
 export type SceneComet = {
-  key: string;
+  /** Today's progress along its orbit, 0 = just left, 1 = back. */
   progress: number;
-  releasedOn: string;
-  tone: CometTone;
+  leftOn: string;
+  /** The receiver's words are aboard: a warm strand runs through the tail. */
+  aboard: boolean;
   onSelect?: () => void;
 };
 
@@ -51,17 +54,20 @@ type Props = {
   revealMemory?: boolean;
   /** The card's slug seeds its trail's shape and its colours. */
   slug: string;
-  /** The comets on their long orbits, and which panel is open (§11.2). */
-  comets?: SceneComet[];
-  openPanel?: string | null;
+  /** The comet on its long orbit (§11.2). */
+  comet?: SceneComet;
+  /** Its dotted orbit is drawn while the chart is up. */
+  showCometOrbit?: boolean;
   /** A reply is on its way up, or has already settled as a star (§10.3). */
   launching?: boolean;
   launched?: boolean;
   onLaunchEnd?: () => void;
   /** A comet is on its way out (§11.4). */
-  releasing?: boolean;
-  releaseRotation?: number;
-  onReleaseEnd?: () => void;
+  /** The comet moment (§8.4, §8.7). */
+  departing?: boolean;
+  onDepartEnd?: () => void;
+  boarding?: boolean;
+  onBoardEnd?: () => void;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   within: boolean;
@@ -91,14 +97,15 @@ export function CubeScene({
   activeMemory = 0,
   revealMemory = false,
   slug,
-  comets,
-  openPanel,
+  comet,
+  showCometOrbit,
   launching,
   launched,
   onLaunchEnd,
-  releasing,
-  releaseRotation = 0,
-  onReleaseEnd,
+  departing,
+  onDepartEnd,
+  boarding,
+  onBoardEnd,
   dimmed,
   deploying,
   deployed,
@@ -119,6 +126,12 @@ export function CubeScene({
   const curveSeed = useMemo(() => trailSeedFor(slug), [slug]);
   const colourSeed = useMemo(() => trailSeed(slug), [slug]);
   const trail = useMemo(() => trailControlPoints(curveSeed), [curveSeed]);
+  // The comet's orbit is rotated by its own seed, and the departure and the
+  // boarding both have to fly along exactly that orbit.
+  const cometRotation = useMemo(
+    () => (comet ? orbitRotation(slug, comet.leftOn) : 0),
+    [slug, comet],
+  );
 
   return (
     <Canvas
@@ -153,34 +166,37 @@ export function CubeScene({
       ) : null}
 
       {/*
-        Comets are drawn from their dates, so they are simply *where they are*
-        — no animation, no state. Opening the comet panel shows their orbits.
+        The comet is drawn from its dates, so it is simply *where it is* — no
+        animation, no state. It is hidden only while the departure is flying
+        it out, which is the one time something else is drawing it.
       */}
-      {deployed && comets
-        ? comets.map((comet) =>
-            // While a comet is being released, `CometRelease` is drawing it on
-            // its way out. Drawing it at its destination as well would put two
-            // of the same comet on screen for the length of the animation.
-            releasing && comet.tone === "receiver" ? null : (
-            <Comet
-              key={comet.key}
-              progress={comet.progress}
-              slug={slug}
-              releasedOn={comet.releasedOn}
-              tone={comet.tone}
-              reducedMotion={cube.reducedMotion}
-              showOrbit={openPanel === "comet"}
-              onSelect={comet.onSelect}
-            />
-          ),
-          )
-        : null}
-
-      {releasing && onReleaseEnd ? (
-        <CometRelease
-          rotation={releaseRotation}
+      {deployed && comet && !departing ? (
+        <Comet
+          progress={comet.progress}
+          slug={slug}
+          releasedOn={comet.leftOn}
+          tone={comet.aboard ? "receiver" : "sender"}
           reducedMotion={cube.reducedMotion}
-          onDone={onReleaseEnd}
+          showOrbit={showCometOrbit}
+          onSelect={comet.onSelect}
+        />
+      ) : null}
+
+      {departing && comet && onDepartEnd ? (
+        <CometDeparture
+          progress={comet.progress}
+          rotation={cometRotation}
+          reducedMotion={cube.reducedMotion}
+          onDone={onDepartEnd}
+        />
+      ) : null}
+
+      {boarding && comet && onBoardEnd ? (
+        <CapsuleBoarding
+          progress={comet.progress}
+          rotation={cometRotation}
+          reducedMotion={cube.reducedMotion}
+          onDone={onBoardEnd}
         />
       ) : null}
 

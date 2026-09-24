@@ -1,9 +1,8 @@
 import { daysInMonth, isFullDate, parseFuzzyDate } from "./fuzzyDate.ts";
-import type { Satellite } from "@/types/card";
 
 /**
  * Every date comparison in v0.2 happens in the card's own time zone, not the
- * server's and not the reader's: a satellite due on 12月25日 must turn on at
+ * server's and not the reader's: a comet due on 12月25日 must come back at
  * midnight in Tokyo wherever the request is served from (spec v0.2 §8.4).
  *
  * The approach throughout is to reduce an instant to a *civil date* —
@@ -13,7 +12,7 @@ import type { Satellite } from "@/types/card";
 
 export const DEFAULT_TIME_ZONE = "Asia/Tokyo";
 
-/** How long a satellite stays "returned" after each yearly anniversary. */
+/** How long the comet stays "returned" after it comes back. */
 export const RETURN_WINDOW_DAYS = 14;
 
 export function isValidTimeZone(timeZone: string): boolean {
@@ -75,54 +74,32 @@ export function nextOccurrence(date: string, today: string, yearly: boolean): st
   const now = parseFuzzyDate(today);
   if (!parsed || !now || parsed.month === undefined || parsed.day === undefined) return date;
 
-  // Never earlier than the original date: a yearly satellite does not have
+  // Never earlier than the original date: a yearly comet does not have
   // anniversaries before it was set.
   for (let year = Math.max(parsed.year, now.year - 1); year <= now.year + 1; year++) {
     const candidate = anniversaryIn(year, parsed.month, parsed.day);
     if (candidate < date) continue;
     const age = daysBetween(candidate, today);
     if (age < 0) return candidate; // still ahead
-    if (age <= RETURN_WINDOW_DAYS) return candidate; // here, and still glowing
+    if (age <= RETURN_WINDOW_DAYS) return candidate; // here, and still bright
   }
   return anniversaryIn(now.year + 1, parsed.month, parsed.day);
 }
 
-export type SatelliteClock = {
-  /** The occurrence being counted down to, or the one that just arrived. */
-  next: string;
-  status: "waiting" | "returned";
-  /** Days from today to `next`. Zero on the day, negative inside the window. */
-  daysUntil: number;
-};
-
-export function satelliteClock(
-  satellite: Satellite,
-  now: Date,
-  timeZone = DEFAULT_TIME_ZONE,
-): SatelliteClock | null {
-  if (!isFullDate(satellite.date)) return null;
-
-  const today = civilDate(now, timeZone);
-  const yearly = satellite.repeat === "yearly";
-  const next = nextOccurrence(satellite.date, today, yearly);
-  const daysUntil = daysBetween(today, next);
-
-  // A one-off satellite stays returned forever once its day has passed; a
-  // yearly one returns for the window and then starts counting down again.
-  const arrived = daysUntil <= 0;
-  const withinWindow = !yearly || -daysUntil <= RETURN_WINDOW_DAYS;
-
-  return { next, status: arrived && withinWindow ? "returned" : "waiting", daysUntil };
-}
 
 /** Exactly the day itself, in the card's zone — what the reminder job asks. */
-export function isSatelliteDay(
-  satellite: Satellite,
+/**
+ * Is today the day the comet comes back, in the card's own time zone?
+ *
+ * Used by the daily reminder (§12.1). A yearly comet is due on every
+ * anniversary; a one-off only on its single date.
+ */
+export function isCometDay(
+  comet: { returnsOn: string; yearly?: boolean },
   now: Date,
   timeZone = DEFAULT_TIME_ZONE,
 ): boolean {
-  if (!isFullDate(satellite.date)) return false;
+  if (!isFullDate(comet.returnsOn)) return false;
   const today = civilDate(now, timeZone);
-  const yearly = satellite.repeat === "yearly";
-  return nextOccurrence(satellite.date, today, yearly) === today;
+  return nextOccurrence(comet.returnsOn, today, Boolean(comet.yearly)) === today;
 }

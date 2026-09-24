@@ -29,11 +29,24 @@ export const JUMP_TARGETS = [
   "closing",
   "inside",
   "orbit",
+  "departure",
+  "chart",
+  "crossroads",
   "trail",
-  "satellite",
-  "comet",
   "reply",
 ] as const;
+
+/**
+ * `?visit=` replaces the stored visit record with an in-memory one (§6.6), so
+ * the editor can preview the comet moment as a first-time reader, a returning
+ * one, or someone who has already written.
+ */
+export const VISIT_MODES = ["first", "again", "sent"] as const;
+export type VisitMode = (typeof VISIT_MODES)[number];
+
+export function isVisitMode(value: unknown): value is VisitMode {
+  return typeof value === "string" && (VISIT_MODES as readonly string[]).includes(value);
+}
 
 export type JumpTarget = (typeof JUMP_TARGETS)[number];
 
@@ -60,6 +73,11 @@ const TO_CLOSING: ExperienceEvent[] = [
   { type: "zoomEnd" },
 ];
 
+/**
+ * Out of the letter and as far as the deployment lands, which depends on the
+ * card and on what this browser has seen (§8.3). Every target below continues
+ * from there with the events a reader would send.
+ */
 const TO_ORBIT: ExperienceEvent[] = [
   ...TO_CLOSING,
   { type: "deploy" },
@@ -93,15 +111,27 @@ export function jumpEvents(target: string | undefined): ExperienceEvent[] | null
     case "inside":
       return [...TO_CLOSING, { type: "reveal" }, { type: "zoomEnd" }];
     case "orbit":
+      // Past whatever the comet moment would have been, into the plain hub.
+      return [...TO_ORBIT, { type: "leaveChart" }, { type: "zoomEnd" }];
+    case "departure":
+      // Stops mid-flight: the departure is the thing being previewed.
       return TO_ORBIT;
+    case "chart":
+      return [...TO_ORBIT, { type: "departEnd" }, { type: "zoomEnd" }];
+    case "crossroads":
+      return [
+        ...TO_ORBIT,
+        { type: "departEnd" },
+        { type: "zoomEnd" },
+        { type: "leaveChart" },
+        { type: "zoomEnd" },
+      ];
     case "trail":
-      return [...TO_ORBIT, { type: "lookBack" }, { type: "zoomEnd" }];
-    case "satellite":
-      return [...TO_ORBIT, { type: "openPanel", panel: "satellite" }];
-    case "comet":
-      return [...TO_ORBIT, { type: "openPanel", panel: "comet" }];
+      return [...TO_ORBIT, { type: "leaveChart" }, { type: "zoomEnd" },
+        { type: "lookBack" }, { type: "zoomEnd" }];
     case "reply":
-      return [...TO_ORBIT, { type: "openPanel", panel: "reply" }];
+      return [...TO_ORBIT, { type: "leaveChart" }, { type: "zoomEnd" },
+        { type: "openPanel", panel: "reply" }];
   }
 }
 

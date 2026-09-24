@@ -95,41 +95,48 @@ export function toWorld(point: OrbitPoint, rotation: number, tilt = ORBIT_TILT) 
   return { x, y: planar * Math.sin(tilt), z: planar * Math.cos(tilt) };
 }
 
-export type CometWindow = {
-  releasedOn: string;
+export type CometStatus = "away" | "returned" | "kept";
+
+export type CometCycle = {
+  /** The current cycle's dates: a yearly comet moves on to the next one. */
+  leftOn: string;
   returnsOn: string;
-  status: "away" | "returned";
+  status: CometStatus;
   /** Days until it is back. Zero on the day, negative inside the window. */
   daysUntil: number;
+  /** Which cycle this is, for the visit record: the current `returnsOn`. */
+  cycle: string;
 };
 
 /**
- * Where a comet is in its life today, following it through yearly returns: once
- * the window closes, a yearly comet sets off again from the return it just made
- * towards the next anniversary.
+ * Where the comet is in its life today (spec v0.2 rev 5, §11.2).
+ *
+ * Three states rather than two. A comet that has come back and is not yearly
+ * does not simply stay "returned" forever — after its window it becomes
+ * **kept**: a small steady star beside the planet, a keepsake. That is the
+ * difference between a promise still being made and one that was kept.
  */
-export function cometWindow(
-  input: { releasedOn: string; returnsOn: string; yearly?: boolean },
+export function cometCycle(
+  input: { leftOn: string; returnsOn: string; yearly?: boolean },
   today: string,
-): CometWindow {
-  let { releasedOn, returnsOn } = input;
+): CometCycle {
+  let { leftOn, returnsOn } = input;
   const daysSinceReturn = daysBetween(returnsOn, today);
 
-  if (daysSinceReturn >= 0 && input.yearly && daysSinceReturn > RETURN_WINDOW_DAYS) {
-    // The last return becomes the new departure, and the next anniversary the
-    // new arrival — so the countdown restarts rather than staying finished.
-    releasedOn = returnsOn;
+  // Past the window, a yearly comet sets off again: the return it just made
+  // becomes the new departure, and the next anniversary the new arrival.
+  if (input.yearly && daysSinceReturn > RETURN_WINDOW_DAYS) {
+    leftOn = returnsOn;
     returnsOn = nextOccurrence(returnsOn, today, true);
   }
 
   const daysUntil = daysBetween(today, returnsOn);
-  const arrived = daysUntil <= 0;
-  const stillHolding = -daysUntil <= RETURN_WINDOW_DAYS;
+  const status: CometStatus =
+    daysUntil > 0
+      ? "away"
+      : -daysUntil <= RETURN_WINDOW_DAYS
+        ? "returned"
+        : "kept";
 
-  return {
-    releasedOn,
-    returnsOn,
-    status: arrived && (!input.yearly || stillHolding) ? "returned" : "away",
-    daysUntil,
-  };
+  return { leftOn, returnsOn, status, daysUntil, cycle: returnsOn };
 }

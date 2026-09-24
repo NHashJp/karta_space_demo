@@ -21,11 +21,11 @@ import { cards } from "../config/cards.config.ts";
 import { serializeCards } from "../lib/cardsFile.ts";
 import { allProblems, cardProblems } from "../lib/cardRules.ts";
 import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
-import { civilDate, isSatelliteDay, nextOccurrence, satelliteClock } from "../lib/orbitClock.ts";
+import { civilDate, isCometDay, nextOccurrence } from "../lib/orbitClock.ts";
 import {
   APHELION,
   PERIHELION,
-  cometWindow,
+  cometCycle,
   displayedProgress,
   orbitPoint,
   orbitRotation,
@@ -35,10 +35,11 @@ import {
   ECCENTRICITY,
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
+import { returnLabel } from "../lib/returnLabel.ts";
 import { RAMP_SIZE } from "../components/three/shaders/ribbon.ts";
 import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
 import { landingNote, toClientCard } from "../lib/clientCard.ts";
-import { cometMail, formatSentAt, replyMail, satelliteMail } from "../lib/mail.ts";
+import { cometDayMail, cometMail, formatSentAt, replyMail } from "../lib/mail.ts";
 import { COMET_MAX, NAME_MAX, REPLY_MAX, validate } from "../lib/submission.ts";
 import { open, seal } from "../lib/cometSeal.ts";
 import { randomBytes } from "node:crypto";
@@ -70,6 +71,8 @@ import {
   dimsScene,
   initialExperience,
   isDeployed,
+  NO_COMET_FLAGS,
+  showsCometSheet,
   isWithinCube,
   isZoomedIn,
   reduceExperience,
@@ -338,7 +341,7 @@ console.log("6. Experience flow (card content never shows on the end screens):")
 {
   // The v0.1 regression card: nothing past the closing screen. Every
   // transition below must behave exactly as it did before v0.2.
-  let exp: Experience = initialExperience({ memoryCount: 0, hasOrbit: false });
+  let exp: Experience = initialExperience({ memoryCount: 0, hasOrbit: false, hasCrossroads: false, comet: NO_COMET_FLAGS });
   const seen: string[] = [];
   const send = (event: ExperienceEvent) => {
     exp = reduceExperience(exp, event);
@@ -505,12 +508,12 @@ console.log("7. v0.2 foundations (spec v0.2 §17):");
   check("civilDate before midnight", civilDate(before, tz) === "2026-12-24", civilDate(before, tz));
   check("civilDate after midnight", civilDate(after, tz) === "2026-12-25", civilDate(after, tz));
 
-  const xmas = { label: "x", message: "m", date: "2026-12-25", repeat: "yearly" as const };
-  check("waiting at 23:59", satelliteClock(xmas, before, tz)?.status === "waiting");
-  check("returned at 00:00", satelliteClock(xmas, after, tz)?.status === "returned");
-  check("not the day at 23:59", !isSatelliteDay(xmas, before, tz));
-  check("is the day at 00:00", isSatelliteDay(xmas, after, tz));
-  check("countdown is 1 day out", satelliteClock(xmas, before, tz)?.daysUntil === 1);
+  const xmas = { returnsOn: "2026-12-25", leftOn: "2026-03-01", yearly: true };
+  check("not the day at 23:59", !isCometDay(xmas, before, tz));
+  check("is the day at 00:00", isCometDay(xmas, after, tz));
+  check("away at 23:59", cometCycle(xmas, civilDate(before, tz)).status === "away");
+  check("returned at 00:00", cometCycle(xmas, civilDate(after, tz)).status === "returned");
+  check("countdown is 1 day out", cometCycle(xmas, civilDate(before, tz)).daysUntil === 1);
 
   // Yearly wrap-around, and 29 February observed on the 28th.
   check("yearly wraps to next year", nextOccurrence("2026-12-25", "2027-06-01", true) === "2027-12-25",
@@ -554,16 +557,22 @@ console.log("7. v0.2 foundations (spec v0.2 §17):");
   check("a just-released comet is already away", displayedProgress(0.001) >= 0.06);
   check("no tail beyond 25 units", tailLength(25) === 0);
 
-  const restarted = cometWindow(
-    { releasedOn: "2025-12-25", returnsOn: "2026-12-25", yearly: true },
+  const restarted = cometCycle(
+    { leftOn: "2025-12-25", returnsOn: "2026-12-25", yearly: true },
     "2027-03-01",
   );
   check("yearly comet sets off again from its last return",
-    restarted.releasedOn === "2026-12-25" && restarted.returnsOn === "2027-12-25",
-    `${restarted.releasedOn} -> ${restarted.returnsOn}`);
+    restarted.leftOn === "2026-12-25" && restarted.returnsOn === "2027-12-25",
+    `${restarted.leftOn} -> ${restarted.returnsOn}`);
   check("yearly comet is away again", restarted.status === "away");
-  const holding = cometWindow({ releasedOn: "2025-12-25", returnsOn: "2026-12-25", yearly: true }, "2026-12-30");
+  const holding = cometCycle({ leftOn: "2025-12-25", returnsOn: "2026-12-25", yearly: true }, "2026-12-30");
   check("a returned comet holds for the window", holding.status === "returned");
+
+  // A one-off comet becomes a keepsake rather than staying "returned" forever:
+  // the promise was kept, and that is a different thing from still being made.
+  const kept = cometCycle({ leftOn: "2025-12-25", returnsOn: "2026-12-25" }, "2027-03-01");
+  check("a one-off comet is kept once its window closes", kept.status === "kept", kept.status);
+  check("and it keeps its own dates", kept.returnsOn === "2026-12-25");
 
   // ---- the trail's colours drift, smoothly and forever --------------------
   const seed = trailSeed("2026-newyear-7k2m");
@@ -619,11 +628,16 @@ console.log("7. v0.2 foundations (spec v0.2 §17):");
     const home = toClientCard(sealed, new Date("2026-12-26T00:00:00Z"), env);
     check("a sealed comet's message is not in the payload before it returns",
       !JSON.stringify(away).includes(message));
-    check("the comet is still shown as away", away.senderComet?.status === "away");
+    check("the comet is still shown as away", away.comet?.status === "away");
     check("a returned comet's message is in the payload",
       JSON.stringify(home).includes(message));
-    check("the comet is shown as returned", home.senderComet?.status === "returned");
-    check("the satellite's countdown is in the payload", typeof away.daysUntil === "number");
+    check("the comet is shown as returned", home.comet?.status === "returned");
+    // The return is described, not counted down in raw days: what the card
+    // *says* is the label, at whatever precision the sender chose.
+    check("the return label is in the payload", typeof away.comet?.label.label === "string",
+      away.comet?.label.label);
+    check("and its relative form too", typeof away.comet?.label.relative === "string",
+      away.comet?.label.relative);
     check("hasOrbit is true for a card with a satellite", away.hasOrbit);
   }
 
@@ -791,7 +805,12 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
 {
   const MEMORIES = 5;
   const at = (state: Experience["state"], patch: Partial<Experience> = {}): Experience => ({
-    ...initialExperience({ memoryCount: MEMORIES, hasOrbit: true }),
+    ...initialExperience({
+      memoryCount: MEMORIES,
+      hasOrbit: true,
+      hasCrossroads: true,
+      comet: NO_COMET_FLAGS,
+    }),
     state,
     ...patch,
   });
@@ -881,18 +900,18 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
   check("lookBack leaves the trail", exp.state === "resurfacing");
   send({ type: "zoomEnd" });
 
-  const noMemories = initialExperience({ memoryCount: 0, hasOrbit: true });
+  const noMemories = initialExperience({ memoryCount: 0, hasOrbit: true, hasCrossroads: false, comet: NO_COMET_FLAGS });
   const orbitOnly = { ...noMemories, state: "orbit" as const };
   check("with no memories there is no trail to enter",
     reduceExperience(orbitOnly, { type: "lookBack" }) === orbitOnly);
   check("with no memories scrolling on in orbit does nothing",
     reduceExperience(orbitOnly, { type: "move", direction: 1 }) === orbitOnly);
 
-  // ---- launch and release only ever follow a server yes -------------------
+  // ---- the rocket only ever follows a server yes --------------------------
   check("launch needs the reply panel",
     reduceExperience(at("orbit"), { type: "launch" }).state === "orbit");
-  check("launch is refused with the comet panel open",
-    reduceExperience(at("orbit", { panel: "comet" }), { type: "launch" }).state === "orbit");
+  check("launch is refused from the crossroads",
+    reduceExperience(at("orbit", { panel: "crossroads" }), { type: "launch" }).state === "orbit");
   let launched = reduceExperience(at("orbit", { panel: "reply" }), { type: "launch" });
   check("launch from the reply panel flies", launched.state === "launching");
   check("launching stays in the orbit pose", cameraPhase(launched.state) === "orbit");
@@ -900,23 +919,15 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
   launched = reduceExperience(launched, { type: "launchEnd" });
   check("the rocket leaves a star behind",
     launched.state === "orbit" && launched.panel === null && launched.launched);
-  check("released is untouched by a launch", !launched.released);
-
-  check("release needs the comet panel",
-    reduceExperience(at("orbit"), { type: "release" }).state === "orbit");
-  check("release is refused with the reply panel open",
-    reduceExperience(at("orbit", { panel: "reply" }), { type: "release" }).state === "orbit");
-  let released = reduceExperience(at("orbit", { panel: "comet" }), { type: "release" });
-  check("release from the comet panel flies", released.state === "releasing");
-  released = reduceExperience(released, { type: "releaseEnd" });
-  check("the comet is on its way",
-    released.state === "orbit" && released.panel === null && released.released);
-  check("launched is untouched by a release", !released.launched);
+  // The rocket goes once: offering the form again would invite a duplicate.
+  check("the reply sheet cannot reopen once launched",
+    reduceExperience(launched, { type: "openPanel", panel: "reply" }).panel === null);
 
   // ---- the reveal rules hold over every new state too ---------------------
   const v02 = [
-    "deploying", "orbit", "undeploying", "rewinding", "remembering",
-    "drifting", "resurfacing", "launching", "releasing",
+    "deploying", "orbit", "undeploying", "departing", "charting", "nudging",
+    "boarding", "homing", "rewinding", "remembering", "drifting",
+    "resurfacing", "launching",
   ] as const;
   for (const state of v02) {
     check(`${state} hides face text`, !revealsText(state));
@@ -935,7 +946,15 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
   }
 
   // ---- ?at=: the preview walks the same road, only faster ----------------
-  const walk = (target: string, ctx = { memoryCount: MEMORIES, hasOrbit: true }) => {
+  const walk = (
+    target: string,
+    ctx = {
+      memoryCount: MEMORIES,
+      hasOrbit: true,
+      hasCrossroads: true,
+      comet: NO_COMET_FLAGS,
+    },
+  ) => {
     const events = jumpEvents(target);
     if (!events) return null;
     return events.reduce(reduceExperience, initialExperience(ctx));
@@ -950,8 +969,7 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
     ["inside", "inside", {}],
     ["orbit", "orbit", { panel: null }],
     ["trail", "remembering", { activeMemory: 0 }],
-    ["satellite", "orbit", { panel: "satellite" }],
-    ["comet", "orbit", { panel: "comet" }],
+    ["crossroads", "orbit", {}],
     ["reply", "orbit", { panel: "reply" }],
   ];
   for (const [target, expected, fields] of arrivals) {
@@ -962,12 +980,17 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
         reached?.[key as keyof Experience] === value, String(reached?.[key as keyof Experience]));
     }
   }
-  check("?at= refuses a target it does not know", jumpEvents("satellite-panel") === null);
+  check("?at= refuses a target it does not know", jumpEvents("satellite") === null);
   check("?at= refuses an empty target", jumpEvents(undefined) === null);
 
   // A target the card cannot reach stops at the last state it does have,
   // rather than inventing one.
-  const plain = walk("orbit", { memoryCount: 0, hasOrbit: false });
+  const plain = walk("orbit", {
+    memoryCount: 0,
+    hasOrbit: false,
+    hasCrossroads: false,
+    comet: NO_COMET_FLAGS,
+  });
   check("?at=orbit on a v0.1 card stays at the closing screen", plain?.state === "completed",
     plain?.state);
 
@@ -1236,60 +1259,178 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 
 }
 
-console.log("12. The satellite and the landing line (spec v0.2 §7, §8.4):");
+console.log("11b. The comet moment (spec v0.2 rev 5, \u00a78.3):");
+{
+  const flags = (patch: Partial<typeof NO_COMET_FLAGS> = {}) => ({
+    ...NO_COMET_FLAGS,
+    exists: true,
+    ...patch,
+  });
+  const card = (comet: typeof NO_COMET_FLAGS, hasCrossroads = true) =>
+    initialExperience({ memoryCount: 3, hasOrbit: true, hasCrossroads, comet });
+
+  const deployTo = (comet: typeof NO_COMET_FLAGS, hasCrossroads = true) => {
+    let exp = { ...card(comet, hasCrossroads), state: "completed" as const, activeFace: 5 };
+    exp = reduceExperience(exp, { type: "deploy" });
+    return reduceExperience(exp, { type: "deployEnd" });
+  };
+
+  // ---- where a deployment lands, and why ---------------------------------
+  check("no comet: a deployment lands in the hub",
+    deployTo(NO_COMET_FLAGS).state === "orbit");
+  check("a comet not yet watched leaving: watch it go",
+    deployTo(flags()).state === "departing");
+  check("already departed, still room for words: go and look at it",
+    deployTo(flags({ departed: true, capsuleOpen: true })).state === "charting");
+  check("departed, words already sent: land in the hub",
+    deployTo(flags({ departed: true })).state === "orbit");
+  check("returned: every deployment ends at the comet",
+    deployTo(flags({ departed: true, returned: true })).state === "charting");
+
+  // ---- the departure is watched once per cycle ---------------------------
+  let exp = deployTo(flags());
+  check("the departure marks itself watched",
+    reduceExperience(exp, { type: "departEnd" }).comet.departed);
+  exp = reduceExperience(exp, { type: "departEnd" });
+  check("and leads into the chart", exp.state === "charting");
+  exp = reduceExperience(exp, { type: "zoomEnd" });
+  check("the chart opens the sheet", exp.state === "nudging");
+  check("the sheet is at rest but swallows gestures",
+    acceptsInput(exp.state) &&
+    reduceExperience(exp, { type: "move", direction: 1 }) === exp);
+  check("the sheet shows only here", showsCometSheet("nudging") && !showsCometSheet("orbit"));
+
+  // ---- words board only after the server says yes ------------------------
+  const open = deployTo(flags({ departed: true, capsuleOpen: true }));
+  const sheet = reduceExperience(open, { type: "zoomEnd" });
+  check("boarding needs an open capsule",
+    reduceExperience({ ...sheet, comet: { ...sheet.comet, capsuleOpen: false } },
+      { type: "board" }).state === "nudging");
+  let boarded = reduceExperience(sheet, { type: "board" });
+  check("board flies the words up", boarded.state === "boarding");
+  boarded = reduceExperience(boarded, { type: "boardEnd" });
+  check("and lands back on the sheet", boarded.state === "nudging");
+  check("the capsule is closed afterwards", !boarded.comet.capsuleOpen);
+
+  // ---- leaving the chart, and the crossroads -----------------------------
+  // The crossroads follows an *automatic* moment only: it asks "where next?"
+  // about a journey the card started, not one the reader chose.
+  let left = reduceExperience(sheet, { type: "leaveChart" });
+  check("leaving the chart homes the camera", left.state === "homing");
+  check("an automatic moment offers the crossroads", left.panel === "crossroads");
+  left = reduceExperience(left, { type: "zoomEnd" });
+  check("and lands in the hub", left.state === "orbit");
+
+  const tapped = reduceExperience(
+    { ...deployTo(flags({ departed: true })), state: "orbit" as const },
+    { type: "openChart" },
+  );
+  check("tapping the comet charts it", tapped.state === "charting");
+  check("and is marked as the reader's own choice", tapped.chartVia === "tap");
+  const afterTap = reduceExperience(
+    reduceExperience(tapped, { type: "zoomEnd" }),
+    { type: "leaveChart" },
+  );
+  check("leaving a tapped moment offers no crossroads", afterTap.panel === null);
+
+  // With nowhere to go, the crossroads is skipped even automatically.
+  const noWhere = reduceExperience(
+    reduceExperience(deployTo(flags({ departed: true, capsuleOpen: true }), false),
+      { type: "zoomEnd" }),
+    { type: "leaveChart" },
+  );
+  check("no memories and no reply: no crossroads", noWhere.panel === null);
+
+  console.log("  5 landings, 1 departure, boarding, and the crossroads rule");
+}
+
+console.log("12. The promise comet through a year (spec v0.2 rev 5, \u00a78.10, \u00a711.3):");
 {
   const sample = cards[0];
-  const env = { mailReady: false, cometReady: false };
+  const env = { mailReady: true, cometReady: true };
   const at = (iso: string) => toClientCard(sample, new Date(iso), env);
 
-  // ---- waiting: a date, a countdown, and who will be in touch ------------
+  // ---- on its way --------------------------------------------------------
   const waiting = at("2026-09-23T00:00:00Z");
-  check("waiting before the day", waiting.satelliteStatus === "waiting", waiting.satelliteStatus);
-  check("the countdown is a real number of days",
-    typeof waiting.daysUntil === "number" && waiting.daysUntil > 0, String(waiting.daysUntil));
-  check("the next date is the configured one", waiting.satelliteNext === "2026-12-25",
-    waiting.satelliteNext);
+  check("away before the day", waiting.comet?.status === "away", waiting.comet?.status);
+  check("the label is the exact date at day precision",
+    waiting.comet?.label.label === "2026年12月25日", waiting.comet?.label.label);
+  check("and the countdown is in days", waiting.comet?.label.relative === "あと93日",
+    waiting.comet?.label.relative);
+  check("words may still board it", waiting.comet?.capsule === true);
+  check("the sealed words are not in the payload",
+    !JSON.stringify(waiting).includes("まだうまく言えない"));
   check("the landing line says when it was written",
     landingNote(waiting) === "2026年3月に書かれた手紙", landingNote(waiting));
 
   // ---- the day itself ----------------------------------------------------
   const day = at("2026-12-25T02:00:00Z");
-  check("returned on the day", day.satelliteStatus === "returned", day.satelliteStatus);
-  check("the countdown is gone", day.daysUntil === 0, String(day.daysUntil));
+  check("returned on the day", day.comet?.status === "returned", day.comet?.status);
+  check("the relative form says today", day.comet?.label.relative === "今日",
+    day.comet?.label.relative);
+  check("the sealed words open", day.comet?.message !== undefined);
+  check("no more words may board it", day.comet?.capsule === false);
   check("the landing line changes on the day",
-    landingNote(day) === "衛星が、戻ってきました。", landingNote(day));
+    landingNote(day) === "彗星が、戻ってきました。", landingNote(day));
 
-  // Fourteen days of "returned", then back to waiting for next year (§8.4).
-  check("still returned a fortnight later",
-    at("2027-01-07T02:00:00Z").satelliteStatus === "returned");
-  const later = at("2027-02-01T02:00:00Z");
-  check("waiting again after the window", later.satelliteStatus === "waiting");
-  check("and waiting for next year's date", later.satelliteNext === "2027-12-25",
-    later.satelliteNext);
+  // ---- the fortnight after, and the next cycle ---------------------------
+  const later = at("2027-01-05T02:00:00Z");
+  check("still returned a fortnight later", later.comet?.status === "returned", later.comet?.status);
+  check("it says how long ago", later.comet?.label.relative === "11日前",
+    later.comet?.label.relative);
+
+  const nextCycle = at("2027-02-01T02:00:00Z");
+  check("a yearly comet is away again after the window",
+    nextCycle.comet?.status === "away", nextCycle.comet?.status);
+  check("and counting down to next year", nextCycle.comet?.returnsOn === "2027-12-25",
+    nextCycle.comet?.returnsOn);
+  check("its new departure is the return it just made",
+    nextCycle.comet?.leftOn === "2026-12-25", nextCycle.comet?.leftOn);
+  // Opened words stay open: a later cycle does not re-seal what was read.
+  check("the words stay readable in a later cycle", nextCycle.comet?.message !== undefined);
   check("the landing line goes back to the writing date",
-    landingNote(later) === "2026年3月に書かれた手紙", landingNote(later));
+    landingNote(nextCycle) === "2026年3月に書かれた手紙", landingNote(nextCycle));
 
-  // ---- the landing line, in order of what matters most that day ----------
-  check("a card with nothing to say says nothing",
-    landingNote({ ...waiting, writtenAt: undefined, satelliteStatus: undefined }) === undefined);
-  check("a year-only writtenAt still reads",
-    landingNote({ ...waiting, writtenAt: "2026", satelliteStatus: undefined })
-      === "2026年に書かれた手紙");
-  check("a returned comet speaks when the satellite has not",
-    landingNote({
-      ...waiting,
-      satelliteStatus: "waiting",
-      senderComet: { status: "returned", releasedOn: "2026-03-01", returnsOn: "2026-12-25", message: "x" },
-    }) === "彗星が、戻ってきました。");
-  check("the satellite outranks the comet",
-    landingNote({
-      ...day,
-      senderComet: { status: "returned", releasedOn: "2026-03-01", returnsOn: "2026-12-25", message: "x" },
-    }) === "衛星が、戻ってきました。");
+  // ---- a one-off comet becomes a keepsake --------------------------------
+  const once = { ...sample, comet: { ...sample.comet!, yearly: false } };
+  const keptCard = toClientCard(once, new Date("2027-03-01T00:00:00Z"), env);
+  check("a one-off comet is kept, not returned forever",
+    keptCard.comet?.status === "kept", keptCard.comet?.status);
+  check("a kept comet keeps its words readable", keptCard.comet?.message !== undefined);
+  check("and no longer invites any", keptCard.comet?.capsule === false);
+
+  // ---- the label at every precision (\u00a711.3) -------------------------------
+  const now = new Date("2026-09-23T00:00:00Z");
+  const tz = "Asia/Tokyo";
+  const rows: [string, "day" | "month" | "season" | "year", string][] = [
+    ["2026-12-25", "day", "2026年12月25日"],
+    ["2026-12-25", "month", "2026年12月"],
+    ["2026-12-25", "season", "次の冬"],
+    ["2026-12-25", "year", "2026年"],
+    // Today is autumn 2026, so autumn 2027 is not "next autumn" — it is a
+    // year away, and the phrase people use is 2027年の秋.
+    ["2027-10-01", "season", "2027年の秋"],
+    ["2028-12-01", "season", "2028年の冬"],
+    ["2026-10-15", "season", "この秋"],
+  ];
+  for (const [date, show, expected] of rows) {
+    const label = returnLabel(date, show, now, tz).label;
+    check(`${date} at ${show} precision reads ${expected}`, label === expected, label);
+  }
+
+  // The relative form's own edges.
+  const rel = (date: string, show: "day" | "season" = "day") =>
+    returnLabel(date, show, now, tz).relative;
+  check("day precision counts days up to 100", rel("2026-12-25") === "あと93日", rel("2026-12-25"));
+  check("past 100 days it is months", rel("2027-03-01") === "約5か月後", rel("2027-03-01"));
+  check("a coarse promise says もうすぐ inside a month",
+    rel("2026-10-10", "season") === "もうすぐ", rel("2026-10-10", "season"));
+  check("18 months out it is years", rel("2028-06-01") === "約1年半後", rel("2028-06-01"));
+  check("and rounds to whole years", rel("2028-09-23") === "約2年後", rel("2028-09-23"));
 
   console.log(
-    `  satellite ${waiting.satelliteNext}, ${waiting.daysUntil} days out; ` +
-    `returned window 14 days, then ${later.satelliteNext}`,
+    `  ${waiting.comet?.label.label} \u00b7 ${waiting.comet?.label.relative}; ` +
+    `next cycle ${nextCycle.comet?.returnsOn}`,
   );
 }
 
@@ -1363,7 +1504,7 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   // ---- the position is the countdown ------------------------------------
   // The whole reason this is a Kepler orbit rather than a progress bar: it
   // must be far away for most of the wait and come home in a rush.
-  const comet = at("2026-09-23T00:00:00Z").senderComet!;
+  const comet = at("2026-09-23T00:00:00Z").comet!;
   const span = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.97, 1].map((f) => ({
     f,
     distance: orbitPoint(displayedProgress(f)).distance,
@@ -1408,7 +1549,7 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   check("the whole orbit is inside the nebula shell", furthest < 90, furthest.toFixed(1));
 
   console.log(
-    `  ${comet.releasedOn} -> ${comet.returnsOn}; ` +
+    `  ${comet.leftOn} -> ${comet.returnsOn}; ` +
     `q=${PERIHELION} Q=${span[3].distance.toFixed(1)}, furthest from origin ${furthest.toFixed(1)}u`,
   );
 }
@@ -1449,7 +1590,8 @@ console.log("15. Email templates (spec v0.2 §14.8):");
     token: "TOKEN123",
   })!;
   check("the comet subject carries the return date",
-    comet.subject === "そらさんが、彗星を放ちました（2026年12月25日に戻ってきます）", comet.subject);
+    comet.subject === "そらさんの言葉が、彗星にのりました（2026年12月25日に戻ってきます）",
+    comet.subject);
   check("the comet mail says it cannot be read yet",
     comet.text.includes("戻ってくるまで、中身は読めません。"));
   check("the comet link is absolute and has no double slash",
@@ -1459,27 +1601,27 @@ console.log("15. Email templates (spec v0.2 §14.8):");
     comet.text.includes("リンクがなくなると、彗星は見つけられなくなります。"));
   check("a sealed comet mail never carries the message", !comet.text.includes("SENTINEL-BODY"));
 
-  const satellite = satelliteMail({
+  const cometDay = cometDayMail({
     slug: sample.slug,
     title: sample.title,
-    label: sample.satellite!.label,
-    message: sample.satellite!.message,
+    label: sample.comet!.label!,
+    promise: sample.comet!.promise!,
     today: "2026-12-25",
   })!;
-  check("the satellite subject is the label",
-    satellite.subject === "今日は「次のクリスマス」です", satellite.subject);
-  check("the satellite mail carries the promise",
-    satellite.text.includes(sample.satellite!.message));
-  check("the satellite mail links the card",
-    satellite.text.includes(`https://karta.example.com/c/${sample.slug}`));
-  check("the satellite mail asks the sender to reach out",
-    satellite.text.includes("相手に、連絡してみませんか。"));
+  check("the reminder subject is the label",
+    cometDay.subject === "今日は「次のクリスマス」です", cometDay.subject);
+  check("the reminder carries the promise",
+    cometDay.text.includes(sample.comet!.promise!));
+  check("the reminder links the card",
+    cometDay.text.includes(`https://karta.example.com/c/${sample.slug}`));
+  check("the reminder asks the sender to reach out",
+    cometDay.text.includes("相手に、連絡してみませんか。"));
   // One per card per day, whatever the scheduler does.
-  check("the satellite mail is idempotent per day",
-    satellite.idempotencyKey === `satellite-${sample.slug}-2026-12-25`, satellite.idempotencyKey);
+  check("the reminder is idempotent per day",
+    cometDay.idempotencyKey === `comet-${sample.slug}-2026-12-25`, cometDay.idempotencyKey);
 
   // No template ever leaks an environment value into the body.
-  for (const mail of [reply, comet, satellite]) {
+  for (const mail of [reply, comet, cometDay]) {
     check(`"${mail.subject.slice(0, 12)}…" never leaks the API key`,
       !mail.text.includes("SENTINEL-RESEND") && !mail.subject.includes("SENTINEL-RESEND"));
     check(`"${mail.subject.slice(0, 12)}…" never leaks the inbox into the body`,
@@ -1567,12 +1709,13 @@ console.log("17. The comet's seal (spec v0.2 §11.5):");
   const key = randomBytes(32);
   const other = randomBytes(32);
   const payload = {
-    v: 1 as const,
+    v: 2 as const,
     slug: "2026-newyear-7k2m",
     name: "そら",
     body: "SENTINEL-COMET-BODY いつかまた、話しましょう。",
-    releasedOn: "2026-09-23",
+    leftOn: "2026-03-01",
     returnsOn: "2026-12-25",
+    boardedOn: "2026-09-23",
   };
 
   const token = seal(payload, key)!;
@@ -1588,6 +1731,7 @@ console.log("17. The comet's seal (spec v0.2 §11.5):");
   const away = open(token, "2026-12-24", key);
   check("before the day it is away", away.status === "away", away.status);
   check("the dates are readable", away.status === "away" && away.returnsOn === "2026-12-25");
+  check("and when the words boarded", away.status === "away" && away.boardedOn === "2026-09-23");
   check("the name is readable", away.status === "away" && away.name === "そら");
   // This is the whole promise. Not hidden — not returned at all.
   check("the message is not in the result",
@@ -1632,50 +1776,48 @@ console.log("17. The comet's seal (spec v0.2 §11.5):");
   console.log(`  token ${token.length} chars, ${Math.ceil(raw.length / 7)} tamper positions tested`);
 }
 
-console.log("18. The satellite reminder (spec v0.2 §12.1, §14.6):");
+console.log("18. The comet-day reminder (spec v0.2 rev 5, §12.1, §14.6):");
 {
   const sample = cards[0];
   const tz = sample.timeZone ?? "Asia/Tokyo";
-  const satellite = sample.satellite!;
+  const comet = sample.comet!;
 
   // ---- the day is the card's day, not the server's ----------------------
   // 15:00 UTC on the 24th is already the 25th in Tokyo. A card written in
   // Japan should be reminded on its own date, wherever the job runs.
   check("not the day at 23:59 in the card's zone",
-    !isSatelliteDay(satellite, new Date("2026-12-24T14:59:00Z"), tz));
+    !isCometDay(comet, new Date("2026-12-24T14:59:00Z"), tz));
   check("the day at 00:00 in the card's zone",
-    isSatelliteDay(satellite, new Date("2026-12-24T15:00:00Z"), tz));
+    isCometDay(comet, new Date("2026-12-24T15:00:00Z"), tz));
   check("still the day at 23:59 that night",
-    isSatelliteDay(satellite, new Date("2026-12-25T14:59:00Z"), tz));
+    isCometDay(comet, new Date("2026-12-25T14:59:00Z"), tz));
   check("over by 00:00 the next day",
-    !isSatelliteDay(satellite, new Date("2026-12-25T15:00:00Z"), tz));
+    !isCometDay(comet, new Date("2026-12-25T15:00:00Z"), tz));
 
   // ---- and it comes round every year ------------------------------------
   check("the anniversary counts too",
-    isSatelliteDay(satellite, new Date("2027-12-25T02:00:00Z"), tz));
-  check("a one-off satellite does not",
-    !isSatelliteDay({ ...satellite, repeat: "none" },
-      new Date("2027-12-25T02:00:00Z"), tz));
+    isCometDay(comet, new Date("2027-12-25T02:00:00Z"), tz));
+  check("a one-off comet does not",
+    !isCometDay({ ...comet, yearly: false }, new Date("2027-12-25T02:00:00Z"), tz));
 
   // ---- one email per card per day, whatever the scheduler does ----------
   // Vercel cron may fire twice; there is no database to record a send in, so
   // the key is what makes a second run harmless.
   const keep = process.env.NOTIFY_TO;
   process.env.NOTIFY_TO = "SENTINEL-NOTIFY@example.com";
-  const first = satelliteMail({
-    slug: sample.slug, title: sample.title, label: satellite.label,
-    message: satellite.message, today: "2026-12-25",
-  })!;
-  const second = satelliteMail({
-    slug: sample.slug, title: sample.title, label: satellite.label,
-    message: satellite.message, today: "2026-12-25",
-  })!;
+  const mailFor = (today: string) =>
+    cometDayMail({
+      slug: sample.slug,
+      title: sample.title,
+      label: comet.label!,
+      promise: comet.promise!,
+      today,
+    })!;
+  const first = mailFor("2026-12-25");
+  const second = mailFor("2026-12-25");
   check("two runs on one day carry the same key",
     first.idempotencyKey === second.idempotencyKey, first.idempotencyKey);
-  const nextYear = satelliteMail({
-    slug: sample.slug, title: sample.title, label: satellite.label,
-    message: satellite.message, today: "2027-12-25",
-  })!;
+  const nextYear = mailFor("2027-12-25");
   check("next year's is a different key",
     nextYear.idempotencyKey !== first.idempotencyKey, nextYear.idempotencyKey);
   if (keep === undefined) delete process.env.NOTIFY_TO;
@@ -1685,11 +1827,11 @@ console.log("18. The satellite reminder (spec v0.2 §12.1, §14.6):");
   const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as {
     crons?: { path: string; schedule: string }[];
   };
-  const cron = vercel.crons?.find((c) => c.path === "/api/cron/satellites");
+  const cron = vercel.crons?.find((c) => c.path === "/api/cron/comets");
   check("vercel.json schedules the reminder", Boolean(cron), JSON.stringify(vercel.crons));
   check("it runs daily", cron?.schedule === "0 0 * * *", cron?.schedule);
 
-  console.log(`  ${satellite.date} in ${tz}, ${cron?.schedule} UTC, one send per card per day`);
+  console.log(`  ${comet.returnsOn} in ${tz}, ${cron?.schedule} UTC, one send per card per day`);
 }
 
 console.log("19. A save rewrites the file whole, so its header must be current:");

@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { cards } from "@/config/cards.config";
 import { notifyTo } from "@/lib/notify";
-import { satelliteMail, sendMail } from "@/lib/mail";
-import { civilDate, DEFAULT_TIME_ZONE, isSatelliteDay } from "@/lib/orbitClock";
+import { cometDayMail, sendMail } from "@/lib/mail";
+import { civilDate, DEFAULT_TIME_ZONE, isCometDay } from "@/lib/orbitClock";
 import { resolveNow } from "@/lib/devTime";
 import { firstParam } from "@/lib/devJump";
 
 /**
- * The satellite-day reminder (spec v0.2 §12.1, §14.6).
+ * The comet-day reminder (spec v0.2 rev 5, §12.1, §14.6).
  *
- * Once a day, for every card whose satellite comes back today **in that card's
- * own time zone**, one email to the sender.
+ * Once a day, for every card whose comet comes back today **in that card's own
+ * time zone**, one email to the sender.
  *
  * Note who it goes to. The receiver is never emailed — they gave no address,
  * and asking for one would change what a card is. The whole feature is that
@@ -35,16 +35,17 @@ export async function GET(request: Request) {
   const failed: string[] = [];
 
   for (const card of cards) {
-    if (!card.satellite || !notifyTo(card.slug)) continue;
+    if (!card.comet || !notifyTo(card.slug)) continue;
 
     const timeZone = card.timeZone ?? DEFAULT_TIME_ZONE;
-    if (!isSatelliteDay(card.satellite, now, timeZone)) continue;
+    if (!isCometDay(card.comet, now, timeZone)) continue;
 
-    const mail = satelliteMail({
+    const mail = cometDayMail({
       slug: card.slug,
       title: card.title,
-      label: card.satellite.label,
-      message: card.satellite.message,
+      // Both are optional in the config; the email needs something to say.
+      label: card.comet.label ?? "約束の日",
+      promise: card.comet.promise ?? "また会いましょう。",
       // The key that makes a second run of the same day harmless.
       today: civilDate(now, timeZone),
     });

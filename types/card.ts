@@ -45,27 +45,42 @@ export type Memory = {
   caption?: string;
 };
 
-export type Satellite = {
-  /** <= 16 characters, e.g. "次のクリスマス". */
-  label: string;
-  /** <= 60 characters. */
-  message: string;
-  /** "YYYY-MM-DD", in the card's timeZone. */
-  date: string;
-  repeat?: "none" | "yearly";
-};
+/** How precisely the receiver is told when the comet comes back (R17). */
+export type ReturnPrecision = "day" | "month" | "season" | "year";
 
-export type Comet = {
-  /** "YYYY-MM-DD" the comets come back. Defaults to the satellite's next date. */
-  returnsOn?: string;
-  /** After the first return, come back every year. Default: satellite.repeat === "yearly". */
+/**
+ * The promise comet (R14). One per card.
+ *
+ * Revision 5 merged the old `satellite` and `comet` into this. They were two
+ * objects saying one thing — *we will meet again on this day* — and splitting
+ * that across a panel with a countdown and a separate sealed message made the
+ * card explain itself twice. Now the promise and the words that come with it
+ * ride the same object, and its position in the sky is the countdown.
+ */
+export type PromiseComet = {
+  /** "YYYY-MM-DD" in the card's timeZone: the day it comes back, the day you mean to meet. */
+  returnsOn: string;
+  /** "YYYY-MM-DD": the day you parted. The comet passed the planet then. */
+  leftOn: string;
+  /**
+   * How the return is shown. Default "day". Coarser values never print the
+   * exact date in the card — "次の冬" is a truer promise than a date nobody
+   * has actually agreed yet.
+   */
+  show?: ReturnPrecision;
+  /** The promise, one line, <= 40 characters, e.g. "次のクリスマスに、また会おう。" */
+  promise?: string;
+  /** A short name for the day, <= 16 characters. Used in the reminder email. */
+  label?: string;
+  /** After it comes back, leave again and return every year on the same day. */
   yearly?: boolean;
-  /** The sender's own comet: its message, <= 250 characters. */
+  /** The sender's sealed words, <= 250 characters, unreadable until returnsOn. */
   message?: string;
-  /** "YYYY-MM-DD" the sender's comet set off. */
-  releasedOn?: string;
-  /** Let the receiver release a comet back to the sender. */
-  receiverCanRelease?: boolean;
+  /**
+   * Ask the receiver to put their own words on the comet (the nudge). Default
+   * true; offered only when email and COMET_SECRET are configured.
+   */
+  invite?: boolean;
 };
 
 export type ReplyConfig = {
@@ -126,8 +141,8 @@ export type CardConfig = {
   sound?: boolean;
   /** 1-12, shown newest first however they are ordered here. */
   memories?: Memory[];
-  satellite?: Satellite;
-  comet?: Comet;
+  /** Replaces the revision-4 `satellite` and `comet` fields (§5.1). */
+  comet?: PromiseComet;
   /** Presence enables the reply rocket, if email is configured. */
   reply?: ReplyConfig;
   /** Share password issued by the editor. */

@@ -4,7 +4,7 @@ import { getCardBySlug } from "@/lib/cards";
 import { canView, passwordRequired } from "@/lib/access";
 import { toClientCard } from "@/lib/clientCard";
 import { resolveNow } from "@/lib/devTime";
-import { firstParam } from "@/lib/devJump";
+import { firstParam, isVisitMode, type VisitMode } from "@/lib/devJump";
 import { cardVersion } from "@/lib/cardVersion";
 import { mailReady, cometReady } from "@/lib/notify";
 import { PasswordGate } from "@/components/access/PasswordGate";
@@ -55,7 +55,16 @@ export default async function CardPage({ params, searchParams }: Props) {
   return (
     <>
       <meta name="karta-version" content={version} />
-      <CardExperience card={clientCard} jumpTo={firstParam(query.at)} />
+      <CardExperience
+        card={clientCard}
+        jumpTo={firstParam(query.at)}
+        visitMode={visitMode(firstParam(query.visit))}
+      />
     </>
   );
+}
+
+/** `?visit=` is dev-only preview, like `?at=` and `?now=` (§6.6). */
+function visitMode(value: string | undefined): VisitMode | undefined {
+  return isVisitMode(value) ? value : undefined;
 }

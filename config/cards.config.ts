@@ -39,16 +39,20 @@ export const cards: CardConfig[] = [
     // Stroked paths, no fills: it is drawn on the closing screen the same way
     // the closing line is. The editor's signature pad writes this file.
     signature: "/cards/2026-newyear-7k2m/signature.svg",
-    satellite: {
-      label: "次のクリスマス",
-      message: "次のクリスマスに、また会おう。",
-      date: "2026-12-25",
-      repeat: "yearly",
-    },
+    // The promise comet: one object carrying the promise, its date, and the
+    // words that ride with it (spec v0.2 rev 5, §11).
     comet: {
+      returnsOn: "2026-12-25",
+      leftOn: "2026-03-01",
+      // "day" prints the exact date. "season" would say 次の冬 instead — a
+      // truer promise when no particular day has actually been agreed.
+      show: "day",
+      promise: "次のクリスマスに、また会おう。",
+      label: "次のクリスマス",
+      yearly: true,
       message:
         "この手紙を書いている今は、まだうまく言えないことがあります。あなたがこれを読むころには、きっと言えるようになっているはずなので、その日まで預けておきます。",
-      receiverCanRelease: true,
+      invite: true,
     },
     reply: {},
     // Newest first is how these are read, but they can be listed in any

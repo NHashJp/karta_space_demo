@@ -36,7 +36,7 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
     );
   }
 
-  const progress = cometProgress(comet.releasedOn, comet.returnsOn, today);
+  const progress = cometProgress(comet.leftOn, comet.returnsOn, today);
   const daysUntil = daysBetween(today, comet.returnsOn);
   const returned = comet.status === "returned";
 
@@ -62,7 +62,7 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
           <Comet
             progress={progress}
             slug={comet.slug}
-            releasedOn={comet.releasedOn}
+            releasedOn={comet.leftOn}
             tone="receiver"
             reducedMotion={reducedMotion}
             showOrbit
@@ -82,20 +82,20 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
         {returned ? (
           <>
             <h1 className="comet__headline" lang="ja">
-              {comet.name}さんの彗星が、戻ってきました。
+              {comet.name}さんの言葉が、戻ってきました。
             </h1>
             <p className="comet__meta" lang="ja">
-              {formatFuzzyDate(comet.releasedOn)}に放たれました
+              {formatFuzzyDate(comet.boardedOn)}に、彗星にのりました
             </p>
             <Message body={comet.body} slug={comet.slug} />
           </>
         ) : (
           <>
             <h1 className="comet__headline" lang="ja">
-              {comet.name}さんの彗星
+              {comet.name}さんの言葉
             </h1>
             <p className="comet__meta" lang="ja">
-              {formatFuzzyDate(comet.returnsOn)}に戻ってきます。
+              約束の彗星にのって、{formatFuzzyDate(comet.returnsOn)}に戻ってきます。
             </p>
             <p className="comet__meta" lang="ja">
               あと{daysUntil}日

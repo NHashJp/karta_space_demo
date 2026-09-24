@@ -21,20 +21,38 @@ export type ExperienceState =
   | "ascending" // camera coming back out to the closing screen
   /* ---- v0.2 ---- */
   | "deploying" // the cube unfolds into a satellite and rises into orbit
-  | "orbit" // the hub: satellite, comets, the trail behind
+  | "orbit" // the hub: satellite, the comet, the trail behind
   | "undeploying" // the reverse, back to the closing screen
+  | "departing" // the comet comes round the planet and heads out (§8.4)
+  | "charting" // the camera closes on the comet, holds, pulls back to the chart
+  | "nudging" // at rest on the chart, the comet sheet open (§8.6)
+  | "boarding" // the receiver's words run up the orbit line to the comet
+  | "homing" // the camera returns from the chart pose to the orbit pose
   | "rewinding" // camera leaves orbit and joins the trail at the newest memory
   | "remembering" // one memory, framed and legible
   | "drifting" // camera travels along the trail to the next memory
   | "resurfacing" // camera leaves the trail for the orbit pose
-  | "launching" // the reply rocket rises and becomes a star
-  | "releasing"; // the receiver's comet swings out onto its orbit
+  | "launching"; // the reply rocket rises and becomes a star
 
 /** Where the camera is, which is no longer a yes/no now the cube has an inside. */
-export type CameraPhase = "far" | "near" | "inside" | "orbit" | "trail";
+export type CameraPhase = "far" | "near" | "inside" | "orbit" | "chart" | "trail";
 
-/** Which orbit panel is open, if any. Only one is ever open at a time. */
-export type OrbitPanel = null | "satellite" | "reply" | "comet";
+/** Which orbit sheet is open, if any. Only one is ever open at a time. */
+export type OrbitPanel = null | "crossroads" | "reply";
+
+/**
+ * What the card and this browser between them say about the comet, read once
+ * on mount (§6.1). The reducer never touches storage — it is handed the
+ * answers so it can stay pure and testable.
+ */
+export type CometFlags = {
+  exists: boolean;
+  returned: boolean;
+  /** The receiver may put words on it, and has not this cycle. */
+  capsuleOpen: boolean;
+  /** The departure has already been watched this cycle. */
+  departed: boolean;
+};
 
 export const LAST_FACE = 5;
 
@@ -46,11 +64,14 @@ export type Experience = {
   panel: OrbitPanel;
   /** A reply was launched in this session. */
   launched: boolean;
-  /** A comet was released in this session. */
-  released: boolean;
+  /** How the current comet moment began: automatically, or by a tap (§8.3). */
+  chartVia: "deploy" | "tap" | null;
+  comet: CometFlags;
   /* Fixed for the card's lifetime, set by initialExperience. */
   memoryCount: number;
   hasOrbit: boolean;
+  /** A reply is available, or there are memories: the crossroads has a point. */
+  hasCrossroads: boolean;
 };
 
 export type ExperienceEvent =
@@ -67,18 +88,28 @@ export type ExperienceEvent =
   /** The button equivalent of move(-1) in orbit. */
   | { type: "dock" }
   | { type: "deployEnd" }
+  | { type: "departEnd" }
+  /** Tap the comet, or 彗星 in the bottom bar. */
+  | { type: "openChart" }
+  /** Dispatched only once the server has accepted the words (§14.5). */
+  | { type: "board" }
+  | { type: "boardEnd" }
+  /** ✕, Escape, tapping outside the sheet, or any of its dismiss buttons. */
+  | { type: "leaveChart" }
   /** From orbit, join the trail; from the trail, leave it. */
   | { type: "lookBack" }
   | { type: "openPanel"; panel: Exclude<OrbitPanel, null> }
   | { type: "closePanel" }
   /** Dispatched only once the server has accepted the reply (§10). */
   | { type: "launch" }
-  | { type: "launchEnd" }
-  /** Dispatched only once the server has accepted the comet (§11). */
-  | { type: "release" }
-  | { type: "releaseEnd" };
+  | { type: "launchEnd" };
 
-export type ExperienceContext = { memoryCount: number; hasOrbit: boolean };
+export type ExperienceContext = {
+  memoryCount: number;
+  hasOrbit: boolean;
+  hasCrossroads: boolean;
+  comet: CometFlags;
+};
 
 export function initialExperience(ctx: ExperienceContext = EMPTY): Experience {
   return {
@@ -87,14 +118,28 @@ export function initialExperience(ctx: ExperienceContext = EMPTY): Experience {
     activeMemory: 0,
     panel: null,
     launched: false,
-    released: false,
+    chartVia: null,
+    comet: ctx.comet,
     memoryCount: ctx.memoryCount,
     hasOrbit: ctx.hasOrbit,
+    hasCrossroads: ctx.hasCrossroads,
   };
 }
 
+export const NO_COMET_FLAGS: CometFlags = {
+  exists: false,
+  returned: false,
+  capsuleOpen: false,
+  departed: false,
+};
+
 /** A card with nothing past the closing screen: v0.1 behaviour, exactly. */
-const EMPTY: ExperienceContext = { memoryCount: 0, hasOrbit: false };
+const EMPTY: ExperienceContext = {
+  memoryCount: 0,
+  hasOrbit: false,
+  hasCrossroads: false,
+  comet: NO_COMET_FLAGS,
+};
 
 export function reduceExperience(current: Experience, event: ExperienceEvent): Experience {
   const { state, activeFace, activeMemory, panel, memoryCount, hasOrbit } = current;
@@ -123,6 +168,9 @@ export function reduceExperience(current: Experience, event: ExperienceEvent): E
         if (event.direction === -1) return { ...current, state: "undeploying" };
         return memoryCount > 0 ? { ...current, state: "rewinding", activeMemory: 0 } : current;
       }
+
+      // The whole of `nudging` is a sheet, so it swallows gestures too.
+      if (state === "nudging") return current;
 
       // The trail runs newest to oldest. Off either end is not a dead stop but
       // a way back to orbit, so the reader is never stranded at the far end of
@@ -155,21 +203,63 @@ export function reduceExperience(current: Experience, event: ExperienceEvent): E
       return { ...current, state: "undeploying" };
 
     case "deployEnd":
-      if (state === "deploying") return { ...current, state: "orbit" };
+      if (state === "deploying") return afterDeploy(current);
       // Undeploying returns to the closing screen the reader left, same face.
       if (state === "undeploying") return { ...current, state: "completed", panel: null };
       return current;
 
+    case "departEnd":
+      if (state !== "departing") return current;
+      // The departure is watched once per cycle, then the chart draws.
+      return { ...current, state: "charting", comet: { ...current.comet, departed: true } };
+
+    case "openChart":
+      if (state !== "orbit" || !current.comet.exists) return current;
+      if (panel !== null && panel !== "crossroads") return current;
+      // A tap is the reader's own choice, so leaving it returns to the plain
+      // hub rather than offering the crossroads again.
+      return { ...current, state: "charting", chartVia: "tap", panel: null };
+
+    case "board":
+      if (state !== "nudging" || !current.comet.capsuleOpen) return current;
+      return { ...current, state: "boarding" };
+
+    case "boardEnd":
+      if (state !== "boarding") return current;
+      return {
+        ...current,
+        state: "nudging",
+        comet: { ...current.comet, capsuleOpen: false },
+      };
+
+    case "leaveChart": {
+      if (state !== "nudging") return current;
+      // The crossroads follows an *automatic* comet moment only: it asks
+      // "where next?" about a journey the card started, not one the reader
+      // chose by tapping the comet.
+      const next =
+        current.chartVia === "deploy" && current.hasCrossroads
+          ? ("crossroads" as const)
+          : null;
+      return { ...current, state: "homing", panel: next, chartVia: null };
+    }
+
     case "lookBack":
       if (state === "orbit") {
-        if (panel !== null || memoryCount === 0) return current;
-        return { ...current, state: "rewinding", activeMemory: 0 };
+        // The crossroads is one of the two places this is offered from, so it
+        // does not block the way it a reply sheet does.
+        if ((panel !== null && panel !== "crossroads") || memoryCount === 0) return current;
+        return { ...current, state: "rewinding", activeMemory: 0, panel: null };
       }
       if (state === "remembering") return { ...current, state: "resurfacing" };
       return current;
 
     case "openPanel":
-      return state === "orbit" ? { ...current, panel: event.panel } : current;
+      if (state !== "orbit") return current;
+      // The rocket goes once. Offering the form again would invite a second
+      // reply that the sender would receive as a duplicate.
+      if (event.panel === "reply" && current.launched) return current;
+      return { ...current, panel: event.panel };
 
     case "closePanel":
       return panel === null ? current : { ...current, panel: null };
@@ -182,13 +272,6 @@ export function reduceExperience(current: Experience, event: ExperienceEvent): E
       if (state !== "launching") return current;
       return { ...current, state: "orbit", panel: null, launched: true };
 
-    case "release":
-      if (state !== "orbit" || panel !== "comet") return current;
-      return { ...current, state: "releasing" };
-
-    case "releaseEnd":
-      if (state !== "releasing") return current;
-      return { ...current, state: "orbit", panel: null, released: true };
 
     case "rotationEnd":
       return state === "transitioning" ? { ...current, state: "reading" } : current;
@@ -202,6 +285,8 @@ export function reduceExperience(current: Experience, event: ExperienceEvent): E
         return { ...current, state: "remembering" };
       }
       if (state === "resurfacing") return { ...current, state: "orbit" };
+      if (state === "charting") return { ...current, state: "nudging" };
+      if (state === "homing") return { ...current, state: "orbit" };
       return current;
 
     case "replay":
@@ -214,6 +299,30 @@ export function reduceExperience(current: Experience, event: ExperienceEvent): E
       if (state === "inside") return { ...current, state: "ascending" };
       return current;
   }
+}
+
+/**
+ * Where a deployment lands (spec v0.2 rev 5, §8.3).
+ *
+ * This is the one branch in the whole machine that decides itself rather than
+ * being told, and it is what makes the comet feel like an event rather than a
+ * menu item: the first deployment of a cycle *goes to the comet*, and only
+ * once its words are aboard do later deployments settle into the hub.
+ */
+function afterDeploy(current: Experience): Experience {
+  const { comet } = current;
+
+  if (!comet.exists) return { ...current, state: "orbit" };
+
+  // Not yet watched leave, and not back yet: watch it go.
+  if (!comet.departed && !comet.returned) {
+    return { ...current, state: "departing", chartVia: "deploy" };
+  }
+  // Back today, or still waiting for words: go and look at it.
+  if (comet.returned || comet.capsuleOpen) {
+    return { ...current, state: "charting", chartVia: "deploy" };
+  }
+  return { ...current, state: "orbit" };
 }
 
 /** Camera sits close to the cube — or, past the wall, within it. */
@@ -234,12 +343,16 @@ export function cameraPhase(state: ExperienceState): CameraPhase {
   if (
     state === "deploying" ||
     state === "orbit" ||
+    state === "departing" ||
     state === "launching" ||
-    state === "releasing" ||
-    state === "resurfacing"
+    state === "resurfacing" ||
+    state === "homing"
   ) {
     return "orbit";
   }
+  // `charting` plays a close-up and then pulls back to the chart pose, so the
+  // pose it is *heading for* is the chart's.
+  if (state === "charting" || state === "nudging" || state === "boarding") return "chart";
   if (state === "rewinding" || state === "remembering" || state === "drifting") return "trail";
   // "ascending" and "undeploying" are already on their way back out, so they
   // target the far position.
@@ -274,13 +387,25 @@ export function isDeployed(state: ExperienceState): boolean {
     state === "deploying" ||
     state === "orbit" ||
     state === "undeploying" ||
+    state === "departing" ||
+    state === "charting" ||
+    state === "nudging" ||
+    state === "boarding" ||
+    state === "homing" ||
     state === "rewinding" ||
     state === "remembering" ||
     state === "drifting" ||
     state === "resurfacing" ||
-    state === "launching" ||
-    state === "releasing"
+    state === "launching"
   );
+}
+
+/**
+ * The comet sheet, and with it the sender's words on the returned day, attach
+ * only here — the same rule face text and memory text follow.
+ */
+export function showsCometSheet(state: ExperienceState): boolean {
+  return state === "nudging";
 }
 
 /** The cube's inner shell exists only while the camera is on its way in or out. */
@@ -323,6 +448,8 @@ export function acceptsInput(state: ExperienceState): boolean {
     state === "completed" ||
     state === "inside" ||
     state === "orbit" ||
-    state === "remembering"
+    state === "remembering" ||
+    // `nudging` is at rest, but only the sheet and Escape act on it.
+    state === "nudging"
   );
 }

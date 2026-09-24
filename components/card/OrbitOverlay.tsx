@@ -10,7 +10,10 @@ type Props = {
   card: ClientCard;
   panel: OrbitPanel;
   launched: boolean;
+  /** Their words are already on the comet, so the chip says where it is. */
+  aboard: boolean;
   onOpenPanel: (panel: Exclude<OrbitPanel, null>) => void;
+  onOpenChart: () => void;
   onLookBack: () => void;
   onDock: () => void;
 };
@@ -29,7 +32,9 @@ export function OrbitOverlay({
   card,
   panel,
   launched,
+  aboard,
   onOpenPanel,
+  onOpenChart,
   onLookBack,
   onDock,
 }: Props) {
@@ -40,7 +45,6 @@ export function OrbitOverlay({
     return () => clearTimeout(timer);
   }, []);
 
-  const hasComet = Boolean(card.senderComet || card.receiverComet);
   const busy = panel !== null;
 
   return (
@@ -49,31 +53,27 @@ export function OrbitOverlay({
         星をタップしてみてください。
       </p>
 
-      <nav className="orbit-bar" aria-label="軌道">
-        {card.satellite ? (
-          <button
-            className="button button--quiet"
-            onClick={() => onOpenPanel("satellite")}
-            aria-pressed={panel === "satellite"}
-            lang="ja"
-          >
-            衛星
-          </button>
-        ) : null}
+      {/*
+        Where their words got to, on the first arrival in the hub. It is the
+        one thing a returning reader most wants to know and the one thing the
+        sky cannot say on its own — the comet is a speck out there.
+      */}
+      {aboard && card.comet ? (
+        <p className="orbit-ui__aboard" data-visible={tip && !busy} lang="ja">
+          <span className="orbit-ui__dot" aria-hidden="true" />
+          あなたの言葉は、彗星の上 · {card.comet.label.label}
+        </p>
+      ) : null}
 
+      <nav className="orbit-bar" aria-label="軌道">
         {card.memories?.length ? (
           <button className="button button--quiet" onClick={onLookBack} lang="ja">
             航跡をたどる
           </button>
         ) : null}
 
-        {hasComet ? (
-          <button
-            className="button button--quiet"
-            onClick={() => onOpenPanel("comet")}
-            aria-pressed={panel === "comet"}
-            lang="ja"
-          >
+        {card.comet ? (
+          <button className="button button--quiet" onClick={onOpenChart} lang="ja">
             彗星
           </button>
         ) : null}
@@ -90,6 +90,7 @@ export function OrbitOverlay({
           </button>
         ) : null}
 
+        {/* The satellite *is* the letter; tapping it reads the letter again. */}
         <button className="button button--quiet" onClick={onDock} lang="ja">
           手紙に戻る
         </button>

@@ -3,133 +3,48 @@
 import { CometOrbitMini } from "@/components/card/CometOrbitMini";
 import { mailConfigured, type SectionProps } from "../shared";
 import {
+  COMET_LABEL_MAX,
   COMET_MESSAGE_MAX,
-  SATELLITE_LABEL_MAX,
-  SATELLITE_MESSAGE_MAX,
+  COMET_PROMISE_MAX,
+  RETURN_PRECISIONS,
 } from "@/lib/cardRules";
 import { progress as cometProgress } from "@/lib/cometOrbit";
+import { formatReturn, returnLabel } from "@/lib/returnLabel";
 import { civilDate } from "@/lib/orbitClock";
 import { DEFAULT_FROM, DEFAULT_REPLY_PROMPT } from "@/lib/clientCard";
+import type { ReturnPrecision } from "@/types/card";
 
 /**
- * Everything past the closing screen (spec v0.2 §15.4).
+ * The promise, and what rides with it (spec v0.2 rev 5, §15.4).
  *
- * Each feature says what it needs and **why it is unavailable** when it is,
- * rather than being silently missing. A sender who ticks "let them write back"
- * and sees nothing happen has no way to discover that `RESEND_API_KEY` is the
- * reason — so the checkbox stays disabled and says so.
+ * One object now, where revision 4 had a satellite and a comet saying the same
+ * thing in two places. Each feature says what it needs and **why it is
+ * unavailable** when it is, rather than being silently missing: a sender who
+ * ticks "let them write back" and sees nothing happen has no way to discover
+ * that `RESEND_API_KEY` is the reason.
  */
 export function OrbitSection({ card, edit, env }: SectionProps) {
   const mail = mailConfigured(env);
-  const today = civilDate(new Date(), card.timeZone ?? "Asia/Tokyo");
+  const timeZone = card.timeZone ?? "Asia/Tokyo";
+  const today = civilDate(new Date(), timeZone);
   const from = card.from || DEFAULT_FROM;
-
-  const satellite = card.satellite;
   const comet = card.comet;
-  const cometReturns = comet?.returnsOn ?? satellite?.date;
-  const cometReleased = comet?.releasedOn ?? monthStart(card.writtenAt);
 
   return (
     <div className="editor__section">
-      {/* ---- the satellite ------------------------------------------------ */}
       <div className="face">
         <div className="face__head">
-          <strong>Satellite &middot; 衛星</strong>
-          <button
-            className="face__type"
-            aria-pressed={Boolean(satellite)}
-            onClick={() =>
-              edit({
-                satellite: satellite
-                  ? undefined
-                  : { label: "", message: "", date: "", repeat: "yearly" },
-              })
-            }
-          >
-            {satellite ? "Remove" : "Add"}
-          </button>
-        </div>
-
-        {satellite ? (
-          <>
-            <div className="editor__row">
-              <label className="field">
-                <span>
-                  Label &middot; {satellite.label.length}/{SATELLITE_LABEL_MAX}
-                </span>
-                <input
-                  value={satellite.label}
-                  onChange={(event) =>
-                    edit({ satellite: { ...satellite, label: event.target.value } })
-                  }
-                  placeholder="次のクリスマス"
-                  lang="ja"
-                />
-              </label>
-
-              <label className="field">
-                <span>Date</span>
-                <input
-                  type="date"
-                  value={satellite.date}
-                  onChange={(event) =>
-                    edit({ satellite: { ...satellite, date: event.target.value } })
-                  }
-                />
-              </label>
-            </div>
-
-            <label className="field">
-              <span>
-                Promise &middot; {satellite.message.length}/{SATELLITE_MESSAGE_MAX}
-              </span>
-              <input
-                value={satellite.message}
-                onChange={(event) =>
-                  edit({ satellite: { ...satellite, message: event.target.value } })
-                }
-                placeholder="次のクリスマスに、また会おう。"
-                lang="ja"
-              />
-            </label>
-
-            <label className="editor__toggle">
-              <input
-                type="checkbox"
-                checked={satellite.repeat === "yearly"}
-                onChange={(event) =>
-                  edit({
-                    satellite: {
-                      ...satellite,
-                      repeat: event.target.checked ? "yearly" : "none",
-                    },
-                  })
-                }
-              />
-              Comes back every year
-            </label>
-
-            <p className="editor__hint" lang="ja">
-              The panel will read: その日が来たら、{from}から連絡します。
-            </p>
-            <p className="editor__hint">
-              {env.CRON_SECRET && mail
-                ? "You will be emailed on the day. The receiver never is — you reach out."
-                : "Reminder email needs CRON_SECRET and the mail variables. " +
-                  "Without them the card still shows the date and the countdown."}
-            </p>
-          </>
-        ) : null}
-      </div>
-
-      {/* ---- the comets --------------------------------------------------- */}
-      <div className="face">
-        <div className="face__head">
-          <strong>Comets &middot; 彗星</strong>
+          <strong>Promise comet &middot; 約束の彗星</strong>
           <button
             className="face__type"
             aria-pressed={Boolean(comet)}
-            onClick={() => edit({ comet: comet ? undefined : {} })}
+            onClick={() =>
+              edit({
+                comet: comet
+                  ? undefined
+                  : { returnsOn: "", leftOn: today, show: "day", yearly: false },
+              })
+            }
           >
             {comet ? "Remove" : "Add"}
           </button>
@@ -137,10 +52,95 @@ export function OrbitSection({ card, edit, env }: SectionProps) {
 
         {comet ? (
           <>
+            <div className="editor__row">
+              <label className="field">
+                <span>Comes back</span>
+                <input
+                  type="date"
+                  value={comet.returnsOn}
+                  onChange={(event) => edit({ comet: { ...comet, returnsOn: event.target.value } })}
+                />
+                <span className="editor__hint">
+                  The day you mean to meet. Its position in the sky is the
+                  countdown, so this is the one date that matters.
+                </span>
+              </label>
+
+              <label className="field">
+                <span>You parted</span>
+                <input
+                  type="date"
+                  value={comet.leftOn}
+                  onChange={(event) => edit({ comet: { ...comet, leftOn: event.target.value } })}
+                />
+                <span className="editor__hint">
+                  When the comet passed the planet. Usually today.
+                </span>
+              </label>
+            </div>
+
+            <label className="field">
+              <span>How the return is shown</span>
+              <select
+                value={comet.show ?? "day"}
+                onChange={(event) =>
+                  edit({ comet: { ...comet, show: event.target.value as ReturnPrecision } })
+                }
+              >
+                {RETURN_PRECISIONS.map((precision) => (
+                  <option key={precision} value={precision}>
+                    {precision}
+                  </option>
+                ))}
+              </select>
+              {/*
+                The reason this exists: an exact date is often a lie. "We'll
+                meet at Christmas" is a real promise; a specific day neither
+                person has agreed is not.
+              */}
+              <span className="editor__hint">
+                {comet.returnsOn
+                  ? `The card will say: ${formatReturn(
+                      returnLabel(comet.returnsOn, comet.show, new Date(), timeZone),
+                    )}`
+                  : "Coarser than “day” never prints the exact date in the card."}
+              </span>
+            </label>
+
             <label className="field">
               <span>
-                Your sealed message &middot; {(comet.message ?? "").length}/
-                {COMET_MESSAGE_MAX}
+                The promise &middot; {(comet.promise ?? "").length}/{COMET_PROMISE_MAX}
+              </span>
+              <input
+                value={comet.promise ?? ""}
+                onChange={(event) =>
+                  edit({ comet: { ...comet, promise: event.target.value || undefined } })
+                }
+                placeholder="次のクリスマスに、また会おう。"
+                lang="ja"
+              />
+            </label>
+
+            <label className="field">
+              <span>
+                A name for the day &middot; {(comet.label ?? "").length}/{COMET_LABEL_MAX}
+              </span>
+              <input
+                value={comet.label ?? ""}
+                onChange={(event) =>
+                  edit({ comet: { ...comet, label: event.target.value || undefined } })
+                }
+                placeholder="次のクリスマス"
+                lang="ja"
+              />
+              <span className="editor__hint">
+                Used in your reminder email, not shown to the receiver.
+              </span>
+            </label>
+
+            <label className="field">
+              <span>
+                Your sealed words &middot; {(comet.message ?? "").length}/{COMET_MESSAGE_MAX}
               </span>
               <textarea
                 value={comet.message ?? ""}
@@ -151,51 +151,18 @@ export function OrbitSection({ card, edit, env }: SectionProps) {
                 lang="ja"
               />
               <span className="editor__hint">
-                Not sent to the browser at all until it comes back — not hidden,
-                absent. You can leave this empty and only offer them a comet.
+                Not sent to the browser at all until the comet comes back — not
+                hidden, absent. Optional: the comet still carries the promise.
               </span>
             </label>
 
-            <div className="editor__row">
-              <label className="field">
-                <span>Comes back</span>
-                <input
-                  type="date"
-                  value={comet.returnsOn ?? ""}
-                  onChange={(event) =>
-                    edit({ comet: { ...comet, returnsOn: event.target.value || undefined } })
-                  }
-                  placeholder={satellite?.date}
-                />
-                <span className="editor__hint">
-                  {comet.returnsOn ? "" : `Defaults to the satellite's date (${satellite?.date ?? "none set"}).`}
-                </span>
-              </label>
-
-              <label className="field">
-                <span>Set off</span>
-                <input
-                  type="date"
-                  value={comet.releasedOn ?? ""}
-                  onChange={(event) =>
-                    edit({ comet: { ...comet, releasedOn: event.target.value || undefined } })
-                  }
-                />
-                <span className="editor__hint">
-                  {comet.releasedOn ? "" : "Defaults to the month the letter was written."}
-                </span>
-              </label>
-            </div>
-
-            {/* Where it is today, so the sender can see the metaphor working. */}
-            {cometReturns && cometReleased ? (
+            {/* Where it is today, so the metaphor is visible while editing. */}
+            {comet.returnsOn && comet.leftOn ? (
               <div className="editor__preview-orbit">
-                <CometOrbitMini
-                  progress={cometProgress(cometReleased, cometReturns, today)}
-                />
+                <CometOrbitMini progress={cometProgress(comet.leftOn, comet.returnsOn, today)} />
                 <span className="editor__hint">
-                  Where your comet is today. Use the preview&rsquo;s Date control
-                  to see it come home.
+                  Where the comet is today. Use the preview&rsquo;s Date control
+                  to watch it come home.
                 </span>
               </div>
             ) : null}
@@ -203,21 +170,39 @@ export function OrbitSection({ card, edit, env }: SectionProps) {
             <label className="editor__toggle">
               <input
                 type="checkbox"
-                disabled={!mail || !env.COMET_SECRET}
-                checked={Boolean(comet.receiverCanRelease)}
+                checked={Boolean(comet.yearly)}
                 onChange={(event) =>
-                  edit({ comet: { ...comet, receiverCanRelease: event.target.checked || undefined } })
+                  edit({ comet: { ...comet, yearly: event.target.checked || undefined } })
                 }
               />
-              Let them release a comet back to you
+              Leaves again and comes back every year
+            </label>
+
+            <label className="editor__toggle">
+              <input
+                type="checkbox"
+                disabled={!mail || !env.COMET_SECRET}
+                checked={comet.invite !== false}
+                onChange={(event) =>
+                  edit({ comet: { ...comet, invite: event.target.checked ? undefined : false } })
+                }
+              />
+              Invite them to put their own words on it
             </label>
             {!mail || !env.COMET_SECRET ? (
               <p className="editor__hint">
                 Needs {!mail ? "the mail variables" : ""}
                 {!mail && !env.COMET_SECRET ? " and " : ""}
-                {!env.COMET_SECRET ? "COMET_SECRET" : ""}. See Setup.
+                {!env.COMET_SECRET ? "COMET_SECRET" : ""}. Without them the
+                comet still flies, just without the invite. See Setup.
               </p>
             ) : null}
+
+            <p className="editor__hint">
+              {env.CRON_SECRET && mail
+                ? "You will be emailed on the day. The receiver never is — you reach out."
+                : "The reminder email needs CRON_SECRET and the mail variables."}
+            </p>
           </>
         ) : null}
       </div>
@@ -241,9 +226,7 @@ export function OrbitSection({ card, edit, env }: SectionProps) {
             <span>Prompt</span>
             <input
               value={card.reply.prompt ?? ""}
-              onChange={(event) =>
-                edit({ reply: { prompt: event.target.value || undefined } })
-              }
+              onChange={(event) => edit({ reply: { prompt: event.target.value || undefined } })}
               placeholder={DEFAULT_REPLY_PROMPT}
               lang="ja"
             />
@@ -252,16 +235,10 @@ export function OrbitSection({ card, edit, env }: SectionProps) {
 
         <p className="editor__hint">
           {mail
-            ? "Their reply goes straight to your inbox. Nothing is stored here."
+            ? `Their reply goes straight to your inbox, signed off to ${from}. Nothing is stored here.`
             : "Needs RESEND_API_KEY, MAIL_FROM and NOTIFY_TO. See Setup."}
         </p>
       </div>
     </div>
   );
-}
-
-/** "2026-03" -> "2026-03-01": when the letter's month began. */
-function monthStart(writtenAt: string | undefined): string | undefined {
-  const match = writtenAt ? /^(\d{4})(?:-(\d{2}))?/.exec(writtenAt) : null;
-  return match ? `${match[1]}-${match[2] ?? "01"}-01` : undefined;
 }

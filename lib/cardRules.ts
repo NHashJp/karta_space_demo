@@ -1,6 +1,6 @@
 import { FUZZY_DATE_PATTERN, isFullDate, parseFuzzyDate } from "./fuzzyDate.ts";
 import { isValidTimeZone } from "./orbitClock.ts";
-import type { CardConfig, CardFace } from "@/types/card";
+import type { CardConfig, CardFace, ReturnPrecision } from "@/types/card";
 
 /**
  * Validation rules, with no filesystem, React or config imports — so the same
@@ -29,9 +29,12 @@ export const SECRET_MAX = 28;
 export const MEMORY_MAX = 12;
 export const MEMORY_TITLE_MAX = 24;
 export const MEMORY_CAPTION_MAX = 80;
-export const SATELLITE_LABEL_MAX = 16;
-export const SATELLITE_MESSAGE_MAX = 60;
+/** The promise is one line on a chart, not a paragraph. */
+export const COMET_PROMISE_MAX = 40;
+export const COMET_LABEL_MAX = 16;
 export const COMET_MESSAGE_MAX = 250;
+
+export const RETURN_PRECISIONS: ReturnPrecision[] = ["day", "month", "season", "year"];
 export const LINE_FACE_MIN = 1;
 export const LINE_FACE_MAX = 30;
 export const CLOSING_MAX = 18;
@@ -191,49 +194,59 @@ export function privateFolder(slug: string): string {
   return `private/cards/${slug}/`;
 }
 
-function satelliteProblems(card: CardConfig, out: Problems): void {
-  const satellite = card.satellite;
-  if (!satellite) return;
-
-  if (!isFullDate(satellite.date)) {
-    out.errors.push(`satellite: "${satellite.date}" is not a YYYY-MM-DD date`);
-  }
-  if ((satellite.label?.trim().length ?? 0) > SATELLITE_LABEL_MAX) {
-    out.warnings.push(`satellite: label is over ${SATELLITE_LABEL_MAX} characters`);
-  }
-  if ((satellite.message?.trim().length ?? 0) > SATELLITE_MESSAGE_MAX) {
-    out.warnings.push(`satellite: message is over ${SATELLITE_MESSAGE_MAX} characters`);
-  }
-}
-
 function cometProblems(card: CardConfig, out: Problems): void {
+  /*
+   * Revision 5 merged `satellite` into `comet`. A config still carrying the
+   * old field would lose its promise silently — the card would build, deploy,
+   * and simply have nothing in the sky — so it is an error, with the migration
+   * section named in it.
+   */
+  if ((card as Record<string, unknown>).satellite) {
+    out.errors.push("`satellite` was merged into `comet` in revision 5 (\u00a75.1)");
+  }
+
   const comet = card.comet;
   if (!comet) return;
 
-  const returnsOn = comet.returnsOn ?? card.satellite?.date;
-  if (!comet.returnsOn && !card.satellite) {
-    out.errors.push("comet: needs returnsOn, or a satellite to take its date from");
+  if (!isFullDate(comet.returnsOn)) {
+    out.errors.push(`comet: returnsOn "${comet.returnsOn ?? ""}" is not a YYYY-MM-DD date`);
   }
-  if (comet.returnsOn && !isFullDate(comet.returnsOn)) {
-    out.errors.push(`comet: returnsOn "${comet.returnsOn}" is not a YYYY-MM-DD date`);
+  if (!isFullDate(comet.leftOn)) {
+    out.errors.push(`comet: leftOn "${comet.leftOn ?? ""}" is not a YYYY-MM-DD date`);
   }
-  if (comet.releasedOn && !isFullDate(comet.releasedOn)) {
-    out.errors.push(`comet: releasedOn "${comet.releasedOn}" is not a YYYY-MM-DD date`);
+  if (isFullDate(comet.leftOn) && isFullDate(comet.returnsOn) && comet.leftOn >= comet.returnsOn) {
+    out.errors.push("comet: leftOn is on or after returnsOn — it would arrive before it left");
   }
-  if (comet.releasedOn && returnsOn && comet.releasedOn >= returnsOn) {
-    out.errors.push("comet: releasedOn is on or after returnsOn — it would arrive before it left");
+  if (comet.show && !RETURN_PRECISIONS.includes(comet.show)) {
+    out.errors.push(`comet: show "${comet.show}" is not one of ${RETURN_PRECISIONS.join(", ")}`);
   }
-  if (!comet.message && !comet.receiverCanRelease) {
-    out.errors.push("comet: has neither a message of its own nor receiverCanRelease");
+
+  // A comet whose day has been and gone, with no next one, is not broken — it
+  // is a keepsake. Worth saying once, because it is rarely what was meant.
+  if (isFullDate(comet.returnsOn) && !comet.yearly && comet.returnsOn < utcToday()) {
+    out.warnings.push(
+      "comet: the day has passed — the receiver sees the returned day for 14 days, then a keepsake star",
+    );
+  }
+
+  if ((comet.promise?.trim().length ?? 0) > COMET_PROMISE_MAX) {
+    out.warnings.push(`comet: promise is over ${COMET_PROMISE_MAX} characters`);
+  }
+  if ((comet.label?.trim().length ?? 0) > COMET_LABEL_MAX) {
+    out.warnings.push(`comet: label is over ${COMET_LABEL_MAX} characters`);
   }
   if ((comet.message?.trim().length ?? 0) > COMET_MESSAGE_MAX) {
     out.warnings.push(`comet: message is over ${COMET_MESSAGE_MAX} characters`);
   }
 }
 
+/** Today in UTC. Only used to notice a comet whose day has already gone. */
+function utcToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function v02Problems(card: CardConfig, out: Problems): void {
   memoryProblems(card, out);
-  satelliteProblems(card, out);
   cometProblems(card, out);
 
   if (card.writtenAt && !parseFuzzyDate(card.writtenAt)) {

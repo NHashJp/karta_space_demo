@@ -30,15 +30,18 @@ const ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 /** Bound into the ciphertext, so a token from some other system cannot be fed in. */
-const AAD = Buffer.from("karta-comet-v1");
+const AAD = Buffer.from("karta-comet-v2");
 
 export type CometPayload = {
-  v: 1;
+  v: 2;
   slug: string;
   name: string;
   body: string;
-  releasedOn: string;
+  /** The cycle the words belong to: when the comet left, and when it returns. */
+  leftOn: string;
   returnsOn: string;
+  /** The day the words were put aboard. */
+  boardedOn: string;
 };
 
 /** AES-256 needs exactly 32 bytes, and a shorter one is a misconfiguration. */
@@ -77,12 +80,20 @@ export function seal(payload: CometPayload, key = cometSecret()): string | null 
 export type Opened =
   | { status: "invalid" }
   /** On its way: the dates, and deliberately **not** the message. */
-  | { status: "away"; slug: string; name: string; releasedOn: string; returnsOn: string }
+  | {
+      status: "away";
+      slug: string;
+      name: string;
+      leftOn: string;
+      boardedOn: string;
+      returnsOn: string;
+    }
   | {
       status: "returned";
       slug: string;
       name: string;
-      releasedOn: string;
+      leftOn: string;
+      boardedOn: string;
       returnsOn: string;
       body: string;
     };
@@ -119,14 +130,17 @@ export function open(token: string, today: string, key = cometSecret()): Opened 
     return { status: "invalid" };
   }
 
-  if (payload?.v !== 1 || !payload.returnsOn || !payload.releasedOn) {
+  // A revision-4 token (v: 1) no longer opens. Its AAD differs too, so it
+  // would already have failed authentication above — this is belt and braces.
+  if (payload?.v !== 2 || !payload.returnsOn || !payload.leftOn) {
     return { status: "invalid" };
   }
 
   const common = {
     slug: payload.slug,
     name: payload.name,
-    releasedOn: payload.releasedOn,
+    leftOn: payload.leftOn,
+    boardedOn: payload.boardedOn ?? payload.leftOn,
     returnsOn: payload.returnsOn,
   };
 

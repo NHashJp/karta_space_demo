@@ -125,9 +125,9 @@ export function cometMail(input: {
   const date = formatFuzzyDate(input.returnsOn);
   return {
     to,
-    subject: `${input.name}さんが、彗星を放ちました（${date}に戻ってきます）`,
+    subject: `${input.name}さんの言葉が、彗星にのりました（${date}に戻ってきます）`,
     text: [
-      `「${input.title}」から、${input.name}さんが彗星を放ちました。`,
+      `「${input.title}」から、${input.name}さんが彗星に言葉をのせました。`,
       `${date}に戻ってくるまで、中身は読めません。`,
       "",
       "彗星の行方と、戻ってきた言葉は、このリンクから:",
@@ -140,11 +140,11 @@ export function cometMail(input: {
   };
 }
 
-export function satelliteMail(input: {
+export function cometDayMail(input: {
   slug: string;
   title: string;
   label: string;
-  message: string;
+  promise: string;
   today: string;
 }): Mail | null {
   const to = notifyTo(input.slug);
@@ -154,9 +154,9 @@ export function satelliteMail(input: {
     to,
     subject: `今日は「${input.label}」です`,
     text: [
-      `「${input.title}」の衛星が、戻ってくる日になりました。`,
+      `「${input.title}」の彗星が、戻ってくる日になりました。`,
       "",
-      input.message,
+      input.promise,
       "",
       "相手に、連絡してみませんか。",
       `カード: ${baseUrl()}/c/${input.slug}`,
@@ -165,6 +165,6 @@ export function satelliteMail(input: {
       "KARTA_SPACE",
     ].join("\n"),
     // One reminder per card per day, whatever the scheduler does (§12.1).
-    idempotencyKey: `satellite-${input.slug}-${input.today}`,
+    idempotencyKey: `comet-${input.slug}-${input.today}`,
   };
 }

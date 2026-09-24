@@ -4,21 +4,29 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { useProgress } from "@react-three/drei";
 import { landingNote, type ClientCard } from "@/lib/clientCard";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
+import { formatReturn } from "@/lib/returnLabel";
 import type { OrbitPanel } from "@/lib/experienceState";
 import { CubeScene, type SceneComet } from "@/components/three/CubeScene";
 import { CardLanding } from "./CardLanding";
 import { CardProgress } from "./CardProgress";
 import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
-import { SatellitePanel } from "./SatellitePanel";
-import { CometPanel } from "./CometPanel";
+import { CometSheet } from "./CometSheet";
+import { CrossroadsPanel } from "./CrossroadsPanel";
 import { ReplyPanel } from "./ReplyPanel";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
 import { SoundToggle } from "./SoundToggle";
 import * as sound from "@/lib/sound";
 import { useFaceNavigation, usePrefersReducedMotion } from "@/lib/useFaceNavigation";
-import { jumpEvents } from "@/lib/devJump";
+import { jumpEvents, type VisitMode } from "@/lib/devJump";
+import {
+  previewVisit,
+  readVisit,
+  toFlags,
+  writeVisit,
+  type CometVisit,
+} from "@/lib/cometVisit";
 import { lightSeed } from "@/lib/sceneLight";
 import { orbitRotation, progress as cometProgress } from "@/lib/cometOrbit";
 import {
@@ -40,17 +48,46 @@ import {
   revealsMemory,
   revealsSecret,
   revealsText,
+  showsCometSheet,
 } from "@/lib/experienceState";
 
-export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: string }) {
+export function CardExperience({
+  card,
+  jumpTo,
+  visitMode,
+}: {
+  card: ClientCard;
+  jumpTo?: string;
+  visitMode?: VisitMode;
+}) {
   const memoryCount = card.memories?.length ?? 0;
+
+  /*
+   * What this browser has already seen of the comet (§11.5). It is read once,
+   * synchronously, before the reducer is created — the very first thing the
+   * machine does is decide where a deployment lands, and that decision needs
+   * these flags. Reading storage in an effect would be one render too late.
+   *
+   * `useState` with an initialiser rather than `useMemo`, so it runs exactly
+   * once and never on the server.
+   */
+  const [visit, setVisit] = useState<CometVisit>(() =>
+    typeof window === "undefined"
+      ? { cycle: card.comet?.returnsOn ?? "" }
+      : (previewVisit(visitMode, card.comet?.returnsOn ?? "") ??
+        readVisit(card.slug, card.comet?.returnsOn ?? "")),
+  );
+
   const [experience, dispatch] = useReducer(
     reduceExperience,
-    { memoryCount, hasOrbit: card.hasOrbit },
+    {
+      memoryCount,
+      hasOrbit: card.hasOrbit,
+      hasCrossroads: card.hasCrossroads,
+      comet: toFlags(card.comet, visit),
+    },
     initialExperience,
   );
-  // `released` is deliberately not read here: whether the receiver's comet is
-  // in the sky is decided by `releasedComet` below, which survives a reload.
   const { state, activeFace, activeMemory, panel, launched } = experience;
   const [settled, setSettled] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
@@ -87,7 +124,8 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
   const onDeploy = useCallback(() => dispatch({ type: "deploy" }), []);
   const onDeployEnd = useCallback(() => dispatch({ type: "deployEnd" }), []);
   const onLaunchEnd = useCallback(() => dispatch({ type: "launchEnd" }), []);
-  const onReleaseEnd = useCallback(() => dispatch({ type: "releaseEnd" }), []);
+  const onOpenChart = useCallback(() => dispatch({ type: "openChart" }), []);
+  const onLeaveChart = useCallback(() => dispatch({ type: "leaveChart" }), []);
   const onDock = useCallback(() => dispatch({ type: "dock" }), []);
   const onLookBack = useCallback(() => dispatch({ type: "lookBack" }), []);
   const onClosePanel = useCallback(() => dispatch({ type: "closePanel" }), []);
@@ -102,10 +140,30 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
 
   const seed = useMemo(() => lightSeed(card.slug), [card.slug]);
 
-  // A warmer light on the day something comes back (§23.3), and the one cue
+  // A warmer light on the day the comet comes back (§23.3), and the one cue
   // in the sound palette that is allowed to be bright (§12.2).
-  const returned =
-    card.satelliteStatus === "returned" || card.senderComet?.status === "returned";
+  const returned = card.comet?.status === "returned";
+  const aboard = Boolean(visit.sent);
+
+  /** Remember what this browser has now seen, and tell the reducer. */
+  const remember = useCallback(
+    (patch: Partial<CometVisit>) => {
+      setVisit((current) => {
+        const next = { ...current, ...patch };
+        writeVisit(card.slug, next);
+        return next;
+      });
+    },
+    [card.slug],
+  );
+
+  const onDepartEnd = useCallback(() => {
+    // Watched once per cycle: a second deployment goes straight to the chart.
+    remember({ departed: true });
+    dispatch({ type: "departEnd" });
+  }, [remember]);
+
+  const onBoardEnd = useCallback(() => dispatch({ type: "boardEnd" }), []);
 
   /* ---------------------------------------------------------------------
    * Sound (spec v0.2 §12.2). Cues are fired by watching the state change,
@@ -173,8 +231,10 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
     else if (state === "deploying") sound.cue("deploy");
     else if (state === "remembering") sound.cue("memory", activeMemory);
     else if (state === "launching") sound.cue("launch");
-    else if (state === "releasing") sound.cue("release");
-    else if (state === "orbit" && was === "deploying" && returned) sound.cue("returned");
+    else if (state === "boarding") sound.cue("release");
+    else if (state === "departing") sound.cue("deploy");
+    // The comet is back, and this is the one bright sound in the palette.
+    else if (state === "nudging" && returned) sound.cue("returned");
   }, [soundAvailable, state, activeFace, activeMemory, returned]);
 
   /**
@@ -183,38 +243,15 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
    * once they have actually released one, and then sits at the start of its
    * own orbit.
    */
-  const comets = useMemo<SceneComet[]>(() => {
-    const out: SceneComet[] = [];
-    if (card.senderComet) {
-      out.push({
-        key: "sender",
-        progress: cometProgress(
-          card.senderComet.releasedOn,
-          card.senderComet.returnsOn,
-          card.today,
-        ),
-        releasedOn: card.senderComet.releasedOn,
-        tone: "sender",
-        onSelect: () => dispatch({ type: "openPanel", panel: "comet" }),
-      });
-    }
-    // The receiver's own comet appears once they have actually released one —
-    // in this session, or on an earlier visit in this browser.
-    if (releasedComet) {
-      out.push({
-        key: "receiver",
-        progress: cometProgress(
-          releasedComet.releasedOn,
-          releasedComet.returnsOn,
-          card.today,
-        ),
-        releasedOn: releasedComet.releasedOn,
-        tone: "receiver",
-        onSelect: () => dispatch({ type: "openPanel", panel: "comet" }),
-      });
-    }
-    return out;
-  }, [card.senderComet, card.today, releasedComet]);
+  const comet = useMemo<SceneComet | undefined>(() => {
+    if (!card.comet) return undefined;
+    return {
+      progress: cometProgress(card.comet.leftOn, card.comet.returnsOn, card.today),
+      leftOn: card.comet.leftOn,
+      aboard,
+      onSelect: () => dispatch({ type: "openChart" }),
+    };
+  }, [card.comet, card.today, aboard]);
   const atRest = breathesAtRest(state);
 
   // The cube owns the deployment animation and says when it is done; this
@@ -255,14 +292,15 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           activeMemory={activeMemory}
           revealMemory={revealsMemory(state)}
           slug={card.slug}
-          comets={comets}
-          openPanel={panel}
+          comet={comet}
+          showCometOrbit={phase === "chart"}
           launching={state === "launching"}
           launched={launched || launchedBefore}
           onLaunchEnd={onLaunchEnd}
-          releasing={state === "releasing"}
-          releaseRotation={releaseRotation}
-          onReleaseEnd={onReleaseEnd}
+          departing={state === "departing"}
+          onDepartEnd={onDepartEnd}
+          boarding={state === "boarding"}
+          onBoardEnd={onBoardEnd}
           deploying={deploying}
           deployed={isDeployed(state)}
           onDeployEnd={onDeployEnd}
@@ -322,30 +360,37 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           card={card}
           panel={panel}
           launched={launched || launchedBefore}
+          aboard={aboard}
           onOpenPanel={onOpenPanel}
+          onOpenChart={onOpenChart}
           onLookBack={onLookBack}
           onDock={onDock}
         />
       ) : null}
 
-      {panel === "satellite" ? (
-        <SatellitePanel card={card} onClose={onClosePanel} />
+      {/* The comet sheet: the end of every comet moment (§8.6). */}
+      {showsCometSheet(state) ? (
+        <CometSheet
+          card={card}
+          aboard={aboard}
+          onBoarded={() => {
+            // Remembered in this browser so the nudge does not come back, and
+            // so the chip in the hub can say where their words got to. The
+            // token is never stored — it is the message, and its one home is
+            // the email it went out in (§11.5).
+            remember({ sent: { on: card.today } });
+            dispatch({ type: "board" });
+          }}
+          onLeave={onLeaveChart}
+        />
       ) : null}
 
-      {panel === "comet" ? (
-        <CometPanel
+      {panel === "crossroads" ? (
+        <CrossroadsPanel
           card={card}
-          today={card.today}
-          released={releasedComet}
+          onLookBack={onLookBack}
+          onReply={() => onOpenPanel("reply")}
           onClose={onClosePanel}
-          onReleased={(comet) => {
-            // Kept in this browser so the warm comet is still on its orbit
-            // next time (§11.6). The token is never stored — it is the
-            // message, and its one home is the email it went out in.
-            setReleasedComet(comet);
-            writeReleased(card.slug, comet);
-            dispatch({ type: "release" });
-          }}
         />
       ) : null}
 
@@ -409,20 +454,6 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
         ))}
         {secret ? <p lang="ja">{secret}</p> : null}
 
-        {card.satellite ? (
-          <section lang="ja">
-            <h2>衛星</h2>
-            <p>{card.satellite.message}</p>
-            <p>
-              {card.satelliteStatus === "returned"
-                ? "この日が、来ましたね。"
-                : `${formatFuzzyDate(card.satelliteNext ?? card.satellite.date)}${
-                    typeof card.daysUntil === "number" ? ` · あと${card.daysUntil}日` : ""
-                  }`}
-            </p>
-          </section>
-        ) : null}
-
         {memories.length > 0 ? (
           <section lang="ja">
             <h2>航跡</h2>
@@ -437,20 +468,17 @@ export function CardExperience({ card, jumpTo }: { card: ClientCard; jumpTo?: st
           </section>
         ) : null}
 
-        {card.senderComet ? (
+        {card.comet ? (
           <section lang="ja">
             <h2>彗星</h2>
-            {card.senderComet.status === "returned" ? (
+            {card.comet.promise ? <p>{card.comet.promise}</p> : null}
+            <p>{formatReturn(card.comet.label)}</p>
+            {card.comet.message ? (
               <>
-                <p>{card.from}の彗星が、戻ってきました。</p>
-                <p>{card.senderComet.message}</p>
+                <p>{card.from}からの言葉</p>
+                <p>{card.comet.message}</p>
               </>
-            ) : (
-              <p>
-                {card.from}の彗星。{formatFuzzyDate(card.senderComet.returnsOn)}
-                に戻ってきます。
-              </p>
-            )}
+            ) : null}
           </section>
         ) : null}
       </div>
