@@ -7,7 +7,8 @@ import * as THREE from "three";
 import { MEMORY_PANEL_WORLD, memoryPanelFraming } from "./framing";
 import { SafeTexture } from "./SafeTexture";
 import { toCss, trailColour, type TrailSeed } from "@/lib/trailColour";
-import { memoryU, trailPoint, trailTangent, type Point3 } from "@/lib/trailCurve";
+import { memoryU, trailPoint, trailTangent } from "@/lib/trailCurve";
+import { useStagedTrail } from "./useStagedTrail";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import type { ClientMemory } from "@/lib/clientCard";
 
@@ -30,7 +31,8 @@ type Props = {
   memory: ClientMemory;
   index: number;
   count: number;
-  points: Point3[];
+  /** The card's curve seed; the panel stages the curve itself (§4.5). */
+  curveSeed: number;
   seed: TrailSeed;
   /** Text is attached only while this memory is the one being read (§6.5). */
   revealed: boolean;
@@ -41,11 +43,12 @@ export function MemoryPanel({
   memory,
   index,
   count,
-  points,
+  curveSeed,
   seed,
   revealed,
   reducedMotion,
 }: Props) {
+  const points = useStagedTrail(curveSeed);
   const group = useRef<THREE.Group>(null);
   const border = useRef<THREE.LineSegments>(null);
   const size = useThree((state) => state.size);

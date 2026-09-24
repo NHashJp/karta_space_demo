@@ -16,6 +16,7 @@ import {
   orbitPose,
   orbitPosition,
   satelliteHull,
+  stagedTrail,
   SECRET_PLANE_Z,
   cameraDistance,
   insideVisibleWidth,
@@ -66,7 +67,20 @@ import {
   trailSeedFor,
 } from "../lib/trailCurve.ts";
 import { DEPLOY_MS } from "../lib/timing.ts";
-import { PANELS, RISE, SAT_SCALE, THRUSTER, TURN, deploymentAt, wingReach } from "../lib/deployment.ts";
+import {
+  PANELS,
+  RISE,
+  SAT_SCALE,
+  THRUSTER,
+  TURN,
+  DISPLAY_EULER_ORDER,
+  DISPLAY_PITCH,
+  DISPLAY_ROLL,
+  DISPLAY_YAW,
+  deploymentAt,
+  displayDirection,
+  wingReach,
+} from "../lib/deployment.ts";
 import {
   BOOM_WINDOW,
   DEPLOYED_SPAN,
@@ -1176,6 +1190,29 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
     ["desktop 1512x945", 1512, 945],
   ];
 
+  /*
+   * `MessageCube` turns the cube with a three.js Euler; every composition
+   * check below goes through `displayDirection`. If those two disagree the
+   * scene is drawn at one attitude and measured at another, and every number
+   * that follows is fiction. Yaw-pitch-roll is "ZXY", not the "YXZ" it reads
+   * like — the wrong order is twenty degrees out, which looks deliberate.
+   */
+  {
+    const turned = new THREE.Vector3(1, 0, 0).applyQuaternion(
+      new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(DISPLAY_PITCH, DISPLAY_YAW, DISPLAY_ROLL, DISPLAY_EULER_ORDER),
+      ),
+    );
+    const pure = displayDirection([1, 0, 0]);
+    const gap = Math.hypot(turned.x - pure[0], turned.y - pure[1], turned.z - pure[2]);
+    check("the cube's attitude is the one the checks measure", gap < 1e-9,
+      `${DISPLAY_EULER_ORDER}, off by ${gap.toExponential(1)}`);
+
+    // §3.1 asks for the near (+X) wing upper-right *and larger*: the camera is
+    // on +z, so the wing that is drawn bigger has to lean towards it.
+    check("the near wing leans towards the camera", pure[2] > 0.3, pure[2].toFixed(2));
+  }
+
   for (const [label, w, h] of hubViewports) {
     const aspect = w / h;
     const tanV = Math.tan(halfV);
@@ -1200,24 +1237,36 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
       Math.abs(centre[1] - target.centre[1]) <= 0.04,
       `${centre[0].toFixed(3)},${centre[1].toFixed(3)}`);
 
+    /*
+     * The wing tips, taken through the satellite's *actual* display attitude
+     * rather than through a flat rotation by WING_AXIS_DEG.
+     *
+     * That distinction cost a day. The earlier version built the two tips from
+     * the constant, so tip-to-tip and the axis were measured off a construct
+     * that could not disagree with itself — and reported a tidy -50 degrees
+     * while the wings were being drawn very nearly horizontal on screen.
+     * `displayDirection` is what `MessageCube` turns the cube by, so a check
+     * that goes through it is a check on the thing the reader sees.
+     */
     const half = (DEPLOYED_SPAN / 2) * SAT_SCALE;
-    const yaw = (WING_AXIS_DEG * Math.PI) / 180;
-    const tipA = project([
-      HUB_SATELLITE[0] + half * Math.cos(yaw),
-      HUB_SATELLITE[1] - half * Math.sin(yaw),
-      HUB_SATELLITE[2],
-    ]);
-    const tipB = project([
-      HUB_SATELLITE[0] - half * Math.cos(yaw),
-      HUB_SATELLITE[1] + half * Math.sin(yaw),
-      HUB_SATELLITE[2],
-    ]);
+    const wingTip = (side: 1 | -1) => {
+      const [dx, dy, dz] = displayDirection([side, 0, 0]);
+      return project([
+        HUB_SATELLITE[0] + dx * half,
+        HUB_SATELLITE[1] + dy * half,
+        HUB_SATELLITE[2] + dz * half,
+      ]);
+    };
+    const tipA = wingTip(1);
+    const tipB = wingTip(-1);
     // In width units, so portrait and landscape are comparable.
     const tip = Math.hypot(tipA[0] - tipB[0], (tipA[1] - tipB[1]) * (h / w));
     check(`${label}: tip to tip is in range`, Math.abs(tip - target.tip) <= 0.05,
       `${(tip * 100).toFixed(0)}% vs ${(target.tip * 100).toFixed(0)}%`);
 
     // The wing axis, measured on screen rather than assumed from the constant.
+    // y is measured downward here, so a wing running up to the right gives a
+    // negative angle — which is the -50 the composition asks for.
     const axis =
       (Math.atan2((tipA[1] - tipB[1]) * (h / w), tipA[0] - tipB[0]) * 180) / Math.PI;
     check(`${label}: the wing axis is -50deg ± 6`, Math.abs(axis - WING_AXIS_DEG) <= 6,
@@ -1298,10 +1347,47 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
       home[0] >= 0.8 && home[1] >= 0.55 && home[1] <= 0.78,
       `${home[0].toFixed(2)},${home[1].toFixed(2)}`);
 
+    /*
+     * The trail leaves from the top-left, and clears the satellite (rev 6 §4.5).
+     *
+     * The raw curve starts at the world origin, which is exactly where rev 6
+     * parks the satellite — so drawn unstaged, the first stretch of the trail
+     * came out of the middle of the spacecraft. `stagedTrail` moves it; this
+     * is what keeps it moved. The gap is checked against the hull rather than
+     * the body centre, because it is a wing tip the near end passes.
+     */
+    let nearestTrail = Infinity;
+    let topmost = 1;
+    let strays = 0;
+    let samplesOffTrail = 0;
+
+    for (const seed of ["2026-newyear-7k2m", "thanks-sample-3f9q"].map(trailSeedFor)) {
+      const staged = stagedTrail(seed, w, h);
+      for (let i = 0; i <= 60; i++) {
+        const at = project(trailPoint(staged, i / 60));
+        samplesOffTrail++;
+        if (at[0] > 0.5 || at[1] > 0.5) strays++;
+        topmost = Math.min(topmost, at[1]);
+        nearestTrail = Math.min(
+          nearestTrail,
+          Math.min(...hull.map((p) => Math.hypot(p[0] - at[0], (p[1] - at[1]) * (h / w)))) * w,
+        );
+      }
+    }
+
+    check(`${label}: the trail stays in the top-left quadrant`, strays === 0,
+      `${strays}/${samplesOffTrail} outside`);
+    check(`${label}: the trail clears the satellite by 32px`, nearestTrail >= 32,
+      `${nearestTrail.toFixed(0)}px`);
+    // Below the title block, which owns the first 88px of a phone screen.
+    check(`${label}: and starts below the title`, topmost * h >= (w < h ? 88 : 40),
+      `${(topmost * h).toFixed(0)}px`);
+
     console.log(
       `  ${label.padEnd(19)} body ${centre[0].toFixed(2)},${centre[1].toFixed(2)} ` +
       `tip ${(tip * 100).toFixed(0)}% axis ${axis.toFixed(0)}deg ` +
-      `margin ${(margin * 100).toFixed(0)}% planet ${(area * 100).toFixed(0)}%`,
+      `margin ${(margin * 100).toFixed(0)}% planet ${(area * 100).toFixed(0)}% ` +
+      `trail ${nearestTrail.toFixed(0)}px`,
     );
   }
 

@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { RAMP_SIZE, ribbonFragmentShader, ribbonVertexShader } from "./shaders/ribbon";
 import { trailColour, trailSeed, type TrailSeed } from "@/lib/trailColour";
 import { memoryU, trailPoint, trailTangent, type Point3 } from "@/lib/trailCurve";
+import { useStagedTrail } from "./useStagedTrail";
 
 /**
  * 航跡 — the trail of memories behind the satellite (spec v0.2 §9.1).
@@ -25,7 +26,8 @@ const WIDTH_NEAR = 0.1;
 const WIDTH_FAR = 0.02;
 
 type Props = {
-  points: Point3[];
+  /** The card's curve seed. The ribbon stages the curve itself (§4.5). */
+  curveSeed: number;
   seed: TrailSeed;
   memoryCount: number;
   reducedMotion: boolean;
@@ -33,9 +35,10 @@ type Props = {
   intensity?: number;
 };
 
-export function Trail({ points, seed, memoryCount, reducedMotion, intensity = 1 }: Props) {
+export function Trail({ curveSeed, seed, memoryCount, reducedMotion, intensity = 1 }: Props) {
   const material = useRef<THREE.ShaderMaterial>(null);
   const glints = useRef<THREE.Points>(null);
+  const points = useStagedTrail(curveSeed);
 
   const geometry = useMemo(() => buildRibbon(points), [points]);
 

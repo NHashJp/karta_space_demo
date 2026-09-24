@@ -16,7 +16,13 @@ import {
   pickPreset,
   type RotationPreset,
 } from "./rotationPresets";
-import { DISPLAY_PITCH, DISPLAY_YAW, deploymentAt } from "@/lib/deployment";
+import {
+  DISPLAY_EULER_ORDER,
+  DISPLAY_PITCH,
+  DISPLAY_ROLL,
+  DISPLAY_YAW,
+  deploymentAt,
+} from "@/lib/deployment";
 import { DEPLOY_MS, REDUCED_MS } from "@/lib/timing";
 
 const HALF_PI = Math.PI / 2;
@@ -228,7 +234,11 @@ export function MessageCube({
       // Deployed, the cube holds a 3/4 view rather than a face: it has stopped
       // being a page to read and become an object to look at. Blended from
       // whichever face was last read, so the turn is continuous.
-      DISPLAY.setFromEuler(EULER.set(DISPLAY_PITCH, DISPLAY_YAW, 0));
+      // Yaw, pitch, then roll: the roll is what puts the wing axis on the
+      // composition's -50 degree diagonal (rev 6 §3.1).
+      DISPLAY.setFromEuler(
+        EULER.set(DISPLAY_PITCH, DISPLAY_YAW, DISPLAY_ROLL, DISPLAY_EULER_ORDER),
+      );
       group.quaternion.slerp(DISPLAY, now.turn);
       // A slow tumble, so a satellite at rest is not a still image of one.
       if (!reducedMotion && local.current >= 1) {

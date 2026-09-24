@@ -72,6 +72,27 @@ one point taking 20–40 seconds to become another colour. It should never be
 *caught* changing. Each card's trail has its own colours and its own bend, both
 seeded from the slug.
 
+### The trail is staged, not placed
+
+`trailControlPoints` gives a curve that knows nothing about the screen: it
+starts at the world origin and recedes. Revision 6 parks the satellite at that
+same origin, so drawn as-is the first stretch of the contrail came out of the
+middle of the spacecraft — a real bug, and a very visible one on a phone.
+
+`stagedTrail(seed, width, height)` puts that curve where §4.5 wants it: leaving
+from the upper-left, clear of the satellite, receding to the top of the frame.
+It does that by projecting **both** screen targets back into the world at their
+own depths and using the line between them as the spine, keeping the card's own
+wander as an offset around it. Picking an angle instead does not work: a line
+that simply recedes converges on the centre of the frame, and the centre of the
+frame is where the satellite is.
+
+Everything that touches the trail asks `useStagedTrail` for it — the ribbon,
+the memory panels hanging off it, and the camera that drives it — rather than
+one of them building it and handing it to the others. It is pure in the seed
+and the viewport, so they cannot disagree, and none of them can be left holding
+a curve from before the last rotation.
+
 ### The satellite is a promise, not a calendar entry
 
 One date, one line, and then: *{from} will be in touch.*

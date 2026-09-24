@@ -4,7 +4,7 @@ import { Suspense, useMemo, useRef } from "react";
 import type { ClientMemory } from "@/lib/clientCard";
 import { trailSeed } from "@/lib/trailColour";
 import { orbitRotation } from "@/lib/cometOrbit";
-import { trailControlPoints, trailSeedFor } from "@/lib/trailCurve";
+import { trailSeedFor } from "@/lib/trailCurve";
 import { Canvas } from "@react-three/fiber";
 import type { CardFace } from "@/types/card";
 import type { CameraPhase } from "@/lib/experienceState";
@@ -125,7 +125,6 @@ export function CubeScene({
   // keeps the same trail on every visit and no two cards share one.
   const curveSeed = useMemo(() => trailSeedFor(slug), [slug]);
   const colourSeed = useMemo(() => trailSeed(slug), [slug]);
-  const trail = useMemo(() => trailControlPoints(curveSeed), [curveSeed]);
   // The comet's orbit is rotated by its own seed, and the departure and the
   // boarding both have to fly along exactly that orbit.
   const cometRotation = useMemo(
@@ -144,7 +143,6 @@ export function CubeScene({
         leg={cameraLeg}
         memoryCount={memories?.length ?? 0}
         seed={curveSeed}
-        trail={trail}
         breathing={atRest}
         reducedMotion={cube.reducedMotion}
         onArrive={onZoomEnd}
@@ -217,7 +215,7 @@ export function CubeScene({
       */}
       {memories?.length ? (
         <Trail
-          points={trail}
+          curveSeed={curveSeed}
           seed={colourSeed}
           memoryCount={memories.length}
           reducedMotion={cube.reducedMotion}
@@ -237,7 +235,7 @@ export function CubeScene({
                 memory={memory}
                 index={index}
                 count={memories.length}
-                points={trail}
+                curveSeed={curveSeed}
                 seed={colourSeed}
                 revealed={revealMemory && index === activeMemory}
                 reducedMotion={cube.reducedMotion}

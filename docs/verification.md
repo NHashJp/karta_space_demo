@@ -144,7 +144,7 @@ listing each, here is what each group is *for*:
 | 8 | the gate: normalisation, hashing, precedence, cookie invalidation |
 | 9 | orbit, the trail, panels, both one-way animations, all 14 preview targets |
 | 10 | the moving sun, and where the camera may and may not breathe |
-| 11 | orbit and trail framing at every viewport |
+| 11 | the hub composition at every viewport: satellite, planet, comet, trail |
 | 12 | the satellite through a full year, and the landing line |
 | 13 | memories, and that photographs go through the gated route |
 | 14 | the comet's position as a countdown |
@@ -184,6 +184,9 @@ searched.
 | `L` left in the generated alphabet | §14.9 excludes it; removing it left 31 letters and a biased modulo |
 | Camera elevation broke the orbit projection | −18% margin where 8% was required |
 | Bounding-box framing of a 4-unit-deep scene | 31% margin, so the composition sat a third too small on every screen |
+| The hull rotated about Y, the cube about three axes | wings drawn near-horizontal while the check happily reported −50°: it was measuring a construct, not the hull |
+| Camera distance divided by the *world* span | the wing axis runs back into the screen, so the satellite drew a tenth of the frame too small |
+| The trail left unstaged at the world origin | rev 6 puts the satellite on that origin: the contrail came out of the middle of the spacecraft |
 | Newlines stripped from reply messages | a paragraph break was impossible; a newline in a *name* was header injection |
 | Comet key length checked in only one place | a short key threw from inside node's cipher instead of being refused |
 

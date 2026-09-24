@@ -37,9 +37,71 @@ export function wingReach(): number {
   return SATELLITE_HALF_SPAN * SAT_SCALE;
 }
 
-/** The 3/4 view the satellite holds once deployed: yaw 35°, pitch −20°. */
-export const DISPLAY_YAW = (35 * Math.PI) / 180;
+/**
+ * The 3/4 view the satellite holds once deployed: yaw −35°, pitch −20°.
+ *
+ * The yaw turns the **+X wing toward the camera**, which §3.1 asks for in so
+ * many words: the near wing is the upper-right one *and the larger one*. Yawed
+ * the other way the composition still reads at a glance — the axis is the same
+ * diagonal — but the wing that is drawn big is the one going away, and the
+ * satellite looks like it is receding rather than keeping station.
+ */
+export const DISPLAY_YAW = (-35 * Math.PI) / 180;
 export const DISPLAY_PITCH = (-20 * Math.PI) / 180;
+/**
+ * And a roll, so the **wing axis lands at −50° on screen** (rev 6 §3.1).
+ *
+ * Without it the yaw and pitch alone leave the wings running at about −13°:
+ * very nearly horizontal, which is not the diagonal the composition is built
+ * around, and which makes the satellite's silhouette far wider than it should
+ * be. This is what turns that −13° into the −50° asked for; `displayDirection`
+ * below is what lets the checks measure whether it did.
+ */
+export const DISPLAY_ROLL = (36.5 * Math.PI) / 180;
+
+/**
+ * The order three has to apply those three angles in to mean what
+ * `displayDirection` means.
+ *
+ * Yaw, then pitch, then roll is "ZXY" and not the "YXZ" the sequence reads
+ * like, because three applies the axes right to left. It is a constant rather
+ * than a string typed at the call site so that verify can check the two agree
+ * — the wrong order is off by about twenty degrees, which is small enough to
+ * look deliberate and large enough to put the wings somewhere the composition
+ * checks never looked.
+ */
+export const DISPLAY_EULER_ORDER = "ZXY";
+
+/**
+ * Where the satellite's local +X — its wing axis — points once the display
+ * orientation is applied, in world space.
+ *
+ * Pure, and shared: `framing` uses it to build the projected hull the
+ * composition checks measure, and `MessageCube` turns the cube by the same
+ * three angles. A hull that disagrees with the thing on screen is worse than
+ * no hull at all — it was how the wings came to be measured at −50° while
+ * being drawn horizontal.
+ */
+export function displayDirection(local: [number, number, number]): [number, number, number] {
+  const [x, y, z] = local;
+
+  // Yaw about Y.
+  const cy = Math.cos(DISPLAY_YAW);
+  const sy = Math.sin(DISPLAY_YAW);
+  const ax = x * cy + z * sy;
+  const az = -x * sy + z * cy;
+
+  // Pitch about X.
+  const cp = Math.cos(DISPLAY_PITCH);
+  const sp = Math.sin(DISPLAY_PITCH);
+  const by = y * cp - az * sp;
+  const bz = y * sp + az * cp;
+
+  // Roll about Z, which is what sets the on-screen angle.
+  const cr = Math.cos(DISPLAY_ROLL);
+  const sr = Math.sin(DISPLAY_ROLL);
+  return [ax * cr - by * sr, ax * sr + by * cr, bz];
+}
 
 export type Deployment = {
   /** Turning from the last face towards the display orientation. */

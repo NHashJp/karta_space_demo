@@ -18,13 +18,8 @@ import {
 import { easeInOutQuint } from "./rotationPresets";
 import { DRIFT_MS, REWIND_MS, RESURFACE_MS } from "@/lib/timing";
 import { cameraBreath } from "@/lib/sceneLight";
-import {
-  memoryU,
-  trailControlPoints,
-  trailPoint,
-  trailTangent,
-  type Point3,
-} from "@/lib/trailCurve";
+import { memoryU, trailPoint, trailTangent, type Point3 } from "@/lib/trailCurve";
+import { useStagedTrail } from "./useStagedTrail";
 import type { CameraPhase } from "@/lib/experienceState";
 
 type Props = {
@@ -38,8 +33,6 @@ type Props = {
    */
   leg?: number;
   memoryCount?: number;
-  /** The trail's control points, built once by the scene and shared. */
-  trail?: Point3[];
   /** This card's seed: its trail bends its own way, and it breathes its own way. */
   seed?: number;
   /**
@@ -67,7 +60,6 @@ export function CameraRig({
   phase,
   leg = 0,
   memoryCount = 0,
-  trail: given,
   seed = 0,
   breathing = false,
   reducedMotion,
@@ -75,10 +67,9 @@ export function CameraRig({
 }: Props) {
   const { camera, size } = useThree();
 
-  // Built by the scene when there is a trail to draw; built here when the rig
-  // is used on its own. Either way it is the same curve the ribbon uses.
-  const built = useMemo(() => trailControlPoints(seed), [seed]);
-  const trail = given ?? built;
+  // The same staged curve the ribbon draws — asked for rather than passed in,
+  // so the road the camera drives and the road it can see are one road.
+  const trail = useStagedTrail(seed);
 
   const reading = cameraDistance(size.width, size.height);
   const waiting = reading + ZOOM_DISTANCE;

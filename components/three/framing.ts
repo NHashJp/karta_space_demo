@@ -1,6 +1,7 @@
 /** Camera framing maths, kept out of the component so it can be checked. */
 import { DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
-import { SAT_SCALE } from "../../lib/deployment.ts";
+import { trailControlPoints } from "../../lib/trailCurve.ts";
+import { SAT_SCALE, displayDirection } from "../../lib/deployment.ts";
 
 export const FOV = 45;
 
@@ -139,17 +140,20 @@ export function orbitSamples(): Vec3[] {
   ]);
 }
 
-/** The deployed satellite's hull, at satellite scale, in its display attitude. */
+/**
+ * The deployed satellite's hull, at satellite scale, in its display attitude.
+ *
+ * It applies `displayDirection` — the same three angles `MessageCube` turns
+ * the cube by — rather than an angle of its own. An earlier version rotated
+ * about Y by −50°, which left the wings horizontal on screen while every check
+ * happily reported them at −50°, because the checks were measuring a construct
+ * instead of this.
+ */
 export function satelliteHull(): Vec3[] {
-  const yaw = (WING_AXIS_DEG * Math.PI) / 180;
-  const cos = Math.cos(yaw);
-  const sin = Math.sin(yaw);
-
-  return hullPoints(1, 1).map(([x, y, z]) => [
-    (x * cos - z * sin) * SAT_SCALE,
-    y * SAT_SCALE,
-    (x * sin + z * cos) * SAT_SCALE,
-  ]);
+  return hullPoints(1, 1).map((point) => {
+    const [x, y, z] = displayDirection(point);
+    return [x * SAT_SCALE, y * SAT_SCALE, z * SAT_SCALE] as Vec3;
+  });
 }
 
 /**
@@ -218,7 +222,7 @@ export function hubPose(width: number, height: number): Pose {
   const { halfV, halfH } = hubHalfTangents(aspect);
   const target = hubTargets(aspect);
 
-  const distance = SPAN_WORLD / 2 / (target.tip * halfH);
+  const distance = hubDistance(aspect);
   const x = HUB_SATELLITE[0] + (0.5 - target.centre[0]) * 2 * halfH * distance;
   const y = HUB_SATELLITE[1] + (target.centre[1] - 0.5) * 2 * halfV * distance;
 
@@ -226,6 +230,63 @@ export function hubPose(width: number, height: number): Pose {
     position: [x, y, HUB_SATELLITE[2] + distance],
     lookAt: [x, y, HUB_SATELLITE[2]],
   };
+}
+
+/**
+ * How far back the camera has to stand for the wings to span `target.tip` of
+ * the width, measured the way a reader sees it.
+ *
+ * Solved rather than divided, because the wing axis does not lie in the image
+ * plane: the display attitude turns it back into the screen as well as across
+ * it, so the far tip is further away than the near one and the span on screen
+ * is about 84% of the span in the world. Dividing by the world span — which is
+ * what this used to do — put the camera too far back and drew the satellite a
+ * tenth of the frame too small, and the check agreed with it, because the check
+ * was making the same flat assumption.
+ *
+ * Four passes is plenty: the span goes as 1/distance, so each lands within a
+ * fraction of a per cent of the one before.
+ */
+function hubDistance(aspect: number): number {
+  const { halfV, halfH } = hubHalfTangents(aspect);
+  const target = hubTargets(aspect);
+  const half = (DEPLOYED_SPAN / 2) * SAT_SCALE;
+
+  const tips = ([1, -1] as const).map((side) => {
+    const [dx, dy, dz] = displayDirection([side, 0, 0]);
+    return [
+      HUB_SATELLITE[0] + dx * half,
+      HUB_SATELLITE[1] + dy * half,
+      HUB_SATELLITE[2] + dz * half,
+    ] as Vec3;
+  });
+
+  let distance = SPAN_WORLD / 2 / (target.tip * halfH);
+
+  for (let pass = 0; pass < 4; pass++) {
+    const camera: Vec3 = [
+      HUB_SATELLITE[0] + (0.5 - target.centre[0]) * 2 * halfH * distance,
+      HUB_SATELLITE[1] + (target.centre[1] - 0.5) * 2 * halfV * distance,
+      HUB_SATELLITE[2] + distance,
+    ];
+
+    const screen = tips.map((tip) => {
+      const depth = camera[2] - tip[2];
+      return [
+        (tip[0] - camera[0]) / (2 * halfH * depth),
+        -(tip[1] - camera[1]) / (2 * halfV * depth),
+      ];
+    });
+
+    // In width units, so the two orientations are measured the same way.
+    const span = Math.hypot(
+      screen[0][0] - screen[1][0],
+      (screen[0][1] - screen[1][1]) / aspect,
+    );
+    distance *= span / target.tip;
+  }
+
+  return distance;
 }
 
 /**
@@ -316,6 +377,86 @@ export function hubComet(u: number, width: number, height: number): Vec3 {
     camera[1] - (y - 0.5) * 2 * halfV * depth,
     camera[2] - depth,
   ];
+}
+
+/* ---------------------------------------------------------------------------
+ * The trail, staged in the hub (rev 6 §4.5)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Where the trail runs on screen: in from the top-left, near end just
+ * above-left of the far wing, far end higher and slightly inboard (§3.1).
+ */
+const TRAIL_SCREEN: Record<
+  "portrait" | "landscape",
+  { near: [number, number]; far: [number, number] }
+> = {
+  portrait: { near: [0.3, 0.34], far: [0.38, 0.14] },
+  landscape: { near: [0.32, 0.42], far: [0.36, 0.07] },
+};
+
+/** How far behind the satellite the near end begins. */
+const TRAIL_DEPTH = 2.4;
+
+/**
+ * The trail's control points, placed into the hub.
+ *
+ * The shape comes from `trailControlPoints`, which is seeded per card and
+ * knows nothing about the screen. This puts that shape where the composition
+ * wants it — and it has to, because the trail used to start at the world
+ * origin, which is exactly where revision 6 puts the satellite. They overlapped.
+ *
+ * The spine is built by projecting **both** screen targets back into the world
+ * at their own depths, rather than by picking an angle and hoping. That matters
+ * more than it sounds: a line that simply recedes converges on the centre of
+ * the frame as it goes, and the centre of the frame is the satellite. Getting
+ * the far end to stay up and left means climbing about 28 world units over the
+ * length of the curve, which is not an angle anyone would guess.
+ *
+ * The seeded wander is kept as an offset around that spine, so each card's
+ * trail still bends its own way.
+ *
+ * `CameraRig` travels *this* curve, not the raw one, so what the camera follows
+ * and what the ribbon draws stay the same line.
+ */
+export function stagedTrail(seed: number, width: number, height: number): Vec3[] {
+  const aspect = width / height;
+  const { halfV, halfH } = hubHalfTangents(aspect);
+  const camera = hubPose(width, height).position;
+  const target = TRAIL_SCREEN[aspect < 1 ? "portrait" : "landscape"];
+
+  const local = trailControlPoints(seed);
+  const [, , nearZ] = local[0];
+  const farZ = local[local.length - 1][2];
+
+  /** A screen point at a given depth, back in the world. */
+  const place = (screen: [number, number], depth: number): Vec3 => [
+    camera[0] + (screen[0] - 0.5) * 2 * halfH * depth,
+    camera[1] - (screen[1] - 0.5) * 2 * halfV * depth,
+    camera[2] - depth,
+  ];
+
+  const base = camera[2] - HUB_SATELLITE[2] + TRAIL_DEPTH;
+  const nearAnchor = place(target.near, base);
+  const farAnchor = place(target.far, base + (nearZ - farZ));
+
+  return local.map(([x, y, z], index) => {
+    // The curve's own z progression, which is quadratic: the far end is much
+    // further apart than the near end, so the trail compresses toward the
+    // horizon the way a receding line should.
+    const t = (nearZ - z) / (nearZ - farZ);
+
+    // The seeded wander, with the built-in rise removed — the spine provides
+    // that now.
+    const wanderX = x - local[0][0];
+    const wanderY = y - local[0][1] - 1.1 * (index / (local.length - 1));
+
+    return [
+      nearAnchor[0] + (farAnchor[0] - nearAnchor[0]) * t + wanderX,
+      nearAnchor[1] + (farAnchor[1] - nearAnchor[1]) * t + wanderY,
+      nearAnchor[2] + (farAnchor[2] - nearAnchor[2]) * t,
+    ];
+  });
 }
 
 /** The old name, kept so nothing has to change twice. */
