@@ -25,7 +25,10 @@ import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib
 import { civilDate, isCometDay, nextOccurrence } from "../lib/orbitClock.ts";
 import {
   APHELION,
+  DISPLAY_FAR,
+  DISPLAY_NEAR,
   PERIHELION,
+  displayOrbitPoint,
   cometCycle,
   displayedProgress,
   orbitPoint,
@@ -1542,20 +1545,30 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   // The whole reason this is a Kepler orbit rather than a progress bar: it
   // must be far away for most of the wait and come home in a rush.
   const comet = at("2026-09-23T00:00:00Z").comet!;
+  // Drawn distances, not true ones: the comet's real orbit runs far outside
+  // the frame, so what matters is where it is *put* (§11.2).
   const span = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.97, 1].map((f) => ({
     f,
-    distance: orbitPoint(displayedProgress(f)).distance,
+    distance: displayOrbitPoint(displayedProgress(f)).distance,
   }));
   // Note these are *drawn* positions, so f = 0 is already the 0.06 floor:
   // a comet sent today is shown on its way out, not sitting on the planet.
-  check("it leaves rather than lingering", span[0].distance > PERIHELION * 3,
-    span[0].distance.toFixed(1));
-  check("it is far away at half time", span[3].distance > 50, span[3].distance.toFixed(1));
-  check("it is still far at three quarters", span[4].distance > 40, span[4].distance.toFixed(1));
-  check("it comes home in the last tenth",
-    span[6].distance < span[5].distance / 2,
-    `${span[5].distance.toFixed(1)} -> ${span[6].distance.toFixed(1)}`);
-  check("and lands at perihelion", Math.abs(span[7].distance - PERIHELION) < 1e-6);
+  check("it leaves rather than lingering", span[0].distance > DISPLAY_NEAR * 1.5,
+    span[0].distance.toFixed(2));
+  check("it is far out at half time", span[3].distance > DISPLAY_FAR * 0.95,
+    span[3].distance.toFixed(2));
+  check("it is still far at three quarters", span[4].distance > DISPLAY_FAR * 0.85,
+    span[4].distance.toFixed(2));
+  check("it comes home over the last tenth",
+    span[6].distance < span[5].distance * 0.85,
+    `${span[5].distance.toFixed(2)} -> ${span[6].distance.toFixed(2)}`);
+  check("and lands beside the planet", Math.abs(span[7].distance - DISPLAY_NEAR) < 1e-6);
+
+  // The whole point of compressing it: it has to be *on screen*. The orbit
+  // view's frame is about 9 units wide, and a comet 50 units out is not faint,
+  // it is absent — which is exactly what it was.
+  check("the comet never leaves the frame", span.every((s) => s.distance <= DISPLAY_FAR + 1e-9),
+    Math.max(...span.map((s) => s.distance)).toFixed(2));
 
   // The tail only exists near home, which is what makes its growth the signal.
   check("no tail at aphelion", tailLength(span[3].distance) === 0);
@@ -1564,7 +1577,7 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   let previousTail = 0;
   let growing = true;
   for (let i = 90; i <= 100; i++) {
-    const t = tailLength(orbitPoint(displayedProgress(i / 100)).distance);
+    const t = tailLength(displayOrbitPoint(displayedProgress(i / 100)).distance);
     if (t < previousTail - 1e-9) growing = false;
     previousTail = t;
   }
@@ -1579,11 +1592,11 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   // ---- and everything stays inside the sky ------------------------------
   let furthest = 0;
   for (let i = 0; i <= 720; i++) {
-    const world = toWorld(orbitPoint(i / 720), a);
+    const world = toWorld(displayOrbitPoint(i / 720), a);
     furthest = Math.max(furthest, Math.hypot(
       PLANET_CENTRE[0] + world.x, PLANET_CENTRE[1] + world.y, PLANET_CENTRE[2] + world.z));
   }
-  check("the whole orbit is inside the nebula shell", furthest < 90, furthest.toFixed(1));
+  check("the whole drawn orbit is close to the planet", furthest < 8, furthest.toFixed(1));
 
   console.log(
     `  ${comet.leftOn} -> ${comet.returnsOn}; ` +

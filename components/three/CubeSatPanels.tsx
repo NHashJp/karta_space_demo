@@ -6,7 +6,7 @@ import { Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { panelCellsFragmentShader, panelCellsVertexShader } from "./shaders/panelCells";
 import { keyLight } from "@/lib/sceneLight";
-import { stagger } from "@/lib/deployment";
+import { deploymentAt, stagger } from "@/lib/deployment";
 
 /**
  * The four solar panels (spec v0.2 §8.2).
@@ -31,8 +31,15 @@ const PANEL_THICKNESS = 0.02;
 const FACES = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
 
 type Props = {
-  /** 0 folded flat against the cube, 1 fully open. */
-  open: number;
+  /**
+   * How far the deployment has got, written every frame by `MessageCube`.
+   *
+   * A ref rather than a number, and that is the whole point: the panel angle
+   * changes 60 times a second, and routing it through React state meant it
+   * only ever updated when it crossed a threshold — so the panels latched a
+   * third of a degree open and stayed there. The cube never unfolded.
+   */
+  progress: React.RefObject<number>;
   seed: number;
   returned: boolean;
   reducedMotion: boolean;
@@ -41,7 +48,7 @@ type Props = {
 const clamp = (value: number, min: number, max: number) =>
   value < min ? min : value > max ? max : value;
 
-export function CubeSatPanels({ open, seed, returned, reducedMotion }: Props) {
+export function CubeSatPanels({ progress, seed, returned, reducedMotion }: Props) {
   const hinges = useRef<(THREE.Group | null)[]>([]);
   const material = useRef<THREE.ShaderMaterial>(null);
 
@@ -57,6 +64,7 @@ export function CubeSatPanels({ open, seed, returned, reducedMotion }: Props) {
   );
 
   useFrame(({ clock }) => {
+    const open = deploymentAt(progress.current).panels;
     const sun = keyLight(clock.elapsedTime, seed, returned, { reducedMotion });
     if (material.current) {
       material.current.uniforms.uSun.value.set(...sun.dir);

@@ -25,8 +25,38 @@ export const MIN_DISPLAYED_PROGRESS = 0.06;
 /** How long a comet holds at perihelion once it is back. */
 export const RETURN_WINDOW_DAYS = 14;
 
-/** No tail is drawn beyond this distance from the planet. */
-export const TAIL_CUTOFF = 25;
+/**
+ * The comet's true orbit runs from 4.2 units out to 55.8, and the orbit view's
+ * frame is about 9 units wide. Drawn at its real distance the comet spends
+ * every day but the last few **completely off screen** — which is not "far out
+ * and faint", it is absent, and it is why nobody could find it.
+ *
+ * So the radius is compressed for display while the *direction* and the
+ * ordering are kept exactly: further away is still further away, and the comet
+ * still visibly comes home. The exponent squashes the far half hardest, so
+ * most of the wait is spent out near the edge and the approach is a rush at
+ * the end — which is what the Kepler motion was for in the first place.
+ */
+export const DISPLAY_NEAR = 1.6;
+export const DISPLAY_FAR = 3.9;
+const DISPLAY_CURVE = 0.6;
+
+export function displayRadius(distance: number): number {
+  const t = (distance - PERIHELION) / (APHELION - PERIHELION);
+  const clamped = Math.min(Math.max(t, 0), 1);
+  return DISPLAY_NEAR + (DISPLAY_FAR - DISPLAY_NEAR) * Math.pow(clamped, DISPLAY_CURVE);
+}
+
+/** The orbit point as it is *drawn*: true direction, compressed radius. */
+export function displayOrbitPoint(f: number): OrbitPoint {
+  const point = orbitPoint(f);
+  if (point.distance < 1e-9) return point;
+  const scale = displayRadius(point.distance) / point.distance;
+  return { x: point.x * scale, y: point.y * scale, distance: displayRadius(point.distance) };
+}
+
+/** No tail is drawn beyond this displayed radius. */
+export const TAIL_CUTOFF = 3.3;
 
 /**
  * Kepler's equation, E - e·sin E = M.
@@ -76,10 +106,14 @@ export function displayedProgress(f: number): number {
   return f < MIN_DISPLAYED_PROGRESS ? MIN_DISPLAYED_PROGRESS : f;
 }
 
-/** Both tails point away from the planet, and fade out with distance. */
+/**
+ * Both tails point away from the planet, and fade out with distance. Measured
+ * in *displayed* units, so the tail grows over the last stretch of the
+ * approach — which is the signal that the day is near.
+ */
 export function tailLength(distance: number): number {
   if (distance >= TAIL_CUTOFF) return 0;
-  return Math.min(3.5, 60 / (distance * distance));
+  return Math.min(1.7, 4.2 / (distance * distance));
 }
 
 /** A small per-comet rotation of the orbit, so two comets never sit on top of each other. */

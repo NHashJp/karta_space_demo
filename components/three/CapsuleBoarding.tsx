@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { PLANET_CENTRE, PLANET_RADIUS } from "./framing";
-import { displayedProgress, orbitPoint, toWorld } from "@/lib/cometOrbit";
+import { displayOrbitPoint, displayedProgress, toWorld } from "@/lib/cometOrbit";
 import { BOARD_MS, REDUCED_MS } from "@/lib/timing";
 
 /**
@@ -47,7 +47,7 @@ export function CapsuleBoarding({ progress, rotation, reducedMotion, onDone }: P
     const points: THREE.Vector3[] = [];
     for (let i = 0; i <= 48; i++) {
       const f = (target * i) / 48;
-      const world = toWorld(orbitPoint(f), rotation);
+      const world = toWorld(displayOrbitPoint(f), rotation);
       points.push(planet.clone().add(new THREE.Vector3(world.x, world.y, world.z)));
     }
     // It starts at the planet's surface rather than its centre.

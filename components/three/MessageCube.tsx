@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Edges } from "@react-three/drei";
 import * as THREE from "three";
@@ -16,12 +16,7 @@ import {
   pickPreset,
   type RotationPreset,
 } from "./rotationPresets";
-import {
-  DISPLAY_PITCH,
-  DISPLAY_YAW,
-  deploymentAt,
-  type Deployment,
-} from "@/lib/deployment";
+import { DISPLAY_PITCH, DISPLAY_YAW, deploymentAt } from "@/lib/deployment";
 import { DEPLOY_MS, REDUCED_MS } from "@/lib/timing";
 
 const HALF_PI = Math.PI / 2;
@@ -106,7 +101,6 @@ export function MessageCube({
   // 0 = the letter, 1 = a satellite in orbit. It lives here because the cube
   // is what is being deployed; everything else reads it.
   const local = useRef(progress?.current ?? 0);
-  const [phase, setPhase] = useState<Deployment>(() => deploymentAt(local.current));
   const deployStartedAt = useRef(0);
   const deployFrom = useRef(0);
 
@@ -184,9 +178,6 @@ export function MessageCube({
 
     if (progress) progress.current = local.current;
     const now = deploymentAt(local.current);
-    // React only needs to hear about this when it crosses a threshold that
-    // mounts or unmounts something; the rest is written straight to the scene.
-    if ((now.panels > 0) !== (phase.panels > 0)) setPhase(now);
 
     /*
      * The body stops being glass.
@@ -308,7 +299,7 @@ export function MessageCube({
 
       <group ref={cube}>
         <CubeSatPanels
-          open={phase.panels}
+          progress={local}
           seed={seed}
           returned={returned}
           reducedMotion={reducedMotion}

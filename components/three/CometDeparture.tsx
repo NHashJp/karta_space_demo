@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { PLANET_CENTRE, PLANET_RADIUS, orbitPosition } from "./framing";
-import { displayedProgress, orbitPoint, toWorld } from "@/lib/cometOrbit";
+import { displayOrbitPoint, displayedProgress, toWorld } from "@/lib/cometOrbit";
 import { DEPART_MS, REDUCED_MS } from "@/lib/timing";
 
 /**
@@ -59,7 +59,7 @@ export function CometDeparture({ progress, rotation, reducedMotion, onDone }: Pr
 
   /** Where it stops: today's place on the orbit. */
   const destination = useMemo(() => {
-    const world = toWorld(orbitPoint(displayedProgress(progress)), rotation);
+    const world = toWorld(displayOrbitPoint(displayedProgress(progress)), rotation);
     return planet.clone().add(new THREE.Vector3(world.x, world.y, world.z));
   }, [planet, rotation, progress]);
 

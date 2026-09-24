@@ -42,22 +42,38 @@ export const SECRET_PLANE_Z = -0.94;
  * other, and nothing ever passes through anything.
  */
 
-/** 「あなたの星」. The receiver's planet, in the lower-right of the frame. */
-export const PLANET_RADIUS = 2.9;
-export const PLANET_CENTRE: Vec3 = [4.9, -4.6, -3.2];
+/** 「あなたの星」. The receiver's planet, low and right of centre. */
+export const PLANET_RADIUS = 1.6;
+export const PLANET_CENTRE: Vec3 = [1.4, -2.1, -1.3];
 
-/** The cube's own small ellipse, near the centre of the frame. */
-export const ORBIT_CENTRE: Vec3 = [-0.4, 0.5, 0];
-export const ORBIT_SEMI_MAJOR = 2.9;
-export const ORBIT_SEMI_MINOR = 2.1;
-export const ORBIT_TILT = (14 * Math.PI) / 180;
+/**
+ * The cube **orbits the planet**, on an ellipse centred on it.
+ *
+ * Two numbers here are doing specific work.
+ *
+ * The **minor axis** (2.8) has to clear the planet's radius (1.6) by enough
+ * that the cube never crosses the disc — the spec's 2.6 against 2.2 left four
+ * tenths of a unit, which in projection meant the letter passed through the
+ * planet twice a lap.
+ *
+ * The **tilt** (34°, against the spec's 14°) is what makes it read as an
+ * orbit at all. Near edge-on, an ellipse projects to a line and the cube just
+ * slides left and right — which looks like a thing wandering, not a thing
+ * going round. At 34° you see the ellipse as an ellipse, and the cube visibly
+ * passes behind the planet and comes back.
+ */
+export const ORBIT_CENTRE: Vec3 = PLANET_CENTRE;
+export const ORBIT_SEMI_MAJOR = 3.8;
+export const ORBIT_SEMI_MINOR = 2.8;
+export const ORBIT_TILT = (34 * Math.PI) / 180;
 
 /**
  * What the orbit camera looks at. Not the planet's centre but a point above
  * it, which is what puts the planet low in the frame and leaves the sky — the
  * satellite, the comets, the trail — the upper two-thirds it needs.
  */
-export const ORBIT_TARGET: Vec3 = [0.2, -0.7, -0.6];
+/** The camera looks a little above the planet, so it sits low in the frame. */
+export const ORBIT_TARGET: Vec3 = [1.1, -1.0, -1.3];
 
 /**
  * Margin beyond the composition. §17 requires 8%; designing to 12% leaves the
@@ -115,6 +131,16 @@ export function orbitClearance(): number {
 export function orbitSamples(): Vec3[] {
   const points: Vec3[] = [];
   for (let i = 0; i < 180; i++) points.push(orbitPosition((i * 2 * Math.PI) / 180));
+  // The planet's silhouette too: it is inside the orbit, so this costs nothing
+  // in camera distance and guarantees it is never clipped.
+  for (let i = 0; i < 60; i++) {
+    const a = (i * 2 * Math.PI) / 60;
+    points.push([
+      PLANET_CENTRE[0] + Math.cos(a) * PLANET_RADIUS,
+      PLANET_CENTRE[1] + Math.sin(a) * PLANET_RADIUS,
+      PLANET_CENTRE[2],
+    ]);
+  }
   return points;
 }
 

@@ -5,8 +5,8 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { PLANET_CENTRE } from "./framing";
 import {
+  displayOrbitPoint,
   displayedProgress,
-  orbitPoint,
   orbitRotation,
   tailLength,
   toWorld,
@@ -28,7 +28,7 @@ import {
  */
 
 /** How far out a comet has to be before it starts pulsing to be found. */
-const FAR_DISTANCE = 20;
+const FAR_DISTANCE = 2.6;
 const PULSE_PERIOD_S = 6;
 
 const TAIL_SEGMENTS = 24;
@@ -73,7 +73,8 @@ export function Comet({
 
   const { position, distance } = useMemo(() => {
     const f = displayedProgress(progress);
-    const point = orbitPoint(f);
+    // Drawn, not true: the real orbit runs far outside the frame (§11.2).
+    const point = displayOrbitPoint(f);
     const world = toWorld(point, rotation);
     return {
       position: new THREE.Vector3(
@@ -89,7 +90,7 @@ export function Comet({
   const orbitLine = useMemo(() => {
     const points: THREE.Vector3[] = [];
     for (let i = 0; i <= 256; i++) {
-      const world = toWorld(orbitPoint(i / 256), rotation);
+      const world = toWorld(displayOrbitPoint(i / 256), rotation);
       points.push(
         new THREE.Vector3(
           PLANET_CENTRE[0] + world.x,
@@ -122,7 +123,8 @@ export function Comet({
   }, [position]);
 
   const tail = tailLength(distance);
-  const comaRadius = THREE.MathUtils.clamp(6 / distance, 0.12, 1.1);
+  // Bigger than the nucleus by enough to be findable at orbit distance.
+  const comaRadius = THREE.MathUtils.clamp(0.9 / distance, 0.26, 0.85);
 
   useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime;
@@ -174,7 +176,7 @@ export function Comet({
         </mesh>
 
         <mesh ref={nucleus}>
-          <sphereGeometry args={[0.055, 12, 12]} />
+          <sphereGeometry args={[0.13, 12, 12]} />
           <meshBasicMaterial
             color={colours.nucleus}
             transparent
