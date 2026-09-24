@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Edges } from "@react-three/drei";
 import * as THREE from "three";
 import type { CardFace } from "@/types/card";
-import { CubeSatPanels } from "./CubeSatPanels";
+import { SolarWings } from "./SolarWings";
 import { TextFace } from "./TextFace";
 import { ImageFace } from "./ImageFace";
 import { SecretFace } from "./SecretFace";
@@ -298,7 +298,7 @@ export function MessageCube({
       ) : null}
 
       <group ref={cube}>
-        <CubeSatPanels
+        <SolarWings
           progress={local}
           seed={seed}
           returned={returned}

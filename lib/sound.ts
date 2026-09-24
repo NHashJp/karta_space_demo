@@ -205,22 +205,32 @@ export function cue(name: Cue, index = 0) {
     }
 
     case "deploy": {
-      // A rising pad under the whole deployment, and two small clicks where
-      // the panels lock.
+      // A rising pad under the whole deployment, and a click per panel.
       const pad = e.context.createOscillator();
       const gain = e.context.createGain();
       pad.type = "triangle";
       pad.frequency.setValueAtTime(110, now);
-      pad.frequency.exponentialRampToValueAtTime(220, now + 3);
+      pad.frequency.exponentialRampToValueAtTime(220, now + 3.4);
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.16, now + 1.2);
-      gain.gain.linearRampToValueAtTime(0, now + 3.2);
+      gain.gain.linearRampToValueAtTime(0.16, now + 1.3);
+      gain.gain.linearRampToValueAtTime(0, now + 3.5);
       pad.connect(gain).connect(e.master);
       pad.start(now);
-      pad.stop(now + 3.3);
+      pad.stop(now + 3.6);
 
-      click(e, now + 0.75);
-      click(e, now + 0.95);
+      /*
+       * A click as each of the six panels locks, following the unfold's own
+       * stagger (rev 6 §2.4). Six small sounds rather than two: the ear counts
+       * them without trying, and "six things locked" is the difference between
+       * a lid opening and a machine deploying.
+       */
+      for (let wing = 0; wing < 2; wing++) {
+        for (let k = 0; k < 3; k++) {
+          // The unfold window starts at 0.35 of 3.6s; hinges 120ms apart, and
+          // the near wing 80ms behind the far one.
+          click(e, now + 1.26 + k * 0.12 + wing * 0.08 + 0.31);
+        }
+      }
       break;
     }
 

@@ -57,18 +57,18 @@ import {
   trailSeedFor,
 } from "../lib/trailCurve.ts";
 import { DEPLOY_MS } from "../lib/timing.ts";
+import { PANELS, RISE, THRUSTER, TURN, deploymentAt, wingReach } from "../lib/deployment.ts";
 import {
-  BOOM,
-  INNER,
-  OUTER,
-  PANELS,
-  RISE,
-  THRUSTER,
-  TURN,
-  deploymentAt,
-  wingAt,
-  wingReach,
-} from "../lib/deployment.ts";
+  BOOM_WINDOW,
+  DEPLOYED_SPAN,
+  N_PANELS,
+  UNFOLD_WINDOW,
+  boomAt,
+  hullPoints,
+  selfClearance,
+  unfoldAt,
+  wingChain,
+} from "../lib/satelliteGeometry.ts";
 import { JUMP_TARGETS, jumpEvents } from "../lib/devJump.ts";
 import { accessToken, cardSecret, checkPassword } from "../lib/access.ts";
 import {
@@ -1975,11 +1975,12 @@ console.log("20. The deployment (spec v0.2 §8.2):");
   check("deployed: everything has finished",
     deployed.turn === 1 && deployed.panels === 1 && deployed.rise === 1);
   check("deployed: the thruster is cold again", Math.abs(deployed.thruster) < 1e-9);
+  // The window moved to 0.70-0.80 in revision 6, so the samples move with it.
   check("the thruster only ever fires once",
     deploymentAt(0.3).thruster === 0 &&
-    deploymentAt(0.6).thruster > 0.5 &&
-    Math.abs(deploymentAt(0.9).thruster) < 1e-9,
-    deploymentAt(0.9).thruster.toExponential(2));
+    deploymentAt(0.75).thruster > 0.5 &&
+    Math.abs(deploymentAt(0.95).thruster) < 1e-9,
+    deploymentAt(0.95).thruster.toExponential(2));
   check("out of range clamps rather than overshooting",
     deploymentAt(-1).rise === 0 && deploymentAt(2).rise === 1);
 
@@ -2003,45 +2004,94 @@ console.log("20. The deployment (spec v0.2 §8.2):");
   }
   check("every part of the deployment only ever goes forwards", monotonic);
 
-  // ---- a wing deploys boom, then array, then its outer segment -----------
-  check("the boom goes first", BOOM.from === 0 && BOOM.to < INNER.to);
-  check("the array swings before the boom has finished", INNER.from < BOOM.to);
-  check("the outer segment unfolds before the inner has finished",
-    OUTER.from < INNER.to);
-  check("and the wing is done exactly at the end", OUTER.to === 1);
+  // ---- the wings open like a real satellite's (rev 6 §2, §7) -------------
+  const deployMs = DEPLOY_MS;
 
-  for (let wing = 0; wing < 2; wing++) {
-    const stowed = wingAt(0, wing);
-    const flown = wingAt(1, wing);
-    check(`wing ${wing + 1} starts stowed`,
-      stowed.boom === 0 && stowed.inner === 0 && stowed.outer === 0);
-    check(`wing ${wing + 1} ends fully deployed`,
-      flown.boom === 1 && flown.inner === 1 && flown.outer === 1);
-  }
+  // Fully open, the panels are coplanar, in line, and the span is 9.6.
+  const flat = wingChain(1, 1, 1);
+  check("a deployed wing is coplanar", flat.every((p) => Math.abs(p[2]) < 1e-9));
+  check("and in line", flat.every((p, i) => i === 0 || p[0] > flat[i - 1][0]));
+  check("tip to tip is 9.6 cube units", Math.abs(2 * flat[N_PANELS][0] - DEPLOYED_SPAN) < 1e-9,
+    (2 * flat[N_PANELS][0]).toFixed(3));
 
-  // The second wing lags the first — two mechanisms, not one mirrored object.
-  const lead = wingAt(0.5, 0);
-  const lag = wingAt(0.5, 1);
-  check("the second wing lags the first", lag.inner < lead.inner,
-    `${lead.inner.toFixed(3)} vs ${lag.inner.toFixed(3)}`);
-  check("but not by so much that it reads as a queue",
-    lead.inner - lag.inner < 0.3, (lead.inner - lag.inner).toFixed(3));
+  // Stowed, nothing sticks out of the body: the wings emerge from the faces.
+  const stowed = wingChain(1, 0, 0);
+  check("at boom = 0 no wing geometry leaves the cube",
+    stowed.every((p) => Math.abs(p[0]) <= 1 + 1e-9 && Math.abs(p[2]) <= 1 + 1e-9));
 
-  // Nothing in a wing ever goes backwards, or the array would fold mid-flight.
-  let wingMonotonic = true;
-  let previousWing = wingAt(0, 0);
-  for (let i = 1; i <= 2000; i++) {
-    const now = wingAt(i / 2000, 0);
-    if (
-      now.boom < previousWing.boom - 1e-12 ||
-      now.inner < previousWing.inner - 1e-12 ||
-      now.outer < previousWing.outer - 1e-12
-    ) {
-      wingMonotonic = false;
+  // Continuous in both parameters: a hinge that jumps is a wing that snaps.
+  let worstHinge = 0;
+  for (let i = 1; i <= 100; i++) {
+    for (const [a, b] of [
+      [wingChain(1, (i - 1) / 100, 0.5), wingChain(1, i / 100, 0.5)],
+      [wingChain(1, 1, (i - 1) / 100), wingChain(1, 1, i / 100)],
+    ]) {
+      for (let k = 0; k < a.length; k++) {
+        worstHinge = Math.max(worstHinge, Math.hypot(
+          a[k][0] - b[k][0], a[k][1] - b[k][1], a[k][2] - b[k][2]));
+      }
     }
-    previousWing = now;
   }
-  check("a wing only ever opens", wingMonotonic);
+  check("no hinge jumps", worstHinge <= 0.1, `${worstHinge.toFixed(4)}u per 0.01`);
+
+  /*
+   * Nothing ever passes through anything. The accordion folds back on itself,
+   * so a fold angle that is fine at rest can intersect halfway through — and
+   * four frames of a panel inside the bus is the kind of thing nobody notices
+   * until it is in front of someone.
+   */
+  let worstClearance = Infinity;
+  let atT = 0;
+  for (let i = 0; i <= 100; i++) {
+    const t = i / 100;
+    const boom = boomAt(t);
+    // Below this the wing is a speck at the face centre, which is the point.
+    if (boom < 0.02) continue;
+    const clearance = selfClearance(boom, unfoldAt(t, 0, deployMs));
+    if (clearance < worstClearance) {
+      worstClearance = clearance;
+      atT = t;
+    }
+  }
+  check("no panel ever intersects the body or another panel", worstClearance >= 0,
+    `${worstClearance.toFixed(3)}u at t=${atT.toFixed(2)}`);
+  check("and once at full size it clears properly", selfClearance(1, 0) > 0.15,
+    selfClearance(1, 0).toFixed(3));
+
+  // ---- the timeline (rev 6 §2.2) -----------------------------------------
+  check("the booms start after the turn is under way", BOOM_WINDOW.from > 0);
+  check("the wings unfold once the booms are out", UNFOLD_WINDOW.from >= BOOM_WINDOW.to);
+  check("and finish before the rise does", UNFOLD_WINDOW.to <= RISE.to);
+
+  for (const wing of [0, 1] as const) {
+    const start = unfoldAt(UNFOLD_WINDOW.from, wing, deployMs);
+    const end = unfoldAt(UNFOLD_WINDOW.to, wing, deployMs);
+    check(`wing ${wing + 1} starts folded`, start.every((v) => v === 0));
+    check(`wing ${wing + 1} ends flat`, end.every((v) => Math.abs(v - 1) < 1e-9));
+  }
+
+  // Root to tip, and the near wing behind the far one.
+  const mid = unfoldAt(0.5, 0, deployMs);
+  check("a wing opens root to tip", mid[0] > mid[1] && mid[1] > mid[2],
+    mid.map((v) => v.toFixed(2)).join(" > "));
+  check("the near wing follows the far one",
+    unfoldAt(0.5, 1, deployMs)[0] < mid[0]);
+
+  // And no panel ever folds back mid-flight.
+  let unfoldMonotonic = true;
+  let previousUnfold = unfoldAt(0, 0, deployMs);
+  for (let i = 1; i <= 1000; i++) {
+    const now = unfoldAt(i / 1000, 0, deployMs);
+    if (now.some((v, k) => v < previousUnfold[k] - 1e-12)) unfoldMonotonic = false;
+    previousUnfold = now;
+  }
+  check("a wing only ever opens", unfoldMonotonic);
+
+  // The hull the framing checks measure is the whole satellite, not the bus.
+  const hull = hullPoints(1, 1);
+  check("the hull includes the wings",
+    Math.max(...hull.map((p) => Math.abs(p[0]))) > 4, 
+    Math.max(...hull.map((p) => Math.abs(p[0]))).toFixed(2));
 
   console.log(
     `  turn 0-${TURN.to}, panels ${PANELS.from}-${PANELS.to}, ` +

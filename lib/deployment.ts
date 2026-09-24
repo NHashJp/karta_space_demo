@@ -15,38 +15,10 @@
 
 /** Where each part of the deployment starts and ends, as a fraction of it. */
 export const TURN = { from: 0, to: 0.25 };
-export const PANELS = { from: 0.2, to: 0.55 };
-export const THRUSTER = { from: 0.55, to: 0.65 };
+/** The booms carry the folded wings out; the unfold follows (satelliteGeometry). */
+export const PANELS = { from: 0.15, to: 0.75 };
+export const THRUSTER = { from: 0.7, to: 0.8 };
 export const RISE = { from: 0.6, to: 1 };
-
-/**
- * A wing's deployment (§8.2, re-drawn — see `CubeSatPanels.tsx`).
- *
- * Three parts, each starting before the last has finished: the boom
- * telescopes out of the bus, the folded array swings off its joint, and the
- * outer segment unfolds from the inner. The overlaps are what make it one
- * mechanism rather than three things happening in a row.
- *
- * Here rather than in the component because it is timing, not drawing, and
- * because `npm run verify` can only read `.ts`.
- */
-export const BOOM = { from: 0, to: 0.34 };
-export const INNER = { from: 0.26, to: 0.72 };
-export const OUTER = { from: 0.52, to: 1 };
-
-/** The second wing lags the first, so they read as two mechanisms. */
-const WING_STAGGER = 0.05;
-
-export type WingState = { boom: number; inner: number; outer: number };
-
-export function wingAt(open: number, index: number): WingState {
-  const local = clamp((open - index * WING_STAGGER) / (1 - WING_STAGGER));
-  return {
-    boom: ease(span(local, BOOM)),
-    inner: ease(span(local, INNER)),
-    outer: ease(span(local, OUTER)),
-  };
-}
 
 /**
  * The deployed satellite's size, in the units the scene is drawn in.

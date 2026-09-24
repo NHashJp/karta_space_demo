@@ -69,3 +69,5 @@ If you only read parts of this, read these.
 - "World units" are three.js scene units. The cube is 2 of them across.
 - "Card" means one six-faced message on one slug. One deployment serves many;
   they share code and nothing else — not content, not passwords, not cookies.
+
+- [Revision 6 (orbit composition)](./spec-v0.2-r6-orbit.md) overrides §8.2, §8.4, §8.9, §8.10, §9.1, §10.3–10.4, §11.2, §12.2, §16, §17, §18, §22 and §23 where stated.

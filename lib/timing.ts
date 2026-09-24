@@ -15,7 +15,7 @@ export const SECRET_HINT_MS = 6000;
 export const SECRET_HINT_WITH_ORBIT_MS = 7000;
 
 /** Cube to satellite, and back. `CameraRig` must not outlast this. */
-export const DEPLOY_MS = 3200;
+export const DEPLOY_MS = 3600;
 /** One lap of the satellite's ellipse. */
 export const ORBIT_PERIOD_S = 48;
 
