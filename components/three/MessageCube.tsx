@@ -27,6 +27,15 @@ import { DEPLOY_MS, REDUCED_MS } from "@/lib/timing";
 
 const HALF_PI = Math.PI / 2;
 
+/**
+ * How much larger the idle drift is once the cube is a satellite.
+ *
+ * 0.018 rad is about a degree, which is right for something being read and far
+ * too still for something in orbit. Six times that reaches the ±6° tumble
+ * revision 6 §3.2 asks for.
+ */
+const TUMBLE_IN_ORBIT = 6;
+
 /** Scratch, so the deployment allocates nothing per frame. */
 const DISPLAY = new THREE.Quaternion();
 const EULER = new THREE.Euler();
@@ -48,6 +57,8 @@ type Props = {
   revealText: boolean;
   /** Closing screen: the cube fades back so the drawn message can be read. */
   dimmed: boolean;
+  /** Fade out entirely: the trail is no place for the thing you left (§9.3). */
+  stowed?: boolean;
   /** One short line on the inside of the far wall, if this card has one. */
   secret?: string;
   /** The camera is on its way into the cube, in it, or on its way out. */
@@ -86,6 +97,7 @@ export function MessageCube({
   isTransitioning,
   revealText,
   dimmed,
+  stowed = false,
   secret,
   within,
   revealSecret,
@@ -120,6 +132,9 @@ export function MessageCube({
   // Base opacities are captured once, so dimming can scale them without
   // needing every material threaded through props.
   const dim = useRef(0);
+  const stow = useRef(0);
+  /** What the wings should multiply their own opacity by. */
+  const stowFade = useRef(1);
   const baseOpacity = useRef(new WeakMap<THREE.Material, number>());
 
   // A deployment starts from wherever the cube currently is, so an interrupted
@@ -215,8 +230,25 @@ export function MessageCube({
     dim.current = THREE.MathUtils.damp(dim.current, dimmed ? 1 : 0, 3.2, delta);
     if (!dimmed && dim.current < 0.002) dim.current = 0;
 
-    if (dim.current > 0 || wasDimmed) {
-      const fade = 1 - dim.current * 0.88;
+    /*
+     * Stowing is the same mechanism taken all the way to nothing, and it is
+     * deliberately folded in here rather than given a fade of its own: two
+     * passes writing `material.opacity` from their own cached base would each
+     * cache the other's output, and the result is a satellite that settles at
+     * whatever opacity the last frame happened to leave.
+     */
+    const wasStowed = stow.current > 0;
+    stow.current = THREE.MathUtils.damp(stow.current, stowed ? 1 : 0, 3.6, delta);
+    if (!stowed && stow.current < 0.002) stow.current = 0;
+    if (stowed && stow.current > 0.998) stow.current = 1;
+
+    // The wings are shader materials and carry their own opacity; the ref is
+    // how `SolarWings` reads this same number rather than deriving its own.
+    stowFade.current = 1 - stow.current;
+    group.visible = stow.current < 0.999;
+
+    if (dim.current > 0 || wasDimmed || stow.current > 0 || wasStowed) {
+      const fade = (1 - dim.current * 0.88) * (1 - stow.current);
       group.traverse((node) => {
         const material = (node as THREE.Mesh).material as THREE.Material | undefined;
         if (!material || Array.isArray(material) || !("opacity" in material)) return;
@@ -265,19 +297,40 @@ export function MessageCube({
     if (idle.current) {
       const amount = reducedMotion || isTransitioning ? 0 : 1;
       const time = frameState.clock.elapsedTime;
+
+      /*
+       * A letter drifts by a degree; a satellite tumbles by six (rev 6 §3.2).
+       *
+       * The same motion, scaled by how far the cube has become a spacecraft.
+       * While it is a letter this has to be almost nothing — a paragraph that
+       * moves while you read it is worse than a still one — but once it is in
+       * orbit the opposite is true: barely moving is what made it look parked,
+       * and §3.2's ±6° tumble was never actually reached. It was implemented
+       * at the reading amplitude and left there.
+       */
+      const alive = 1 + local.current * (TUMBLE_IN_ORBIT - 1);
+
       idle.current.rotation.y = THREE.MathUtils.lerp(
         idle.current.rotation.y,
-        Math.sin(time * 0.35) * 0.018 * amount,
+        Math.sin(time * 0.35) * 0.018 * alive * amount,
         0.05,
       );
       idle.current.rotation.x = THREE.MathUtils.lerp(
         idle.current.rotation.x,
-        Math.sin(time * 0.27) * 0.014 * amount,
+        // A different multiple, so the two axes never come back into step and
+        // the tumble does not settle into an obvious repeating figure.
+        Math.sin(time * 0.27) * 0.014 * alive * amount,
+        0.05,
+      );
+      idle.current.rotation.z = THREE.MathUtils.lerp(
+        idle.current.rotation.z,
+        // Roll only in orbit: a letter that rolls is a letter you cannot read.
+        Math.sin(time * 0.19) * 0.02 * local.current * amount,
         0.05,
       );
       idle.current.position.y = THREE.MathUtils.lerp(
         idle.current.position.y,
-        Math.sin(time * 0.5) * 0.03 * amount,
+        Math.sin(time * 0.5) * 0.03 * alive * amount,
         0.05,
       );
     }
@@ -310,6 +363,7 @@ export function MessageCube({
       <group ref={cube}>
         <SolarWings
           progress={local}
+          fade={stowFade}
           seed={seed}
           returned={returned}
           reducedMotion={reducedMotion}

@@ -6,10 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "images": "node scripts/generate-placeholders.mjs",
+    "check": "npm run typecheck && npm run verify",
     "typecheck": "tsc --noEmit",
-    "verify": "node --experimental-strip-types scripts/verify-rotation.mts && node --experimental-strip-types scripts/verify-spacing.mts"
+    "verify": "node --experimental-strip-types scripts/verify-rotation.mts && node --experimental-strip-types scripts/verify-spacing.mts",
+    "images": "node scripts/generate-placeholders.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

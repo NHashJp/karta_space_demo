@@ -154,6 +154,7 @@ than listing each, here is what each group is *for*:
 | 18 | the reminder's date logic and its idempotency key |
 | 19 | that a save would write the header the file already has |
 | 20 | the deployment's four overlapping windows |
+| 21 | the satellite's display attitude, and that three's Euler order agrees with it |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
 
 Section 11 is the one that has caught the most. It projects the satellite's
@@ -204,6 +205,11 @@ searched.
 | The trail left unstaged at the world origin | rev 6 puts the satellite on that origin: the contrail came out of the middle of the spacecraft |
 | The camera flew down the middle of the ribbon | 0.197u from the lens, pointed along its length — an additive white wedge over the whole frame |
 | Memories spaced evenly in `u`, not in distance | hops of 5u and 50u on one card; the comment claimed even effort and the check measured `u` |
+| The satellite left drawn on the trail | at the first memory it sat 2u in front of the lens with the panel 5u behind it |
+| `COMET_VIEW_DEPTH` a stale constant | 3.4 where the comet is staged at 14.1, so every "minimum pixels" the comet computed was a quarter of what it asked for |
+| `tailLength` returning 0 at a cutoff | a step, not a fade — the tail was still a third of a unit long when it vanished between frames |
+| The comet's clearance measured as a point | a coma three times the width of the gap it passes through sails past a centre-distance check |
+| `SpeedStreaks` seeded on a stride of 3 with an offset of 7 | `i*3+7` is `(i+2)*3+1`: every streak's speed was another streak's direction |
 
 ## Limits
 

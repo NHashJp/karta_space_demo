@@ -62,19 +62,28 @@ export function SpeedStreaks({ seed, reducedMotion, idle = 0 }: Props) {
     const at = new Float32Array(COUNT * 3);
     const pace = new Float32Array(COUNT);
 
+    /*
+     * Four draws per streak, so the stride is four.
+     *
+     * It was three, with the pace taken from `i * 3 + 7` — which is exactly
+     * `(i + 2) * 3 + 1`, the angle of the streak two along. Every streak's
+     * speed was therefore another streak's direction: a correlation running
+     * through the whole field, from an offset that looked like it was just
+     * reaching for an unused number.
+     */
     for (let i = 0; i < COUNT; i++) {
-      const angle = seededUnit(seed, i * 3 + 1) * Math.PI * 2;
+      const angle = seededUnit(seed, i * 4 + 1) * Math.PI * 2;
       // Square-rooted, so they are spread evenly over the disc rather than
       // crowding the axis — which would read as a tunnel, not as open space.
       const radius =
         RADIUS_NEAR +
-        (RADIUS_FAR - RADIUS_NEAR) * Math.sqrt(seededUnit(seed, i * 3 + 2));
+        (RADIUS_FAR - RADIUS_NEAR) * Math.sqrt(seededUnit(seed, i * 4 + 2));
 
       at[i * 3] = Math.cos(angle) * radius;
       at[i * 3 + 1] = Math.sin(angle) * radius;
-      at[i * 3 + 2] = Z_NEAR + (Z_FAR - Z_NEAR) * seededUnit(seed, i * 3 + 3);
+      at[i * 3 + 2] = Z_NEAR + (Z_FAR - Z_NEAR) * seededUnit(seed, i * 4 + 3);
       // A spread of paces, so the field has depth rather than moving as a sheet.
-      pace[i] = 0.55 + seededUnit(seed, i * 3 + 7) * 0.9;
+      pace[i] = 0.55 + seededUnit(seed, i * 4 + 4) * 0.9;
     }
 
     return { at, pace };

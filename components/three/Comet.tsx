@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { FOV, hubComet, hubPlanet } from "./framing";
+import { FOV, hubComet, hubPlanet, hubPose } from "./framing";
 import {
   comaFragmentShader,
   comaVertexShader,
@@ -14,6 +14,7 @@ import {
   DISPLAY_FAR,
   DISPLAY_NEAR,
   SEGMENT_AHEAD,
+  comaSize,
   displayOrbitPoint,
   displayedProgress,
   tailLength,
@@ -34,26 +35,56 @@ import {
  * behind along the orbit, because the dust is heavier.
  */
 
+/**
+ * The nucleus grows as it comes home — a little, and on purpose.
+ *
+ * A fixed-size nucleus is staged at a nearly fixed depth, so it is the same
+ * number of pixels all year and contributes nothing to the countdown. Half as
+ * big again at perihelion is enough for the approach to read as an approach
+ * without the object changing character.
+ */
+const NUCLEUS_SCALE = (distance: number) =>
+  1 + 0.5 * Math.max(0, (DISPLAY_FAR - distance) / (DISPLAY_FAR - DISPLAY_NEAR));
+
 /** How far out a comet has to be before it starts pulsing to be found. */
 const FAR_DISTANCE = 2.6;
 const PULSE_PERIOD_S = 6;
 
 const TAIL_SEGMENTS = 24;
 
-/** How far behind the satellite the comet is staged, for the pixel maths. */
-const COMET_VIEW_DEPTH = 3.4;
+/**
+ * How far the comet is from the lens, asked rather than assumed.
+ *
+ * This was a constant — 3.4 — and it was wrong by a factor of four: `hubComet`
+ * stages the comet at whatever depth the composition needs, which works out at
+ * 14.1 units on a phone and 10.6 on a desktop. Everything sized "in pixels"
+ * through it was therefore a quarter of the size it asked for, which is why
+ * the minimum tail that was supposed to guarantee 24px was drawing 6.
+ *
+ * It is constant per viewport, so one sample answers it.
+ */
+function cometDepth(width: number, height: number): number {
+  return hubPose(width, height).position[2] - hubComet(0.5, width, height)[2];
+}
 
 /** 0 when the comet is home, 1 when it is as far away as it goes. */
 function reach(f: number): number {
   return (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
 }
 
-/** The shortest tail worth drawing, in world units at the comet's depth. */
+/**
+ * The shortest tail worth drawing, in world units at the comet's depth.
+ *
+ * Raised from 24/36px once the comet was measured rather than eyeballed: at
+ * aphelion it was a 37px blob with a 24px stub, which is not a comet among
+ * fifteen hundred stars, it is a smudge. The tail is the only thing that says
+ * *which* of the lights up there is the one coming back.
+ */
 function minimumTail(width: number, height: number): number {
-  const pixels = width < height ? 24 : 36;
+  const pixels = width < height ? 44 : 62;
   const tanH = Math.tan(Math.atan(Math.tan((FOV * Math.PI) / 360) * (width / height)));
   // Width in world units at that depth, times the fraction of it we want.
-  return (pixels / width) * 2 * tanH * COMET_VIEW_DEPTH;
+  return (pixels / width) * 2 * tanH * cometDepth(width, height);
 }
 
 export type CometTone = "sender" | "receiver";
@@ -146,8 +177,10 @@ export function Comet({
    * how you know which of the lights up there is the one coming back.
    */
   const tail = Math.max(tailLength(distance), minimumTail(size.width, size.height));
-  // Bigger than the nucleus by enough to be findable at orbit distance.
-  const comaRadius = THREE.MathUtils.clamp(0.9 / distance, 0.26, 0.85);
+  // Bigger than the nucleus by enough to be findable at orbit distance. The
+  // floor is what governs for most of the year, so it is the number that
+  // decides whether the comet can be seen at all.
+  const comaRadius = comaSize(distance);
 
   const comaUniforms = useMemo(
     () => ({
@@ -179,7 +212,7 @@ export function Comet({
       // Brighter as it comes home. Far out it is a speck you have to hunt for;
       // in the last weeks it should be the brightest thing in the corner.
       const near = THREE.MathUtils.clamp((DISPLAY_FAR - distance) / (DISPLAY_FAR - DISPLAY_NEAR), 0, 1);
-      material.uniforms.uOpacity.value = (0.5 + 0.6 * near) * pulse;
+      material.uniforms.uOpacity.value = (0.72 + 0.55 * near) * pulse;
     }
 
     // The dust tail flickers a little; the ion tail does not. Ion tails are
@@ -209,7 +242,7 @@ export function Comet({
           <sphereGeometry args={[Math.max(comaRadius * 2, 0.8), 8, 8]} />
         </mesh>
 
-        <mesh ref={nucleus}>
+        <mesh ref={nucleus} scale={NUCLEUS_SCALE(distance)}>
           <sphereGeometry args={[0.13, 12, 12]} />
           <meshBasicMaterial
             color={colours.nucleus}

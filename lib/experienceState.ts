@@ -359,6 +359,20 @@ export function cameraPhase(state: ExperienceState): CameraPhase {
   return "far";
 }
 
+/**
+ * The satellite is stowed — not drawn — while the trail is being travelled.
+ *
+ * Not a nicety. The trail's first memory is staged close to where the
+ * satellite sits, so at the moment the camera arrives at it the satellite is
+ * about two world units in front of the lens while the memory panel is five
+ * behind that: the thing you left is between you and the thing you came to
+ * see. It has to be gone by then, and `rewinding` — the flight out of orbit —
+ * is the only cover there is for it going.
+ */
+export function stowsSatellite(state: ExperienceState): boolean {
+  return state === "rewinding" || state === "remembering" || state === "drifting";
+}
+
 /** Face text is attached to the cube only while the card is being read. */
 export function revealsText(state: ExperienceState): boolean {
   return state === "reading";

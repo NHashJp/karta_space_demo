@@ -70,12 +70,20 @@ export function SatelliteCarrier({
   presence,
   reducedMotion,
   returned = false,
+  stowed = false,
   seed = 0,
   children,
 }: {
   presence: React.RefObject<number>;
   reducedMotion: boolean;
   returned?: boolean;
+  /**
+   * The satellite is not drawn on the trail (§9.3). The cube fades itself out,
+   * but this light is the carrier's, not the cube's — and a point light two
+   * units from the lens goes on lighting the first memory from behind long
+   * after the thing casting it has gone.
+   */
+  stowed?: boolean;
   seed?: number;
   children: React.ReactNode;
 }) {
@@ -93,7 +101,7 @@ export function SatelliteCarrier({
       const pulse = reducedMotion
         ? 1
         : 0.82 + 0.18 * Math.sin((clock.elapsedTime / 4) * Math.PI * 2);
-      halo.current.intensity = returned ? 2.6 * pulse * presence.current : 0;
+      halo.current.intensity = returned && !stowed ? 2.6 * pulse * presence.current : 0;
     }
 
     // Only the last part of the deployment moves the cube — it turns and

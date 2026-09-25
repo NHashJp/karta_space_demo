@@ -47,6 +47,16 @@ type Props = {
    * crossing — so the wings latched a third of a degree open and never moved.
    */
   progress: React.RefObject<number>;
+  /**
+   * What to multiply the panels' opacity by, written by `MessageCube`.
+   *
+   * The wings are shader materials, so the traversal that fades the rest of
+   * the satellite does not reach them — it writes `material.opacity`, which
+   * `panelCells` ignores in favour of its own uniform. Without this the body
+   * would fade out on the way to the trail and leave two arrays hanging in
+   * the dark.
+   */
+  fade: React.RefObject<number>;
   seed: number;
   returned: boolean;
   reducedMotion: boolean;
@@ -57,7 +67,7 @@ type WingRefs = {
   panels: (THREE.Group | null)[];
 };
 
-export function SolarWings({ progress, seed, returned, reducedMotion }: Props) {
+export function SolarWings({ progress, fade, seed, returned, reducedMotion }: Props) {
   const wings = useRef<WingRefs[]>([
     { boom: null, panels: [] },
     { boom: null, panels: [] },
@@ -82,10 +92,12 @@ export function SolarWings({ progress, seed, returned, reducedMotion }: Props) {
     const boom = boomAt(t);
     const sun = keyLight(clock.elapsedTime, seed, returned, { reducedMotion });
 
-    if (group.current) group.current.visible = boom > 0.0001;
+    const shown = fade.current;
+    if (group.current) group.current.visible = boom > 0.0001 && shown > 0.002;
     if (material.current) {
       material.current.uniforms.uSun.value.set(...sun.dir);
       material.current.uniforms.uSunColor.value.set(sun.color);
+      material.current.uniforms.uOpacity.value = shown;
     }
 
     ([0, 1] as WingIndex[]).forEach((index) => {

@@ -267,11 +267,13 @@ export function CubeScene({
           presence={presence}
           reducedMotion={cube.reducedMotion}
           returned={returned}
+          stowed={cameraPhase === "trail"}
           seed={seed}
         >
           <MessageCube
             {...cube}
             dimmed={dimmed}
+            stowed={cameraPhase === "trail"}
             deploying={deploying}
             deployed={deployed}
             progress={presence}

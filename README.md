@@ -204,13 +204,10 @@ and decorative rotation stays inside the spec's 360–540° budget.
 | ------------------- | ------------------------------------------------------------------ |
 | `npm run dev`       | dev server                                                         |
 | `npm run build`     | production build                                                   |
+| `npm run check`     | typecheck, then verify — the gate before deploying                 |
 | `npm run verify`    | the whole checkable surface: geometry, framing, flow, content      |
 | `npm run typecheck` | `tsc --noEmit`                                                     |
 | `npm run images`    | regenerate placeholder images for a card (`npm run images <slug>`) |
-
-`npm run lint` is currently broken — Next 16 removed `next lint`, which is what
-the script still calls. Run ESLint directly, or fix the script, before relying
-on it.
 
 For what to check by hand once those pass — every feature, what it should do,
 and the query parameters that make it quick — see

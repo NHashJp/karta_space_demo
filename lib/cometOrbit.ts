@@ -112,8 +112,57 @@ export function displayedProgress(f: number): number {
  * approach — which is the signal that the day is near.
  */
 export function tailLength(distance: number): number {
-  if (distance >= TAIL_CUTOFF) return 0;
-  return Math.min(1.7, 4.2 / (distance * distance));
+  if (distance >= DISPLAY_FAR) return 0;
+
+  const raw = Math.min(1.7, 4.2 / (distance * distance));
+  if (distance < TAIL_CUTOFF) return raw;
+
+  /*
+   * Beyond the cutoff it **tapers** rather than switching off.
+   *
+   * This used to `return 0` the moment the comet crossed the cutoff, which is
+   * a step, not a fade — and the comment above has always said "fade out with
+   * distance". At the cutoff the tail was still a third of a unit long, so it
+   * vanished between one frame and the next. Nobody caught it because the
+   * component floors the drawn tail at a minimum number of pixels, which hid
+   * the cliff behind a constant.
+   */
+  const t = (distance - TAIL_CUTOFF) / (DISPLAY_FAR - TAIL_CUTOFF);
+  const taper = 1 - t;
+  return raw * taper * taper;
+}
+
+/**
+ * How big the coma is drawn, in world units, at a given displayed distance.
+ *
+ * It cannot simply be made large, and that is worth writing down because the
+ * instinct when a comet is hard to see is to grow it. On a phone the satellite
+ * spans four fifths of the width and the comet passes between its upper wing
+ * tip and the right edge of the frame — a gap of about 90px with the comet's
+ * centre in the middle of it. A coma much bigger than this either touches the
+ * satellite or hangs off the side of the screen, and both look like mistakes.
+ *
+ * So the comet is made to stand out by being *brighter*, and by having a tail
+ * that is actually the length it claims to be. Neither competes for that gap.
+ * Verify checks both ends of the constraint.
+ */
+export const COMA_NUMERATOR = 0.72;
+/**
+ * The floor is the number that matters, and it is the one that was too small.
+ *
+ * For most of the year the comet sits out near aphelion where the `1/distance`
+ * term gives almost nothing, so the floor *is* the coma — and at 0.26 it drew
+ * a 19px smudge among fifteen hundred stars. The ceiling governs perihelion,
+ * where the comet is close, bright and trailing something enormous, and needs
+ * no help being seen; that is the end with no room to spare, so that is the
+ * end that gives way.
+ */
+export const COMA_MIN = 0.36;
+export const COMA_MAX = 0.62;
+
+export function comaSize(distance: number): number {
+  const raw = COMA_NUMERATOR / distance;
+  return raw < COMA_MIN ? COMA_MIN : raw > COMA_MAX ? COMA_MAX : raw;
 }
 
 /**

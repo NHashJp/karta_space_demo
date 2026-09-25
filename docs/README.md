@@ -72,6 +72,17 @@ If you only read parts of this, read these.
    coordinates and hoping. It is why the composition survives a phone.
    → [The orbit](./orbit.md#the-trail-is-staged-not-placed)
 
+## Checks
+
+```console
+$ npm run check      # typecheck, then verify
+```
+
+There is no ESLint in this project and never has been — the `lint` script was
+`create-next-app`'s, calling a `next lint` that Next 16 removed, so it exited
+zero having linted nothing. It has been replaced rather than repaired: what
+this project actually gates on is the type checker and the verify suite.
+
 ## Conventions
 
 - Section references in code comments point at the spec being implemented.

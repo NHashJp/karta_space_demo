@@ -208,6 +208,16 @@ hard edges running its whole length, which is the one thing a tail never has.
   before the quad's own boundary so the billboard never shows a border of its
   own at any brightness. It brightens as the comet comes home, so the object
   that is a speck at aphelion is the brightest thing in the corner by the end.
+
+  Its *size* cannot simply be raised, which is worth knowing before anyone
+  tries. On a phone the satellite spans four fifths of the width and the comet
+  passes between its upper wing tip and the right edge of the frame — a gap of
+  about 90px with the comet's centre in the middle of it. So the floor (which
+  governs aphelion, where the comet is genuinely hard to find) is generous and
+  the ceiling (perihelion, where it is close and trailing something enormous)
+  gives way. Verify checks that the glow clears the hull and stays in frame,
+  because a centre-distance check lets a coma three times the width of the gap
+  sail straight through it.
 - The tails fade **across their width as well as along their length**, and are
   widened in *view* space, so they turn to face the camera and can never be
   caught edge-on and vanish. Only the spine is built on the CPU — including the

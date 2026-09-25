@@ -38,6 +38,7 @@ import {
   DISPLAY_FAR,
   DISPLAY_NEAR,
   PERIHELION,
+  comaSize,
   displayOrbitPoint,
   cometCycle,
   displayedProgress,
@@ -1342,6 +1343,39 @@ console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
       check(`${label}: and 24px clear of the satellite at f=${f}`, gap >= 24,
         `${gap.toFixed(0)}px`);
     }
+
+    /*
+     * And the **glow** clears it, not just the centre (§4.1).
+     *
+     * The check above measures the comet as a point, which is how a coma three
+     * times the size of the gap it is passing through can sail past it. The
+     * comet is at its largest exactly where it is closest — it grows as it
+     * comes home — so the two worst cases coincide, and the sampling has to be
+     * dense enough to find that point rather than land either side of it.
+     */
+    let worstGlow = Infinity;
+    let worstEdge = Infinity;
+
+    for (let i = 0; i <= 120; i++) {
+      const f = 0.02 + (0.97 * i) / 120;
+      const at = project(hubComet(reach(f), w, h));
+      const depth = camera[2] - hubComet(reach(f), w, h)[2];
+      // The coma's radius, in the same width-fraction units as the hull.
+      const radius = comaSize(displayOrbitPoint(f).distance) / (2 * tanH * depth);
+
+      const centre = Math.min(
+        ...hull.map((p) => Math.hypot(p[0] - at[0], (p[1] - at[1]) * (h / w))),
+      );
+      worstGlow = Math.min(worstGlow, (centre - radius) * w);
+      // And stays on screen: a coma hanging off the right edge is a coma with
+      // a straight side, which is the one shape gas never has.
+      worstEdge = Math.min(worstEdge, (1 - at[0] - radius) * w);
+    }
+
+    check(`${label}: the comet's glow clears the satellite`, worstGlow >= 12,
+      `${worstGlow.toFixed(0)}px`);
+    check(`${label}: and stays inside the frame`, worstEdge >= 0,
+      `${worstEdge.toFixed(0)}px`);
 
     // Home again, it sits beside the planet at the right edge (§3.1).
     const home = project(hubComet(0, w, h));
