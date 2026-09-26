@@ -117,8 +117,14 @@ export const planetFragmentShader = /* glsl */ `
     // Stretched along longitude: weather on a spinning world bands.
     vec3 cloudPoint = spin(unit, uCloudAngle);
     cloudPoint = vec3(cloudPoint.x, cloudPoint.y * 3.0, cloudPoint.z) * 1.9;
-    float cloud = smoothstep(0.50, 0.78, fbm(cloudPoint, 4));
-    albedo = mix(albedo, vec3(0.90, 0.92, 0.95), cloud * 0.5);
+    float cloud = smoothstep(0.54, 0.82, fbm(cloudPoint, 4));
+    /*
+     * Thinner and a shade cooler than they were. At half weight in near-white
+     * the weather covered the ocean, and a planet that reads as a pale ball
+     * takes the eye off the one thing in the corner that should have it: the
+     * lit rim of its own air (mockups M5, M14b).
+     */
+    albedo = mix(albedo, vec3(0.80, 0.85, 0.91), cloud * 0.36);
 
     // ---- lighting --------------------------------------------------------
     float ndl = dot(normal, uSun);

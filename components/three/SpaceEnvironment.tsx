@@ -46,7 +46,14 @@ export function SpaceEnvironment({
       <BrightStars reducedMotion={reducedMotion} />
 
       {/* Ambient and a violet fill; the sun itself moves, below. */}
-      <ambientLight intensity={0.5} color="#b0b4ba" />
+      {/*
+        Lifted, so the cube's shadowed faces are dark glass rather than
+        cut-outs. The mockups draw the satellite as one pale object seen from
+        one side (M5, M14b); with only the key light on it, the three faces
+        turned away from the sun fell to black and the box read as a hole in
+        the nebula behind it.
+      */}
+      <ambientLight intensity={0.78} color="#b6bccb" />
       <KeyLight seed={seed} returned={returned} reducedMotion={reducedMotion} />
       <directionalLight position={[-5, -2, 3]} intensity={0.35} color="#5d4b94" />
 

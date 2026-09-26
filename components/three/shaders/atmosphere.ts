@@ -51,7 +51,17 @@ export const atmosphereFragmentShader = /* glsl */ `
     float halo = exp(-depth * 3.2) * 0.55 + exp(-depth * 11.0) * 0.45;
     float band = 1.0 - smoothstep(0.0, uScale - 1.0, (uScale - 1.0) * depth);
 
-    float alpha = (fresnel * 0.85 + halo * 0.35) * band * (0.25 + 0.75 * lit);
+    /*
+     * A tight bright line right on the limb, over the softer halo (mockups
+     * M5, M14b). The rim is the only hard edge in the orbit view and it is
+     * what tells the eye the bottom-right corner is a world rather than a
+     * gradient; at the old weight it read as a smudge at phone size.
+     */
+    float edge = pow(1.0 - max(dot(normal, vView), 0.0), 9.0);
+
+    float alpha = (fresnel * 0.95 + halo * 0.4 + edge * 0.55) * band
+      * (0.25 + 0.75 * lit);
+    alpha = min(alpha, 1.0);
     if (alpha < 0.002) discard;
 
     gl_FragColor = vec4(color * alpha, alpha);

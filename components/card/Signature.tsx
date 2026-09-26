@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SIGNATURE_DRAW_MS } from "@/lib/timing";
 
 type Props = {
   /** An SVG of stroked paths — the sender's own hand (spec v0.2 §13.1). */
   src: string;
   /** Hold until the closing line has finished drawing itself. */
   delayMs: number;
+  /** How long the hand takes over the whole name; shorter on a replay. */
+  drawMs: number;
 };
 
 /**
@@ -23,7 +24,7 @@ type Props = {
  * animated from outside: the drawing works by setting a dash on each path and
  * walking it, which needs the paths themselves in the document.
  */
-export function Signature({ src, delayMs }: Props) {
+export function Signature({ src, delayMs, drawMs }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [markup, setMarkup] = useState<string | null>(null);
 
@@ -68,7 +69,7 @@ export function Signature({ src, delayMs }: Props) {
 
     // Each path takes its share of the total, in document order — which for a
     // signature is the order it was written in.
-    const each = SIGNATURE_DRAW_MS / paths.length;
+    const each = drawMs / paths.length;
     const timers = paths.map((path, index) =>
       setTimeout(() => {
         path.style.transition =
@@ -79,7 +80,7 @@ export function Signature({ src, delayMs }: Props) {
     );
 
     return () => timers.forEach(clearTimeout);
-  }, [markup, delayMs]);
+  }, [markup, delayMs, drawMs]);
 
   if (!markup) return null;
 

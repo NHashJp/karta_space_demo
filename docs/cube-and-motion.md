@@ -141,16 +141,17 @@ tail below 0.002 and runs one final pass at full opacity.
 
 ## The deployment (v0.2)
 
-The cube turns over, unfolds four solar panels, lights a thruster and rises
-into orbit. It is the moment the whole of v0.2 is built around, and it is one
-animation with four **overlapping** parts:
+The cube turns over, pushes two booms out of its side faces, unfolds three
+panels on each of them, lights a thruster and rises into orbit. It is the
+moment the whole of v0.2 is built around, and it is one animation with four
+**overlapping** parts (windows per revision 6 §2.2):
 
 ```
-0                 0.25      0.55  0.65            1
-|--- turn --------|
-        |--- panels ------|
-                          |thrust|
-                       |--- rise ------------------|
+0        0.15     0.25              0.6  0.7  0.8       1
+|- turn ----------|
+         |------- booms + unfold ---------|
+                                     |thr-|
+                                |--- rise ----------------|
 ```
 
 The overlaps are the point. Four strictly sequential steps read as a list of
@@ -164,6 +165,79 @@ That last one is what makes **docking** safe. Undeploying is not a second
 animation — it is the same timeline with `t` running down instead of up. If one
 part of it went forwards while the rest went back, the cube would come home in
 a shape it was never in on the way out.
+
+### The turn is a position, not a step
+
+It has to be, and for a while it was not.
+
+`MessageCube` used to hold the attitude with
+`group.quaternion.slerp(DISPLAY, turn)` — take whatever last frame left, and
+move it a fraction of the way towards the deployed pose. Under a rising `turn`
+that converges, so the deployment looked right.
+
+Running it backwards did not work at all. A step only ever moves one way:
+winding `turn` back down to zero did not turn the cube home again, it just
+took smaller and smaller steps towards the pose the cube was already in. So
+docking returned the reader to the closing screen with the cube still sitting
+at its satellite angle — the drawn line and the signature written underneath a
+body that was no longer square-on to them. It looked like the closing screen
+had been knocked askew, which is why it read as a glitch rather than as a
+missing animation.
+
+It is now an interpolation between two fixed ends:
+
+```ts
+group.quaternion.copy(FACE_ORIENTATIONS[activeFace]).slerp(DISPLAY, now.turn);
+```
+
+At `turn = 0` that is exactly the face that was last read and at `turn = 1`
+exactly the display pose, in **either** direction — the same landing guarantee
+the rotation presets give, for the same reason. It is also frame-rate
+independent, which the step version never was: at 30fps it reached the display
+pose visibly later than at 60.
+
+Two consequences worth knowing:
+
+- There is an `else` branch now. When nothing is animating the cube — docked,
+  with no face transition running — it holds `FACE_ORIENTATIONS[activeFace]`
+  explicitly. Leaving the quaternion wherever the last animation to touch it
+  stopped is only ever correct by luck, and that luck is what ran out above.
+- **The tumble on this group is gone**, because it was never there. A
+  `rotateY` of about a degree a frame sat under the slerp, and
+  `slerp(DISPLAY, 1)` discarded it on every following frame. Writing the
+  attitude as a position makes that overwrite explicit rather than accidental.
+  The satellite's actual motion is on the `idle` group, which is what carries
+  revision 6 §3.2's ±6°.
+
+### The second trip is shorter
+
+The deployment is a ceremony, and a ceremony is worth its full length once.
+A reader who has been to orbit and come back is no longer watching a cube
+become a spacecraft; they are travelling between two parts of a card they have
+already seen, and 3.6 seconds each way is a toll.
+
+So `lib/timing.ts` has one factor, `REPLAY_SCALE = 0.55`, and one function that
+applies it. The first trip out and the first trip home both run in full — the
+closing screen coming back is the other half of the same ceremony, not a
+separate thing — and from the second trip on both halves are brisk.
+
+Three details that are easy to get wrong:
+
+- **The animation is compressed, not re-cut.** `SolarWings` still reads
+  `DEPLOY_MS` when it converts the stagger into `t`, so the shape of the
+  unfold in `t` is identical and only the wall-clock length changes. Verify
+  checks what this costs: at 0.55 the six hinges still land 66ms apart, which
+  is far enough to be counted as six.
+- **The sound is compressed with it.** `cue("deploy")` takes a `speed`, and
+  every offset in it goes through one helper. Without that, a 3.6s pad keeps
+  rising over a satellite that settled a second and a half ago.
+- **The duration is held for the length of the run.** `MessageCube` captures
+  it when the deployment starts rather than reading the prop each frame: a run
+  that changes speed halfway reads as a dropped frame, not as a shorter
+  animation.
+
+Which trip this is comes from the reducer, not from the components — see
+[Experience flow](./experience-flow.md#counting-the-ceremonies).
 
 ### Continuity, and why a threshold cannot check it
 

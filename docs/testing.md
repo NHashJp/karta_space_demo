@@ -38,12 +38,107 @@ Development only — all three are inert in production, and verify checks that.
 | `?now=` | moves the clock | `?now=2026-12-25` |
 | `?visit=` | pretends this is a first / repeat / already-written visit | `?visit=sent` |
 
+One environment variable belongs beside them: **`MAIL_DEV_SINK=1`** delivers
+every email to `.mail/` instead of to Resend, so the reply rocket and the
+comet can be tested end to end with no mail account. See below.
+
 `?at=` accepts: `landing`, `face-1` … `face-6`, `closing`, `inside`, `orbit`,
 `departure`, `chart`, `crossroads`, `trail`, `reply`.
 
 Without these, reaching the trail means six scrolls, a deployment and a
 rewind — every time. Use them for everything except the run described under
 *The one pass that has to be done properly*.
+
+### The reply and the comet are invisible until mail is configured
+
+This is the first thing to check when a button you are looking for is not
+there, and it costs people an afternoon the first time.
+
+Neither feature is a flag you turn on. The card offers each one **only if the
+server could actually deliver it** (§14.7), so with no mail configured the
+`返事を打ち上げる` pill simply is not in the bar and the comet sheet offers
+nothing to write — which is correct behaviour, and indistinguishable from a
+bug if you do not know the rule.
+
+| Offered | Only when | Decided in |
+|---|---|---|
+| `replyAvailable` — the reply rocket | the card has a `reply`, **and** `mailReady(slug)` | `lib/clientCard.ts` |
+| `capsule` — words on the comet | `comet.invite !== false`, **and** `mailReady(slug)`, **and** `cometReady()`, **and** the comet is still `away` | `lib/clientCard.ts` |
+
+```ts
+mailReady(slug)  // RESEND_API_KEY && MAIL_FROM && (CARD_NOTIFY_TO_<SLUG> || NOTIFY_TO)
+cometReady()     // COMET_SECRET
+```
+
+`.env.local` ships with `MAIL_FROM`, `NOTIFY_TO` and `COMET_SECRET` set and
+**`RESEND_API_KEY` deliberately absent** — it is the one value nobody can
+generate for you. So out of the box both features are off. Paste a key from
+the Resend dashboard, restart `next dev`, and both appear.
+
+Two things that will waste your time otherwise:
+
+- **Restart the server.** These are read on the server per request, but Next
+  loads `.env.local` once at boot.
+- **A shell that exports any of these wins.** Next does not override a
+  variable that is already in the environment, so `.env.local` is ignored for
+  that key. `unset RESEND_API_KEY` and start again from a clean shell. The
+  editor's Setup chip is the fastest way to see what the server actually has.
+
+#### The mail sink: no account at all
+
+```console
+$ MAIL_DEV_SINK=1 npm run dev
+```
+
+The rocket's flight and the comet's boarding are dispatched only on a 200 from
+the route — deliberately, because the animation is a confirmation and not a
+guess (§10.2). The honest consequence used to be that the two most elaborate
+moments in the card were the two nobody could look at without a mail provider
+behind them.
+
+`MAIL_DEV_SINK=1` swaps the last hop and nothing else. The routes, the
+gating, the templates, the rate limit, the honeypot and the sealed token all
+run exactly as they will in production; only `sendMail` writes a file instead
+of making a request. So what you are testing is the real thing with a
+different postbox — and both features appear without `RESEND_API_KEY`,
+`MAIL_FROM` or `NOTIFY_TO` set at all.
+
+Each message lands in **`.mail/`** as plain text, named so they sort in the
+order they were sent, and the path is printed in the terminal running the dev
+server:
+
+```
+[mail sink] /…/.mail/2026-09-26T10-25-10-324Z--2026年のあなたへ-に返事が届きました.txt
+```
+
+Read them. It is the same text the sender will get, headers and all, which is
+half the point of sending a test message — the line breaks, the comet link,
+and the warning about not deleting the email.
+
+`.mail/` is git-ignored. The sink is off unless asked for and refuses to exist
+outside development, so it cannot reach production and quietly swallow the
+messages the card exists to deliver.
+
+Two things it does **not** cover. `COMET_SECRET` is still required — the token
+has to be real, or the link in the email could not be opened on the day; use
+`/editor` → Setup → Generate. And a sunk message never touches Resend, so a
+verified domain, the account's test-mode restrictions and your provider's
+own rendering still have to be checked for real before launch.
+
+#### With a dummy key instead
+
+A **dummy** `RESEND_API_KEY` and no sink is the other useful setup: both
+features appear, both forms work right up to the send, and the send then
+fails. It is the cheapest way to check the failure states, and they are the
+ones nobody remembers to look at.
+
+#### With a real key
+
+While a Resend account is in test mode it will only deliver to the address
+that owns the key, so `NOTIFY_TO` has to be that address or every send comes
+back 502. An unverified `MAIL_FROM` domain fails the same way;
+`onboarding@resend.dev` is Resend's own sender and works without verifying
+one.
 
 ## What each feature is supposed to do
 
@@ -72,6 +167,7 @@ cover over it.
 | During a turn | input is ignored; text is not readable mid-rotation |
 | Past face 6 | camera pulls back to the closing screen |
 | Scroll back in | returns to face 6, not face 1 |
+| The closing screen, a second time | the line and the signature draw at about 55% of the first time, and the two invitations arrive sooner to match |
 | At face 1, scroll back | nothing. There is no face 0 |
 
 Text must never be legible outside `reading`. If you can read a paragraph on
@@ -101,6 +197,18 @@ far one — then a thruster flashes and it rises. About 3.6 seconds.
 | The wings appearing before the booms | never — they grow out of the face centres |
 | Six soft clicks | one per panel as it locks |
 | Docking (`手紙に戻る`) | the same timeline backwards, landing exactly on the closing screen as it was left |
+
+**"Exactly as it was left" means the cube's attitude too.** Deploy, dock, and
+look at the cube behind the closing line: it must be square-on to you, the same
+face you were reading, not still sitting at the satellite's three-quarter angle.
+This used to fail — the attitude was written as a step towards the deployed
+pose, and a step cannot be wound back.
+
+**Then deploy a second time.** The second trip out and the second trip home
+both run at about 55% of the first — around 2 seconds instead of 3.6 — and so
+does the sound under them. Watch that it is the *same* animation compressed:
+two booms, six hinges landing one at a time, a thruster, a rise. If the panels
+arrive together rather than in sequence, `REPLAY_SCALE` has gone too low.
 
 **Jump straight to `?at=orbit` and check the cube actually became a satellite.**
 This used to fail: the transformation only ran while the deployment was
@@ -148,23 +256,53 @@ rather than by distance). Both have happened.
 The comet's **position is the countdown**. Far out and faint for most of the
 wait, then swinging home fast in the last tenth with a growing tail.
 
+Fastest way in: **`?at=chart`**. That plays the departure and lands on the
+chart with the sheet open. Tapping `彗星` in the bar gets there too, and after
+a deployment the card goes there on its own.
+
+If the sheet offers only `軌道へもどる`, mail is not configured — see *The
+reply and the comet are invisible until mail is configured* above.
+
 | Step | Expected |
 |---|---|
 | Tap the comet, or `彗星` | the camera closes on it, holds, then pulls back to the chart |
-| The chart | the full ellipse, the date, and how many days remain |
-| `彗星に託す` | a form: a name, and up to 200 characters |
-| Send | the words run up the orbit line to the comet, and it says `あなたの言葉は、彗星の上` |
-| Afterwards | `彗星の行方を見るリンクをコピー` — offered, never stored on their behalf |
-| `?now=2026-12-25` | the comet has arrived: `この彗星は、約束を果たしました。` |
+| The chart | the ellipse, with the promise and its date as a caption above it — never inside the sheet |
+| The sheet | the seal stated first: `みおの言葉がのっています。また会う日に、ひらきます。` |
+| `言葉をのせる` | the sheet becomes a form: a name, and up to 200 characters |
+| `もどる` | back to the question, with nothing lost |
+| `彗星にのせる` | the words run up the orbit line to the comet, and it says `あなたの言葉は、彗星の上` |
+| Afterwards | `言葉をのせました。` in warm ink, and `彗星の行方を見るリンクをコピー` — offered, never stored on their behalf |
+| Return later | `あなたの言葉も、のっています。` — the same sheet, past tense dropped |
+| `?now=2026-12-25` | the comet has arrived: `約束の彗星が、戻ってきました。` and the sender's words open |
 | Open the link from the email | the words, readable, only on or after the return date |
+
+The invite is **two steps on purpose** (mockup M13a, then M13b). Check that
+`もどる` really does keep what was typed, and that closing the sheet from the
+form does not leave the card believing anything was sent.
 
 Try the link **before** the date. It must refuse. That is the entire promise of
 the object.
 
 ### The reply rocket
 
+Fastest way in: **`?at=reply`**, which opens the panel directly. Otherwise
+`返事を打ち上げる` in the bar, or `ロケットで、返事を` at the crossroads.
+
+No `返事を打ち上げる` pill in the bar means mail is not configured, or the
+card has no `reply` block — see above.
+
 `返事を打ち上げる` → up to 140 characters → the rocket rises, becomes a star,
 and the star stays in the sky for the rest of the session.
+
+The panel sits **high** rather than at the bottom, unlike every other one: the
+planet's lit limb comes up into the bottom-right corner, and on a phone the
+keyboard takes the rest. Worth checking on a real phone with the keyboard up.
+
+To see the **failure** state without breaking anything, use a dummy
+`RESEND_API_KEY`: the message must survive, no launch may happen, and
+`うまく届きませんでした。もう一度お試しください。` appears *above* the button,
+in place of `すぐに、みおに届きます。` — never below it, where it would be read
+only after pressing send a second time.
 
 Check the email arrives with line breaks intact. A newline in the *message* is
 a paragraph; a newline in the *name* would be header injection, and the two are

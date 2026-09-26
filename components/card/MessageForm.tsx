@@ -26,6 +26,15 @@ type Props = {
   sendingLabel: string;
   namePlaceholder?: string;
   messagePlaceholder?: string;
+  /**
+   * Where the words are going, said just above the button that sends them
+   * (mockup M13b). It is the last thing read before committing, which is the
+   * only place it is worth saying.
+   */
+  note?: string;
+  /** The way back out, beside the submit, when the form is a step in a flow. */
+  backLabel?: string;
+  onBack?: () => void;
   /** Called only on a 200, with whatever the route chose to answer with. */
   onSent: (token?: string, extra?: Record<string, unknown>) => void;
 };
@@ -39,6 +48,9 @@ export function MessageForm({
   sendingLabel,
   namePlaceholder = "お名前",
   messagePlaceholder = "メッセージ",
+  note,
+  backLabel,
+  onBack,
   onSent,
 }: Props) {
   const [name, setName] = useState("");
@@ -149,17 +161,44 @@ export function MessageForm({
         </label>
       </div>
 
-      <button className="button" type="submit" disabled={!valid || state === "sending"} lang="ja">
-        {state === "sending" ? sendingLabel : submitLabel}
-      </button>
-
+      {/*
+        One line above the button: where this is going, or why it did not go.
+        Never both — a failure replaces the promise rather than sitting under
+        it, because "すぐに、みおに届きます" is not true at that moment.
+      */}
       {state === "failed" || state === "rate-limited" ? (
         <p className="message-form__error" role="alert" lang="ja">
           {state === "rate-limited"
             ? "少し時間をおいて、もう一度お試しください。"
             : "うまく届きませんでした。もう一度お試しください。"}
         </p>
+      ) : note ? (
+        <p className="message-form__note" lang="ja">
+          {note}
+        </p>
       ) : null}
+
+      <div className="message-form__actions">
+        {onBack ? (
+          <button
+            className="button button--ghost button--wide"
+            type="button"
+            onClick={onBack}
+            disabled={state === "sending"}
+            lang="ja"
+          >
+            {backLabel ?? "もどる"}
+          </button>
+        ) : null}
+        <button
+          className={onBack ? "button button--wide" : "button"}
+          type="submit"
+          disabled={!valid || state === "sending"}
+          lang="ja"
+        >
+          {state === "sending" ? sendingLabel : submitLabel}
+        </button>
+      </div>
     </form>
   );
 }

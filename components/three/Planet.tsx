@@ -60,8 +60,8 @@ export function Planet({ seed, returned, reducedMotion }: Props) {
   const airUniforms = useMemo(
     () => ({
       uSun: { value: new THREE.Vector3(0, 0, 1) },
-      uLit: { value: new THREE.Color("#74d8ff") },
-      uShadow: { value: new THREE.Color("#5b4aa8") },
+      uLit: { value: new THREE.Color("#9ae7ff") },
+      uShadow: { value: new THREE.Color("#6a56bd") },
       uScale: { value: SHELL_SCALE },
     }),
     [],

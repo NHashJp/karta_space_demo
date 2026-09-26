@@ -5,8 +5,10 @@ Source: `lib/experienceState.ts`, `lib/useFaceNavigation.ts`,
 
 ## The machine
 
-Nineteen states, sixteen events, one pure reducer. No timers, no side effects,
-no async — which is why the whole flow is testable in Node.
+Twenty-three states, nineteen events, one pure reducer. No timers, no side effects,
+no async — which is why the whole flow is testable in Node. It also carries a
+little session history, which is still pure: whether a reply has been
+`launched`, and how many times each ceremony has been watched (below).
 
 v0.1 ended at the closing screen. v0.2 continues past it (spec v0.2 §6), but
 **only for a card that has something there**: with `hasOrbit` false the new
@@ -155,6 +157,51 @@ The [verification suite](./verification.md) asserts the first of these at every
 step of a full journey, because it is the kind of regression that is easy to
 reintroduce and easy to miss.
 
+## Counting the ceremonies
+
+Two moments in the card are ceremonies rather than transitions: the cube
+becoming a satellite, and the closing line being written out by hand under the
+sender's signature. Both are worth their full length the first time and a toll
+every time after it, so both play at `REPLAY_SCALE` from the second time on
+(see [Cube and motion](./cube-and-motion.md#the-second-trip-is-shorter)).
+
+"The second time" is a fact about the reader's journey, so it lives in the
+reducer beside `launched`, as two counts:
+
+| Field | Counts | Read by |
+|---|---|---|
+| `deployments` | arrivals at `deploying` | the deploy animation, and the sound under it |
+| `closings` | arrivals at `completed` | the closing line, the signature, the two invitations, and how long the replay button stays faint |
+
+Counts rather than booleans, because what a screen actually asks is *is this
+the first time* — and a count answers that on arrival, where a flag would need
+a second field to say when it may be set.
+
+They are incremented in a thin wrapper around the reducer rather than in the
+transitions themselves:
+
+```ts
+export function reduceExperience(current, event) {
+  const next = transition(current, event);
+  if (next.state === current.state) return next;
+  if (next.state === "completed") return { ...next, closings: next.closings + 1 };
+  if (next.state === "deploying") return { ...next, deployments: next.deployments + 1 };
+  return next;
+}
+```
+
+`completed` is reached from three places — the end of the letter, coming back
+out of the inside of the cube, and docking from orbit — and `deploying` from
+two. A transition that forgot to count itself would look right in every test
+and be wrong on exactly one route through the card, which is the hardest kind
+of bug to see. The `next.state === current.state` guard is what keeps a refused
+gesture from ticking a counter; verify checks all of this by walking each
+route.
+
+Note what is *not* here: none of it is written to storage. A reader who comes
+back tomorrow gets the full ceremony again, which is right — they have come
+back to see it.
+
 ## Who ends a phase
 
 Nothing is on a timer. Each animated phase ends when the thing that is
@@ -242,5 +289,10 @@ reach the target simply stops at the last state it does have.
 
 It is ignored in production, for the same reason `?now=` is — a query parameter
 that walks past the closing screen, or unseals a comet, would be no seal at all.
-Targets: `landing`, `face-1`…`face-6`, `closing`, `inside`, `orbit`, `trail`,
-`satellite`, `comet`, `reply`.
+Targets, as `JUMP_TARGETS` in `lib/devJump.ts` lists them: `landing`,
+`face-1`…`face-6`, `closing`, `inside`, `orbit`, `departure`, `chart`,
+`crossroads`, `trail`, `reply`.
+
+`departure` and `chart` are the two halves of the comet moment — the first
+stops mid-flight, the second lands on the chart with the sheet open — and
+`orbit` deliberately goes *past* both, into the plain hub.

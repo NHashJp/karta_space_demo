@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { MessageForm } from "./MessageForm";
+import { CloseIcon, CopyIcon, LockIcon } from "./Icons";
+import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import { formatReturn } from "@/lib/returnLabel";
 import { COMET_MAX } from "@/lib/submission";
 import type { ClientCard } from "@/lib/clientCard";
 
 /**
- * The comet sheet (spec v0.2 rev 5, §8.6).
+ * The comet sheet (spec v0.2 rev 5, §8.6; mockups M13, M14c).
  *
  * It opens on the chart, at the end of the comet moment, and says one of four
  * things depending on where the comet is in its life:
@@ -20,26 +22,90 @@ import type { ClientCard } from "@/lib/clientCard";
  * There is no countdown in days unless the promise itself is day-precise. The
  * chart behind this sheet already shows how far away the comet is, and a
  * number would only invite the reader to stop looking at it.
+ *
+ * The promise and its date are not in the sheet. They are a caption on the
+ * chart (`chart-head`), because they belong to the ellipse rather than to the
+ * thing being asked — and because a sheet that opened by restating the
+ * promise made every state of it start with the same two lines.
  */
 
 type Props = {
   card: ClientCard;
   /** Their words are on it: this session, or an earlier visit in this browser. */
   aboard: boolean;
+  /**
+   * The link to watch the comet, if they boarded it in *this* session.
+   *
+   * Owned by `CardExperience`, because this sheet is unmounted while the
+   * boarding animation plays. Its presence is also what distinguishes the two
+   * aboard states: the moment it happened (M13d), and every visit after
+   * (M14c), when the link is gone and only the email still has it.
+   */
+  justBoardedLink: string | null;
   onBoarded: (token?: string) => void;
   onLeave: () => void;
 };
 
-export function CometSheet({ card, aboard, onBoarded, onLeave }: Props) {
+/**
+ * The invite is two steps, as the mockups have it (M13a, then M13b). Asking
+ * and answering are different sizes of decision: the first is "would you?",
+ * which is one line and two buttons, and the second is a form. Opening
+ * straight into the form answers the first question on the reader's behalf.
+ */
+type Step = "asked" | "writing";
+
+export function CometSheet({ card, aboard, justBoardedLink, onBoarded, onLeave }: Props) {
   const comet = card.comet;
-  const [link, setLink] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("asked");
   const [copied, setCopied] = useState(false);
+  const link = justBoardedLink;
 
   if (!comet) return null;
 
   const when = formatReturn(comet.label);
   const returned = comet.status === "returned";
   const kept = comet.status === "kept";
+  const opens = (returned || kept) && comet.message;
+  /* The sender sealed something on it, and it is not open yet. */
+  const sealed = Boolean(comet.promise) && !opens;
+  const inviting = Boolean(comet.capsule) && !aboard;
+
+  const label = opens
+    ? `${card.from}の言葉`
+    : aboard
+      ? "あなたの言葉"
+      : inviting
+        ? "言葉をのせる"
+        : "約束の彗星";
+
+  /*
+   * `次のクリスマスに、みおのもとへ届きます。` — the same sentence everywhere it
+   * is true. It takes the promise's own short label rather than `when`, which
+   * carries the date and the countdown as well and reads as a timestamp
+   * wedged into the middle of a sentence.
+   */
+  const delivery = `${comet.label.label}に、${card.from}のもとへ届きます。`;
+
+  const copyLink = link ? (
+    // Offered, never done automatically. The link *is* the message, and
+    // putting a copy of it on someone's clipboard without being asked is not
+    // our call.
+    <div>
+      <button
+        className="button button--quiet"
+        onClick={() => {
+          void navigator.clipboard?.writeText(link).then(
+            () => setCopied(true),
+            () => setCopied(false),
+          );
+        }}
+        lang="ja"
+      >
+        <CopyIcon />
+        {copied ? "コピーしました" : "彗星の行方を見るリンクをコピー"}
+      </button>
+    </div>
+  ) : null;
 
   return (
     <div
@@ -48,91 +114,141 @@ export function CometSheet({ card, aboard, onBoarded, onLeave }: Props) {
         if (event.target === event.currentTarget) onLeave();
       }}
     >
+      {/* The chart's own caption, above the sheet and outside it (M12c). */}
+      <header className="chart-head" lang="ja">
+        <p className="chart-head__label">約束の彗星</p>
+        {comet.promise ? <p className="chart-head__promise">{comet.promise}</p> : null}
+        <p className="chart-head__when">{when}</p>
+      </header>
+
       <section className="sheet" role="dialog" aria-modal="true" aria-label="彗星" lang="ja">
         <header className="sheet__head">
-          <p className="sheet__when">{when}</p>
+          <h2 className="sheet__label">{label}</h2>
           <button className="panel__close" onClick={onLeave} aria-label="閉じる">
-            ✕
+            <CloseIcon />
           </button>
         </header>
 
-        {comet.promise ? <p className="sheet__promise">{comet.promise}</p> : null}
-
-        {/* ---- the comet is back: the words open ------------------------- */}
-        {(returned || kept) && comet.message ? (
+        {/* ---- the comet is back: the words open (mockup M9a) ------------- */}
+        {opens ? (
           <>
-            <p className="sheet__from">{card.from}からの言葉</p>
+            {/*
+              What happened, and when it started — the date it left is what
+              makes the arrival mean anything. Warm, because this is the one
+              moment the card has been counting towards.
+            */}
+            <div className="sheet__arrival">
+              <p className="sheet__headline sheet__headline--warm">
+                約束の彗星が、戻ってきました。
+              </p>
+              <p className="sheet__body">
+                {formatFuzzyDate(comet.leftOn.slice(0, 7))}に旅立った彗星です
+              </p>
+            </div>
             <p className="comet__message">{comet.message}</p>
+            {aboard ? (
+              <p className="sheet__also">
+                あなたの言葉も、{card.from}に届いています。
+              </p>
+            ) : null}
+            <div className="sheet__actions">
+              <button className="button button--ghost button--wide" onClick={onLeave} lang="ja">
+                軌道へもどる
+              </button>
+            </div>
           </>
         ) : null}
 
         {kept && !comet.message ? (
-          <p className="sheet__note">この彗星は、約束を果たしました。</p>
+          <>
+            <p className="sheet__body">この彗星は、約束を果たしました。</p>
+            <div className="sheet__actions">
+              <button className="button button--ghost button--wide" onClick={onLeave} lang="ja">
+                軌道へもどる
+              </button>
+            </div>
+          </>
         ) : null}
 
         {/* ---- it is still on its way, and has room ---------------------- */}
-        {comet.capsule && !aboard ? (
+        {inviting && step === "asked" ? (
           <>
-            <p className="sheet__invite">あなたの言葉も、のせていきませんか。</p>
             {/*
               The seal, said out loud before anyone commits to it. Someone
               about to write something they cannot take back deserves to know
               that is what they are doing.
             */}
-            <p className="comet__note">
-              {comet.label.label}に戻ってくるまで、{card.from}にも読めません。
+            {sealed ? (
+              <p className="sheet__sealed">
+                <LockIcon />
+                {card.from}の言葉がのっています。また会う日に、ひらきます。
+              </p>
+            ) : null}
+            <p className="sheet__headline">この彗星に、あなたの言葉ものせませんか。</p>
+            <p className="sheet__body">
+              {delivery}それまでは、{card.from}にも読めません。
             </p>
-
-            <MessageForm
-              endpoint={`/c/${card.slug}/comet`}
-              messageMax={COMET_MAX}
-              submitLabel="彗星に託す"
-              sendingLabel="のせています…"
-              onSent={(token) => {
-                if (token) setLink(`${window.location.origin}/comet/${token}`);
-                onBoarded(token);
-              }}
-            />
-
-            <button className="button button--quiet" onClick={onLeave}>
-              今はやめておく
-            </button>
+            <div className="sheet__actions">
+              <button className="button button--ghost button--wide" onClick={onLeave} lang="ja">
+                今はやめておく
+              </button>
+              <button
+                className="button button--wide"
+                onClick={() => setStep("writing")}
+                lang="ja"
+              >
+                言葉をのせる
+              </button>
+            </div>
           </>
         ) : null}
 
+        {inviting && step === "writing" ? (
+          <MessageForm
+            endpoint={`/c/${card.slug}/comet`}
+            messageMax={COMET_MAX}
+            submitLabel="彗星にのせる"
+            sendingLabel="のせています…"
+            note={delivery}
+            backLabel="もどる"
+            onBack={() => setStep("asked")}
+            onSent={(token) => onBoarded(token)}
+          />
+        ) : null}
+
         {/* ---- their words are aboard ------------------------------------ */}
-        {aboard ? (
+        {aboard && !opens ? (
           <>
-            <p className="sheet__aboard">
-              あなたの言葉は、彗星の上にあります。
+            {/*
+              Warm, and in the past tense, the moment it has just happened
+              (M13d); plainer once it is simply true of the comet (M14c).
+            */}
+            <p className={`sheet__headline${link ? " sheet__headline--warm" : ""}`}>
+              {link ? "言葉をのせました。" : "あなたの言葉も、のっています。"}
             </p>
-            {link ? (
-              // Offered, never done automatically. The link *is* the message,
-              // and putting a copy of it on someone's clipboard without being
-              // asked is not our call.
-              <button
-                className="button button--quiet"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(link).then(
-                    () => setCopied(true),
-                    () => setCopied(false),
-                  );
-                }}
-              >
-                {copied ? "コピーしました" : "彗星の行方を見るリンクをコピー"}
-              </button>
+            <p className="sheet__body">{delivery}</p>
+            {sealed && !link ? (
+              <p className="sheet__sealed">
+                <LockIcon />
+                {card.from}の言葉がのっています。また会う日に、ひらきます。
+              </p>
             ) : null}
-            <button className="button button--quiet" onClick={onLeave}>
-              つづける
-            </button>
+            {copyLink}
+            <div className="sheet__actions">
+              <button className="button button--wide" onClick={onLeave} lang="ja">
+                {link ? "つづける" : "軌道へもどる"}
+              </button>
+            </div>
           </>
         ) : null}
 
         {/* Nothing to write and nothing to read: just the way back. */}
-        {!comet.capsule && !aboard && !((returned || kept) && comet.message) ? (
-          <button className="button button--quiet" onClick={onLeave}>
-            軌道へもどる
-          </button>
+        {!inviting && !aboard && !opens && !(kept && !comet.message) ? (
+          <div className="sheet__actions">
+            <button className="button button--wide" onClick={onLeave} lang="ja">
+              軌道へもどる
+            </button>
+          </div>
         ) : null}
       </section>
     </div>

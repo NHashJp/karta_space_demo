@@ -79,6 +79,8 @@ export function SolarWings({ progress, fade, seed, returned, reducedMotion }: Pr
     () => ({
       uBase: { value: new THREE.Color("#1c2333") },
       uCell: { value: new THREE.Color("#00aeef") },
+      /* The ruled wire, the same steel the booms and the cube's edges are. */
+      uLine: { value: new THREE.Color("#9fb4c9") },
       uSun: { value: new THREE.Vector3(0, 0, 1) },
       uSunColor: { value: new THREE.Color("#fff4e6") },
       uOpacity: { value: 1 },
@@ -146,7 +148,8 @@ export function SolarWings({ progress, fade, seed, returned, reducedMotion }: Pr
               rotation={[0, 0, Math.PI / 2]}
             >
               <cylinderGeometry args={[BOOM_RADIUS, BOOM_RADIUS, BOOM_L, 8]} />
-              <meshStandardMaterial color="#9fb4c9" metalness={0.8} roughness={0.35} />
+              {/* `transparent`, so the stow fade in `MessageCube` can reach it. */}
+              <meshStandardMaterial color="#9fb4c9" metalness={0.8} roughness={0.35} transparent />
             </mesh>
 
             {PANEL_INDICES.map((k) => (
@@ -158,14 +161,22 @@ export function SolarWings({ progress, fade, seed, returned, reducedMotion }: Pr
               >
                 <mesh>
                   <boxGeometry args={[PANEL_W, PANEL_H, PANEL_THICKNESS]} />
+                  {/*
+                    `transparent`, or the alpha the shader writes from
+                    `uOpacity` is discarded and the arrays stay solid while
+                    everything holding them up fades away. `depthWrite` stays
+                    on: these are real panels that occlude what is behind them,
+                    and they are only ever part-transparent on the way out.
+                  */}
                   <shaderMaterial
                     ref={index === 1 && k === 0 ? material : undefined}
                     uniforms={uniforms}
                     vertexShader={panelCellsVertexShader}
                     fragmentShader={panelCellsFragmentShader}
+                    transparent
                     toneMapped={false}
                   />
-                  <Edges color="#9fb4c9" threshold={15} />
+                  <Edges color="#9fb4c9" threshold={15} transparent />
                 </mesh>
               </group>
             ))}
@@ -175,15 +186,27 @@ export function SolarWings({ progress, fade, seed, returned, reducedMotion }: Pr
       {/* The mast, off-centre on the top face, carrying the nav light. */}
       <mesh position={[MAST_AT[0], MAST_AT[1] + MAST_HEIGHT / 2, MAST_AT[2]]}>
         <cylinderGeometry args={[0.025, 0.025, MAST_HEIGHT, 6]} />
-        <meshStandardMaterial color="#9fb4c9" metalness={0.8} roughness={0.35} />
+        <meshStandardMaterial color="#9fb4c9" metalness={0.8} roughness={0.35} transparent />
       </mesh>
-      <NavLight reducedMotion={reducedMotion} />
+      <NavLight fade={fade} reducedMotion={reducedMotion} />
     </group>
   );
 }
 
 /** A tiny ion-white blink at the mast's tip: 2.6 s, 10% duty (§23.3). */
-function NavLight({ reducedMotion }: { reducedMotion: boolean }) {
+function NavLight({
+  fade,
+  reducedMotion,
+}: {
+  /**
+   * The beacon rewrites its own opacity every frame, so it is the one thing
+   * here the stow fade cannot simply be applied to from outside — it has to be
+   * a term in the blink itself, or the light goes on flashing over an empty
+   * patch of sky after the satellite carrying it has gone.
+   */
+  fade: React.RefObject<number>;
+  reducedMotion: boolean;
+}) {
   const light = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
@@ -191,7 +214,8 @@ function NavLight({ reducedMotion }: { reducedMotion: boolean }) {
     const material = light.current.material as THREE.Material & { opacity: number };
     // Ten per cent of the cycle, so it reads as a beacon rather than a pulse.
     const phase = (clock.elapsedTime % 2.6) / 2.6;
-    material.opacity = reducedMotion ? 0.35 : phase < 0.1 ? 1 : 0.08;
+    const blink = reducedMotion ? 0.35 : phase < 0.1 ? 1 : 0.08;
+    material.opacity = blink * fade.current;
   });
 
   return (

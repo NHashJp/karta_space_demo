@@ -1,9 +1,25 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { CloseIcon } from "./Icons";
 
 type Props = {
   title: string;
+  /**
+   * Where it sits over the scene.
+   *
+   * `bottom` is the default and what the crossroads uses (mockup M14a): the
+   * sky is the subject, so the panel keeps to the floor. A panel with a form
+   * in it sits `high` instead (M8a) — the planet's lit limb comes up into the
+   * bottom-right corner, and on a phone the keyboard takes the rest.
+   */
+  place?: "bottom" | "high";
+  /**
+   * A hairline under the label. The form panels carry one and the choice
+   * panels do not: a form really is two things, the asking and the fields,
+   * and the rule is what stops the prompt reading as the first field's label.
+   */
+  divided?: boolean;
   onClose: () => void;
   children: React.ReactNode;
 };
@@ -16,7 +32,7 @@ type Props = {
  * right, and none of them can forget one. The reducer ignores `move` while a
  * panel is open, so these really are the only ways out.
  */
-export function Panel({ title, onClose, children }: Props) {
+export function Panel({ title, place = "bottom", divided = false, onClose, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +55,7 @@ export function Panel({ title, onClose, children }: Props) {
   return (
     <div
       className="panel-layer"
+      data-place={place}
       // Tapping the empty space around the panel closes it; tapping the panel
       // itself must not, so the check is on the target rather than the bubble.
       onPointerDown={(event) => {
@@ -58,9 +75,10 @@ export function Panel({ title, onClose, children }: Props) {
             {title}
           </h2>
           <button className="panel__close" onClick={onClose} aria-label="閉じる">
-            ✕
+            <CloseIcon />
           </button>
         </div>
+        {divided ? <div className="panel__rule" aria-hidden="true" /> : null}
         {children}
       </div>
     </div>

@@ -22,8 +22,14 @@ import { useStagedTrail } from "./useStagedTrail";
  */
 
 const SEGMENTS = 220;
-const WIDTH_NEAR = 0.1;
-const WIDTH_FAR = 0.02;
+/*
+ * Wider than it was. In the orbit view the trail comes in at the top-left as
+ * one of the four things the composition is made of (rev 6 §3.1), and at 0.1
+ * near-width it arrived as a thread — the colours §9.1 goes to such trouble
+ * to drift were there, but too few pixels wide for anyone to see them drift.
+ */
+const WIDTH_NEAR = 0.16;
+const WIDTH_FAR = 0.03;
 
 /**
  * How close the ribbon may come to the lens before it fades out entirely.

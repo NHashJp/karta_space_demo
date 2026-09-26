@@ -1,4 +1,4 @@
-import { notifyTo } from "./notify.ts";
+import { MAIL_SINK_DIR, mailSink, notifyTo } from "./notify.ts";
 import { DEFAULT_TIME_ZONE } from "./orbitClock.ts";
 import { formatFuzzyDate } from "./fuzzyDate.ts";
 
@@ -32,6 +32,9 @@ export type Mail = {
 export type SendResult = { ok: true } | { ok: false; reason: "unconfigured" | "failed" };
 
 export async function sendMail(mail: Mail): Promise<SendResult> {
+  // Development only, and only when asked for: write it down instead.
+  if (mailSink()) return writeToSink(mail);
+
   const key = process.env.RESEND_API_KEY;
   const from = process.env.MAIL_FROM;
   if (!key || !from) return { ok: false, reason: "unconfigured" };
@@ -89,6 +92,53 @@ function report(detail: string) {
 }
 
 /** `PUBLIC_BASE_URL`, without a trailing slash. */
+/**
+ * The sink's postbox: one plain-text file per message, in `.mail/`, named so
+ * they sort in the order they were sent.
+ *
+ * Deliberately the same text that would have gone over the wire, headers and
+ * all, because half the point of sending a test message is reading what the
+ * other person will actually get — the line breaks, the link, the warning
+ * about not deleting the email.
+ *
+ * `node:fs` is imported here rather than at the top of the file so that it is
+ * only ever loaded when the sink actually fires.
+ */
+async function writeToSink(mail: Mail): Promise<SendResult> {
+  try {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+
+    const dir = join(process.cwd(), MAIL_SINK_DIR);
+    await mkdir(dir, { recursive: true });
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const slug = mail.subject.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 48);
+    const path = join(dir, `${stamp}-${slug}.txt`);
+
+    await writeFile(
+      path,
+      [
+        `To: ${mail.to}`,
+        `Subject: ${mail.subject}`,
+        ...(mail.idempotencyKey ? [`Idempotency-Key: ${mail.idempotencyKey}`] : []),
+        "",
+        mail.text,
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    // The path, in the terminal running `next dev`: without this the message
+    // is delivered to a folder nobody thought to look in.
+    console.info(`[mail sink] ${path}`);
+    return { ok: true };
+  } catch {
+    // A sink that cannot write is a failed send, and should look like one.
+    return { ok: false, reason: "failed" };
+  }
+}
+
 export function baseUrl(): string {
   return (process.env.PUBLIC_BASE_URL ?? "").replace(/\/+$/, "");
 }

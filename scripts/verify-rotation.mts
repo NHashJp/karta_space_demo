@@ -69,7 +69,8 @@ import {
   trailPoint,
   trailSeedFor,
 } from "../lib/trailCurve.ts";
-import { DEPLOY_MS } from "../lib/timing.ts";
+import { DEPLOY_MS, REPLAY_SCALE, replayed } from "../lib/timing.ts";
+import { ZOOM_OUT_MS } from "../components/three/framing.ts";
 import {
   PANELS,
   RISE,
@@ -87,8 +88,10 @@ import {
 import {
   BOOM_WINDOW,
   DEPLOYED_SPAN,
+  NEAR_WING_DELAY_MS,
   N_PANELS,
   UNFOLD_WINDOW,
+  WING_STAGGER_MS,
   boomAt,
   hullPoints,
   selfClearance,
@@ -884,6 +887,57 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
   send({ type: "deploy" });
   send({ type: "deployEnd" });
   check("the deploy button reaches orbit too", exp.state === "orbit");
+
+  // ---- what has been watched, and how often (REPLAY_SCALE) ---------------
+  // Both ceremonies run in full once and briskly after that, so the machine
+  // has to count arrivals rather than the screens counting their own mounts:
+  // the closing screen is reached from three different places, and one of
+  // them forgetting would be a bug on exactly one route through the card.
+  check("that was the second trip to orbit", exp.deployments === 2);
+  check("and the closing screen has been come back to once", exp.closings === 1);
+  check("the first trip is watched in full", replayed(DEPLOY_MS, 1 > 1) === DEPLOY_MS);
+  check("the second is brisk", replayed(DEPLOY_MS, exp.deployments > 1) < DEPLOY_MS);
+
+  {
+    // Every route into the closing screen counts: the letter ending, coming
+    // back out of the cube, and docking from orbit.
+    let walk: Experience = initialExperience({
+      memoryCount: 0, hasOrbit: true, hasCrossroads: false, comet: NO_COMET_FLAGS,
+    });
+    const step = (event: ExperienceEvent) => (walk = reduceExperience(walk, event));
+    check("a card starts with nothing watched",
+      walk.closings === 0 && walk.deployments === 0);
+
+    step({ type: "open" });
+    step({ type: "zoomEnd" });
+    for (let face = 0; face < 5; face++) {
+      step({ type: "move", direction: 1 });
+      step({ type: "rotationEnd" });
+    }
+    step({ type: "move", direction: 1 });
+    step({ type: "zoomEnd" });
+    check("reaching the end of the letter is the first closing", walk.closings === 1);
+
+    step({ type: "reveal" });
+    step({ type: "zoomEnd" });
+    step({ type: "reveal" });
+    step({ type: "zoomEnd" });
+    check("coming back out of the cube is the second", walk.closings === 2);
+
+    step({ type: "deploy" });
+    check("and the deployment counts on the way out", walk.deployments === 1);
+    step({ type: "deployEnd" });
+    step({ type: "dock" });
+    step({ type: "deployEnd" });
+    check("docking from orbit is the third", walk.closings === 3);
+    check("docking is not a second deployment", walk.deployments === 1);
+
+    // Being in a state is not arriving at it: a gesture the machine refuses
+    // must not tick a counter, or one stray swipe makes the next play brisk.
+    const held = walk;
+    check("a refused event counts nothing",
+      reduceExperience(held, { type: "boardEnd" }).closings === held.closings);
+  }
 
   // ---- panels: one at a time, and they swallow gestures -------------------
   for (const panel of ["satellite", "reply", "comet"] as const) {
@@ -2263,6 +2317,25 @@ console.log("20. The deployment (spec v0.2 §8.2):");
     previousPart = now;
   }
   check("every part of the deployment only ever goes forwards", monotonic);
+
+  // ---- a replay is the same animation, shorter (REPLAY_SCALE) ------------
+  const brisk = replayed(DEPLOY_MS, true);
+  check("a replay is genuinely shorter", brisk < DEPLOY_MS, `${DEPLOY_MS} -> ${brisk}ms`);
+  check("and still recognisably the same animation", REPLAY_SCALE >= 0.5);
+  // The unfold is the part that can be ruined by hurrying it: six hinges have
+  // to land as six separate events, and below about 40ms apart they read as
+  // one. This is the real floor under REPLAY_SCALE.
+  const briskUnfoldMs = brisk * (UNFOLD_WINDOW.to - UNFOLD_WINDOW.from);
+  const lastHingeMs = (N_PANELS - 1) * WING_STAGGER_MS + NEAR_WING_DELAY_MS;
+  check("the six hinges still fit inside the shortened unfold",
+    briskUnfoldMs > lastHingeMs, `${briskUnfoldMs.toFixed(0)}ms for ${lastHingeMs}ms of stagger`);
+  check("hinges are still far enough apart to be counted",
+    WING_STAGGER_MS * REPLAY_SCALE >= 40, `${(WING_STAGGER_MS * REPLAY_SCALE).toFixed(0)}ms apart`);
+  // The spec's rule is that the camera never outlasts the cube. It has to
+  // hold for the shortened deployment too, which is the one that could break
+  // it — the camera's own move is not scaled.
+  check("the camera still lands inside a shortened deployment", ZOOM_OUT_MS <= brisk,
+    `${ZOOM_OUT_MS}ms camera, ${brisk}ms deployment`);
 
   // ---- the wings open like a real satellite's (rev 6 §2, §7) -------------
   const deployMs = DEPLOY_MS;

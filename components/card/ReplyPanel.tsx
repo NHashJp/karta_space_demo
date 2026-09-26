@@ -24,22 +24,25 @@ export function ReplyPanel({
   onSent: () => void;
 }) {
   return (
-    <Panel title="返事を打ち上げる" onClose={onClose}>
-      <p className="reply__prompt" lang="ja">
+    <Panel title="返事を打ち上げる" place="high" divided onClose={onClose}>
+      <p className="panel__prompt" lang="ja">
         {card.replyPrompt}
       </p>
 
+      {/*
+        Where it is going, carried inside the form so it sits directly above
+        the button that sends it, as the comet's does (mockup M13b). It used
+        to follow the form, where the one person who most needed it — someone
+        about to press 打ち上げる — had already looked away.
+      */}
       <MessageForm
         endpoint={`/c/${card.slug}/reply`}
         messageMax={REPLY_MAX}
         submitLabel="打ち上げる"
         sendingLabel="送信中…"
+        note={`すぐに、${card.from}に届きます。`}
         onSent={onSent}
       />
-
-      <p className="reply__note" lang="ja">
-        すぐに、{card.from}に届きます。
-      </p>
     </Panel>
   );
 }

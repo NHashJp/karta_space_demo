@@ -54,6 +54,41 @@ interface StrokeTextBox {
 
 const DEFAULT_TEXT = 'Draw Attention';
 
+/** The fill chases the stroke at half its speed, and never faster than 0.4s. */
+const fillDurationFor = (drawDuration: number) => Math.max(0.4, drawDuration * 0.5);
+
+/**
+ * How long the whole animation runs, in seconds.
+ *
+ * Exported because a caller that has to wait for the writing to finish cannot
+ * work it out from the props it passed: the fill's duration is derived in
+ * here, and the stagger means the answer also depends on how many characters
+ * there are. `CompletionState` waits for exactly this before it lets the
+ * replay button come up to full strength, and a change to the timeline below
+ * has to be a change to this function too.
+ */
+export function strokeTextDuration({
+  characters,
+  drawDuration = 1.6,
+  fillDelay = 0.2,
+  stagger = 0.05,
+  fillMode = 'wipe'
+}: {
+  characters: number;
+  drawDuration?: number;
+  fillDelay?: number;
+  stagger?: number;
+  fillMode?: StrokeTextFillMode;
+}): number {
+  // The last character's stroke starts this far behind the first one's.
+  const lastStarts = stagger * Math.max(0, characters - 1);
+  const strokesEnd = drawDuration + lastStarts;
+  if (fillMode === 'none') return strokesEnd;
+  // The wipe is one tween across the whole line; a fade is staggered per character.
+  const fillStarts = drawDuration + fillDelay + (fillMode === 'wipe' ? 0 : lastStarts);
+  return Math.max(strokesEnd, fillStarts + fillDurationFor(drawDuration));
+}
+
 const StrokeText = ({
   text = DEFAULT_TEXT,
   strokeColor = '#A78BFA',
@@ -151,7 +186,7 @@ const StrokeText = ({
 
     const fillEnabled = fillMode !== 'none';
     const useWipe = fillEnabled && fillMode === 'wipe';
-    const fillDuration = Math.max(0.4, drawDuration * 0.5);
+    const fillDuration = fillDurationFor(drawDuration);
     const staggerConfig: number | gsap.StaggerVars = reverse ? { each: stagger, from: 'end' as const } : stagger;
     const targets = [...strokes, ...fills, wipe].filter(Boolean);
 

@@ -30,6 +30,7 @@ export const panelCellsVertexShader = /* glsl */ `
 export const panelCellsFragmentShader = /* glsl */ `
   uniform vec3 uBase;
   uniform vec3 uCell;
+  uniform vec3 uLine;
   uniform vec3 uSun;
   uniform vec3 uSunColor;
   uniform float uOpacity;
@@ -40,36 +41,54 @@ export const panelCellsFragmentShader = /* glsl */ `
 
   const vec2 CELLS = vec2(6.0, 16.0);
 
+  /*
+   * The array as the mockups draw it (M5, M12a, M14b): dark glass with a pale
+   * wire grid ruled over it, not a lit blue surface with dark seams between
+   * the cells.
+   *
+   * The difference is which of the two is the figure. A bright panel is a
+   * solid object that happens to be near the letter; a dark one you can see a
+   * little sky through is a structure the letter is carried on, and it lets
+   * the cube stay the brightest thing in the frame — which is the whole point
+   * of the composition.
+   */
   void main() {
-    // The gap between cells, as a fraction of one cell.
     vec2 cell = fract(vUv * CELLS);
     vec2 edge = min(cell, 1.0 - cell);
-    float gap = 1.0 - smoothstep(0.0, 0.045, min(edge.x, edge.y));
+    // A thin ruled line, rather than a wide gap between lit cells.
+    float grid = 1.0 - smoothstep(0.0, 0.03, min(edge.x, edge.y));
 
     // A bus bar down the middle of each panel: one asymmetry, which is most of
     // what stops a regular grid reading as wallpaper.
-    float bar = 1.0 - smoothstep(0.0, 0.012, abs(vUv.x - 0.5));
-
-    vec3 color = mix(uBase, uCell, 0.22);
-    color = mix(color, uCell * 1.5, gap * 0.5);
-    color = mix(color, vec3(0.62, 0.70, 0.79), bar * 0.6);
+    float bar = 1.0 - smoothstep(0.0, 0.01, abs(vUv.x - 0.5));
+    float line = max(grid, bar);
 
     vec3 normal = normalize(vNormal);
     float ndl = max(dot(normal, uSun), 0.0);
-    color *= 0.35 + 0.75 * ndl;
+
+    // The plate: dark glass, barely lit, with the faintest cast of the cell
+    // colour still in it so it is not simply grey.
+    vec3 plate = mix(uBase, uCell, 0.14) * (0.18 + 0.36 * ndl);
+    // And the wire ruled across it, which does catch the sun.
+    vec3 wire = uLine * (0.5 + 0.5 * ndl);
+
+    vec3 color = mix(plate, wire, line);
 
     // Glass over silicon: almost nothing until the angle lines up, then a
     // flare. The sun moves on its own, so this sweeps the panels in turn.
     vec3 halfway = normalize(uSun + vView);
     float glint = pow(max(dot(normal, halfway), 0.0), 68.0);
-    color += uSunColor * glint * 0.85;
+    color += uSunColor * glint * 0.55;
 
     // A faint fresnel along the edge, so the plate has a thickness the eye can
     // find against a dark sky.
     float rim = pow(1.0 - max(dot(normal, vView), 0.0), 3.0);
-    color += vec3(0.62, 0.70, 0.79) * rim * 0.18;
+    color += uLine * rim * 0.22;
 
-    gl_FragColor = vec4(color, uOpacity);
+    // The glass is see-through; the wire ruled on it is not.
+    float alpha = clamp(mix(0.5, 0.94, line) + rim * 0.16, 0.0, 1.0);
+
+    gl_FragColor = vec4(color, alpha * uOpacity);
 
     #include <colorspace_fragment>
   }

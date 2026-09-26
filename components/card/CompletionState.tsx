@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import StrokeText from "@/components/text/StrokeText";
+import StrokeText, { strokeTextDuration } from "@/components/text/StrokeText";
 import { SocialLinks } from "./SocialLinks";
 import { Signature } from "./Signature";
-import { ORBIT_HINT_MS, SECRET_HINT_MS, SECRET_HINT_WITH_ORBIT_MS } from "@/lib/timing";
+import { ORBIT_HINT_MS, SIGNATURE_DRAW_MS, replayed } from "@/lib/timing";
+import { usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import type { SocialLink } from "@/types/card";
 
 type Props = {
@@ -18,6 +19,11 @@ type Props = {
   hasOrbit: boolean;
   /** An SVG of the sender's handwriting, drawn under the line (§13.1). */
   signature?: string;
+  /**
+   * This screen has been read once already — after a replay of the card, a
+   * look inside the cube, or a return from orbit. It plays briskly.
+   */
+  again: boolean;
   onReveal: () => void;
   onReplay: () => void;
   onDeploy: () => void;
@@ -29,6 +35,14 @@ type Props = {
  * every stroke is counted, so this leaves generous headroom.
  */
 const DASH_PER_EM = 22;
+
+/**
+ * How long the closing line takes to write itself, in seconds, and when the
+ * fill starts wiping across behind the stroke.
+ */
+const CLOSING_DRAW_S = 2.1;
+const CLOSING_FILL_DELAY_S = 0.35;
+const CLOSING_STAGGER_S = 0.055;
 
 /**
  * When the signature starts. The closing line draws for 2.1s and its fill
@@ -45,12 +59,13 @@ function strokeFontSize(width: number, characters: number): number {
 }
 
 /**
- * Both invitations wait before they appear. A cube that turns out to have an
- * inside — or a letter that turns out to have a continuation — is only a
- * surprise if the closing screen has first been allowed to read as the end.
+ * The orbit offer waits before it appears: a letter that turns out to have a
+ * continuation is only a surprise if the closing screen has first been allowed
+ * to read as the end.
  *
- * When there are two of them they are staggered, so they never arrive together
- * and turn one quiet ending into a menu.
+ * The offer to look inside the cube does not wait. It is not news — the cube is
+ * right there on the screen — so holding it back bought nothing and left the
+ * reader looking at an ending that was still quietly growing buttons.
  */
 
 export function CompletionState({
@@ -60,14 +75,27 @@ export function CompletionState({
   hasSecret,
   hasOrbit,
   signature,
+  again,
   onReveal,
   onReplay,
   onDeploy,
 }: Props) {
   const [width, setWidth] = useState(1024);
-  const [offerSecret, setOfferSecret] = useState(false);
   const [offerOrbit, setOfferOrbit] = useState(false);
+  const [written, setWritten] = useState(false);
+  const reducedMotion = usePrefersReducedMotion();
   const fontSize = strokeFontSize(width, closing.length);
+
+  /*
+   * Everything on this screen is paced against everything else — the fill
+   * chases the stroke, the signature waits for the fill, and the two
+   * invitations wait for the signature — so a replay shortens all of it by
+   * one factor rather than shortening the parts that happen to be animations.
+   * Shorten only the drawing and the offers arrive over a finished screen
+   * that then sits there; shorten only the offers and they interrupt a hand
+   * still writing.
+   */
+  const brisk = (value: number) => replayed(value, again);
 
   useEffect(() => {
     const update = () => setWidth(window.innerWidth);
@@ -76,18 +104,54 @@ export function CompletionState({
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  /*
+   * The replay button is on the screen from the start — it keeps its place in
+   * the column, so nothing shifts under a thumb already reaching for it — but
+   * it stays faint until the hand has stopped writing. Offering to play the
+   * thing again while it is still playing the first time invites a reader to
+   * cut short the one moment the card exists for; a button too quiet to read
+   * yet does not.
+   *
+   * Faint, not disabled: someone who has decided to skip ahead should not have
+   * to wait for permission.
+   *
+   * Under reduced motion there is nothing to wait for — `StrokeText` puts the
+   * closing line straight to its finished state — so the button is legible from
+   * the start. The two invitations below still take their time, because their
+   * delay is about a card that should read as over before it offers more; this
+   * one is only about not talking over an animation.
+   *
+   * The closing line's own length is asked for rather than assumed: the
+   * per-character stagger means a long line is still being written well after
+   * `SIGNATURE_DELAY_MS`, and a card with no signature at all finishes with the
+   * line. Whichever of the two ends last is what the button waits for.
+   */
   useEffect(() => {
-    if (!hasSecret) return;
-    const delay = hasOrbit ? SECRET_HINT_WITH_ORBIT_MS : SECRET_HINT_MS;
-    const timer = setTimeout(() => setOfferSecret(true), delay);
+    if (reducedMotion) {
+      setWritten(true);
+      return;
+    }
+    const lineEnds =
+      strokeTextDuration({
+        characters: closing.length,
+        drawDuration: CLOSING_DRAW_S,
+        fillDelay: CLOSING_FILL_DELAY_S,
+        stagger: CLOSING_STAGGER_S,
+        fillMode: "wipe",
+      }) * 1000;
+    const signatureEnds = signature ? SIGNATURE_DELAY_MS + SIGNATURE_DRAW_MS : 0;
+    const timer = setTimeout(
+      () => setWritten(true),
+      brisk(Math.max(lineEnds, signatureEnds)),
+    );
     return () => clearTimeout(timer);
-  }, [hasSecret, hasOrbit]);
+  }, [closing, signature, again, reducedMotion]);
 
   useEffect(() => {
     if (!hasOrbit) return;
-    const timer = setTimeout(() => setOfferOrbit(true), ORBIT_HINT_MS);
+    const timer = setTimeout(() => setOfferOrbit(true), replayed(ORBIT_HINT_MS, again));
     return () => clearTimeout(timer);
-  }, [hasOrbit]);
+  }, [hasOrbit, again]);
 
   return (
     <div className="screen screen--completion" data-leaving={leaving} aria-hidden={leaving}>
@@ -98,9 +162,9 @@ export function CompletionState({
             strokeColor="#7fd4f5"
             fillColor="#e8e9eb"
             strokeWidth={1.1}
-            drawDuration={2.1}
-            fillDelay={0.35}
-            stagger={0.055}
+            drawDuration={brisk(CLOSING_DRAW_S)}
+            fillDelay={brisk(CLOSING_FILL_DELAY_S)}
+            stagger={brisk(CLOSING_STAGGER_S)}
             ease="power2.out"
             trigger="mount"
             fillMode="wipe"
@@ -114,10 +178,17 @@ export function CompletionState({
           Drawn once the closing line's own fill wipe has finished, so the
           screen reads as one hand writing one thing.
         */}
-        {signature ? <Signature src={signature} delayMs={SIGNATURE_DELAY_MS} /> : null}
+        {signature ? (
+          <Signature
+            src={signature}
+            delayMs={brisk(SIGNATURE_DELAY_MS)}
+            drawMs={brisk(SIGNATURE_DRAW_MS)}
+          />
+        ) : null}
 
         <button
-          className="button button--ghost"
+          className="button button--ghost completion__replay"
+          data-settled={written}
           onClick={onReplay}
           disabled={leaving}
           lang="ja"
@@ -146,14 +217,14 @@ export function CompletionState({
         ) : null}
 
         {hasSecret ? (
-          <div className="secret-offer" data-visible={offerSecret} aria-hidden={!offerSecret}>
+          <div className="secret-offer" data-visible={true}>
             <p className="secret-offer__line" lang="ja">
               この立方体には、内側があります。
             </p>
             <button
               className="button button--quiet"
               onClick={onReveal}
-              disabled={leaving || !offerSecret}
+              disabled={leaving}
               lang="ja"
             >
               中をのぞく

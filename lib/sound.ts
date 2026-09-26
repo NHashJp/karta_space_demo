@@ -180,8 +180,13 @@ export function stop() {
 /**
  * One cue. Each is a few oscillators with an envelope — deliberately simple,
  * because anything more elaborate starts to sound like a notification.
+ *
+ * `speed` compresses a cue that sits under an animation which is itself being
+ * played faster. Only `deploy` reads it: it is the one cue long enough that
+ * the mismatch is audible, and a pad still rising over a satellite that has
+ * already settled is worse than no sound at all.
  */
-export function cue(name: Cue, index = 0) {
+export function cue(name: Cue, index = 0, speed = 1) {
   const e = engine;
   if (!e || !enabled || !started) return;
   const now = e.context.currentTime;
@@ -205,18 +210,20 @@ export function cue(name: Cue, index = 0) {
     }
 
     case "deploy": {
-      // A rising pad under the whole deployment, and a click per panel.
+      // A rising pad under the whole deployment, and a click per panel. Every
+      // offset goes through `at`, so the cue keeps its shape at any speed.
+      const at = (seconds: number) => now + seconds / speed;
       const pad = e.context.createOscillator();
       const gain = e.context.createGain();
       pad.type = "triangle";
       pad.frequency.setValueAtTime(110, now);
-      pad.frequency.exponentialRampToValueAtTime(220, now + 3.4);
+      pad.frequency.exponentialRampToValueAtTime(220, at(3.4));
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.16, now + 1.3);
-      gain.gain.linearRampToValueAtTime(0, now + 3.5);
+      gain.gain.linearRampToValueAtTime(0.16, at(1.3));
+      gain.gain.linearRampToValueAtTime(0, at(3.5));
       pad.connect(gain).connect(e.master);
       pad.start(now);
-      pad.stop(now + 3.6);
+      pad.stop(at(3.6));
 
       /*
        * A click as each of the six panels locks, following the unfold's own
@@ -228,7 +235,7 @@ export function cue(name: Cue, index = 0) {
         for (let k = 0; k < 3; k++) {
           // The unfold window starts at 0.35 of 3.6s; hinges 120ms apart, and
           // the near wing 80ms behind the far one.
-          click(e, now + 1.26 + k * 0.12 + wing * 0.08 + 0.31);
+          click(e, at(1.26 + k * 0.12 + wing * 0.08 + 0.31));
         }
       }
       break;

@@ -121,6 +121,20 @@ other state, `reveal` must do nothing from any of the other eight states, and
 the camera phase must read `inside` while descending and `far` the moment the
 climb back out starts.
 
+The two ceremony counts (`closings`, `deployments`) are walked rather than
+asserted on a hand-built state, because what they have to get right is
+*routes*: `completed` is arrived at from the end of the letter, from coming
+back out of the cube and from docking, and each of the three has to count. A
+refused event must count nothing, or a single stray gesture makes the next
+play brisk.
+
+The replay factor itself gets bounds rather than a value, since the number is
+a judgement and the constraints are not: the shortened unfold must still be
+long enough for the six hinges, the hinges must stay far enough apart to be
+heard and seen as six, and the camera must still land inside the *shortened*
+deployment — the spec's "camera duration ≤ cube deploy duration" rule, applied
+to the case that could actually break it.
+
 ## Shaders
 
 Separately, the GLSL is parsed with three's `#include` chunks resolved and its
@@ -200,9 +214,6 @@ searched.
 | The trail left unstaged at the world origin | rev 6 puts the satellite on that origin: the contrail came out of the middle of the spacecraft |
 | Newlines stripped from reply messages | a paragraph break was impossible; a newline in a *name* was header injection |
 | Comet key length checked in only one place | a short key threw from inside node's cipher instead of being refused |
-| The hull rotated about Y, the cube about three axes | wings drawn near-horizontal while the check reported −50°: it measured a construct, not the hull |
-| Camera distance divided by the *world* span | the wing axis leans into the screen, so the satellite drew a tenth of the frame too small |
-| The trail left unstaged at the world origin | rev 6 puts the satellite on that origin: the contrail came out of the middle of the spacecraft |
 | The camera flew down the middle of the ribbon | 0.197u from the lens, pointed along its length — an additive white wedge over the whole frame |
 | Memories spaced evenly in `u`, not in distance | hops of 5u and 50u on one card; the comment claimed even effort and the check measured `u` |
 | The satellite left drawn on the trail | at the first memory it sat 2u in front of the lens with the panel 5u behind it |
@@ -210,6 +221,8 @@ searched.
 | `tailLength` returning 0 at a cutoff | a step, not a fade — the tail was still a third of a unit long when it vanished between frames |
 | The comet's clearance measured as a point | a coma three times the width of the gap it passes through sails past a centre-distance check |
 | `SpeedStreaks` seeded on a stride of 3 with an offset of 7 | `i*3+7` is `(i+2)*3+1`: every streak's speed was another streak's direction |
+| The deployed attitude written as a step, not a position | docking left the cube at its satellite angle: the closing line and the signature were drawn under a body that was no longer square-on |
+| A tumble underneath a `slerp(DISPLAY, 1)` | overwritten every frame by the line above it — a degree of drift a frame, wiped a frame later, for as long as anyone had been reading the comment |
 
 ## Limits
 

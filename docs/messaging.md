@@ -81,6 +81,49 @@ updated in exchange for saving six lines.
 A send failure never surfaces the provider's error to the receiver. "It didn't
 go" is actionable; a 422 from an email API is not, and it is not their problem.
 
+## A feature nobody can deliver is not offered
+
+`toClientCard` decides what the card offers by asking the environment what it
+could actually do, so the two features that need mail are absent rather than
+broken when it is not set up:
+
+```ts
+replyAvailable = Boolean(card.reply) && mailReady(slug)
+capsule        = comet.invite !== false && mailReady(slug) && cometReady()
+                 && cycle.status === "away"
+```
+
+The alternative — showing the button and failing at the end — spends
+someone's message to tell them something the server knew before the page was
+rendered.
+
+The flags are computed on the server and travel to the browser as booleans.
+No env value reaches the client: `notifyTo()` returns the address, `mailReady`
+and `cometReady` return yes or no, and nothing in `ClientCard` carries a key.
+
+The practical consequence is that **a local dev server with no
+`RESEND_API_KEY` shows neither the reply rocket nor the comet's invite.** That
+is correct, and it is the single most common "where did the button go".
+[Testing](./testing.md#the-reply-and-the-comet-are-invisible-until-mail-is-configured)
+has the setup.
+
+## Testing it without an account
+
+`MAIL_DEV_SINK=1` makes `sendMail` write each message to `.mail/` and return
+success, and makes `mailReady` true, so both features can be exercised end to
+end with no provider at all.
+
+It swaps the last hop and nothing else — routes, gating, templates, rate
+limit, honeypot and the sealed token all behave normally — which is what makes
+it worth having: the alternative was that the rocket's flight and the comet's
+boarding, the two most elaborate moments in the card, could not be seen
+without a Resend account.
+
+Two locks keep it out of production: it is off unless explicitly set, and
+`mailSink()` returns false whenever `NODE_ENV === "production"`. A sink that
+escaped would silently swallow every message the card exists to deliver, so
+neither lock is decoration.
+
 ## Nobody needs an account
 
 Not the receiver, and not to read a comet later. There is no user system: no

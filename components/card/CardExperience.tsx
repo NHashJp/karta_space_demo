@@ -28,6 +28,7 @@ import {
   type CometVisit,
 } from "@/lib/cometVisit";
 import { lightSeed } from "@/lib/sceneLight";
+import { DEPLOY_MS, replayed } from "@/lib/timing";
 import { orbitRotation, progress as cometProgress } from "@/lib/cometOrbit";
 import {
   readLaunched,
@@ -88,7 +89,7 @@ export function CardExperience({
     },
     initialExperience,
   );
-  const { state, activeFace, activeMemory, panel, launched } = experience;
+  const { state, activeFace, activeMemory, panel, launched, closings, deployments } = experience;
   const [settled, setSettled] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const { active: loading, errors } = useProgress();
@@ -138,12 +139,37 @@ export function CardExperience({
   const memories = card.memories ?? [];
   const phase = cameraPhase(state);
 
+  /*
+   * How long the deployment runs, and how fast the sound plays under it.
+   *
+   * Counted per trip rather than per direction, so the first launch *and* the
+   * first return home are both watched in full — the closing screen coming
+   * back is the other half of the same ceremony. From the second trip on, the
+   * reader is commuting between the letter and its orbit, and both halves are
+   * brisk (`REPLAY_SCALE`).
+   */
+  const deployMs = replayed(DEPLOY_MS, deployments > 1);
+
   const seed = useMemo(() => lightSeed(card.slug), [card.slug]);
 
   // A warmer light on the day the comet comes back (§23.3), and the one cue
   // in the sound palette that is allowed to be bright (§12.2).
   const returned = card.comet?.status === "returned";
   const aboard = Boolean(visit.sent);
+
+  /*
+   * The link to watch the comet, for the rest of this session only.
+   *
+   * It lives here rather than in the sheet because the sheet is unmounted
+   * while the boarding animation plays and mounted again afterwards — so a
+   * token held inside it was always thrown away between the send and the
+   * screen that offers to copy it, and the button never appeared.
+   *
+   * In memory, never written down. The token *is* the message, and its one
+   * home is the email it went out in (§11.5); this is the same courtesy a
+   * component-level variable was, held somewhere that survives a remount.
+   */
+  const [cometLink, setCometLink] = useState<string | null>(null);
 
   /** Remember what this browser has now seen, and tell the reducer. */
   const remember = useCallback(
@@ -228,14 +254,14 @@ export function CardExperience({
     else if (state === "reading" && (was === "entering" || was === "returning")) {
       sound.cue("faceLand", activeFace);
     } else if (state === "leaving") sound.cue("leave");
-    else if (state === "deploying") sound.cue("deploy");
+    else if (state === "deploying") sound.cue("deploy", 0, DEPLOY_MS / deployMs);
     else if (state === "remembering") sound.cue("memory", activeMemory);
     else if (state === "launching") sound.cue("launch");
     else if (state === "boarding") sound.cue("release");
     else if (state === "departing") sound.cue("deploy");
     // The comet is back, and this is the one bright sound in the palette.
     else if (state === "nudging" && returned) sound.cue("returned");
-  }, [soundAvailable, state, activeFace, activeMemory, returned]);
+  }, [soundAvailable, state, activeFace, activeMemory, returned, deployMs]);
 
   /**
    * The comets in the sky, as positions rather than as configuration. The
@@ -302,6 +328,7 @@ export function CardExperience({
           boarding={state === "boarding"}
           onBoardEnd={onBoardEnd}
           deploying={deploying}
+          deployMs={deployMs}
           deployed={isDeployed(state)}
           onDeployEnd={onDeployEnd}
           secret={secret}
@@ -349,6 +376,7 @@ export function CardExperience({
           hasSecret={Boolean(secret)}
           hasOrbit={card.hasOrbit}
           signature={card.signature}
+          again={closings > 1}
           onReveal={onReveal}
           onReplay={() => dispatch({ type: "replay" })}
           onDeploy={onDeploy}
@@ -373,11 +401,13 @@ export function CardExperience({
         <CometSheet
           card={card}
           aboard={aboard}
-          onBoarded={() => {
+          justBoardedLink={cometLink}
+          onBoarded={(token) => {
             // Remembered in this browser so the nudge does not come back, and
             // so the chip in the hub can say where their words got to. The
             // token is never stored — it is the message, and its one home is
             // the email it went out in (§11.5).
+            if (token) setCometLink(`${window.location.origin}/comet/${token}`);
             remember({ sent: { on: card.today } });
             dispatch({ type: "board" });
           }}

@@ -11,6 +11,24 @@
   --starlight: #e8e9eb;
   --ion: #00aeef;
   --nebula: #5d4b94;
+  /* The section labels over the sky: quieter than --lunar, still readable. */
+  --label: #8e97a0;
+  /* Anything to do with the comet carrying someone's words (M13, M14b). */
+  --warm: #f3e6cf;
+
+  /*
+   * The glass every sheet and panel is cut from (mockups M12–M14). One recipe
+   * rather than four, because they are the same object seen in four places and
+   * the eye notices when the blur or the border disagree between them.
+   */
+  --glass: rgba(10, 12, 16, 0.78);
+  --glass-edge: rgba(176, 180, 186, 0.2);
+  --glass-shadow: 0 24px 64px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glass-blur: blur(16px) saturate(1.2);
+  /* And the chrome that floats free over the scene, which is lighter. */
+  --chrome-fill: rgba(5, 7, 12, 0.4);
+  --chrome-edge: rgba(176, 180, 186, 0.28);
 
   --font-ja: var(--font-noto-sans-jp), "Hiragino Sans", "Yu Gothic", "YuGothic",
     system-ui, sans-serif;
@@ -176,6 +194,28 @@ body {
   filter: drop-shadow(0 0 28px rgba(0, 174, 239, 0.28));
 }
 
+/*
+ * The replay button holds its place from the start so the column never jumps,
+ * but stays too faint to read as an invitation until the closing line and the
+ * signature have finished being written. It remains clickable throughout — a
+ * reader who wants to skip the ceremony is not made to wait for it.
+ */
+.completion__replay {
+  opacity: 0.22;
+  transition: opacity 600ms ease, border-color 220ms ease, background 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.completion__replay[data-settled="true"] {
+  opacity: 1;
+}
+
+/* Focus and hover overrule the fade: a button being reached for is not faint. */
+.completion__replay:hover:not(:disabled),
+.completion__replay:focus-visible {
+  opacity: 1;
+}
+
 /* ---------- social links ---------- */
 
 .social {
@@ -250,6 +290,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Icon to label inside one control: the half-step the grid allows. */
+  gap: var(--space-1);
   min-height: var(--control-h);
   padding: 0 var(--space-5);
   border: 1px solid rgba(176, 180, 186, 0.45);
@@ -281,13 +323,48 @@ body {
   background: transparent;
 }
 
-/* Quieter still: an invitation, not an instruction. */
+/*
+ * Quieter still: an invitation, not an instruction.
+ *
+ * It carries a fill and a blur rather than being fully transparent (mockups
+ * M5, M14b). The orbit bar sits over the planet's lit limb, and a pill with
+ * nothing behind it disappears into the bright half of the frame.
+ */
 .button--quiet {
   padding: 0 var(--space-3);
-  border-color: rgba(176, 180, 186, 0.25);
+  border-color: var(--chrome-edge);
+  background: var(--chrome-fill);
+  backdrop-filter: blur(8px);
+  color: var(--lunar);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* A choice that is only a way out: no border, no fill, just the words. */
+.button--plain {
+  padding: 0 var(--space-3);
+  border-color: transparent;
   background: transparent;
   color: var(--lunar);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.button--plain:hover:not(:disabled) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--starlight);
+}
+
+/* Two buttons sharing a row at the foot of a sheet, evenly. */
+.button--wide {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 var(--space-2);
 }
 
 .button:focus-visible,
@@ -750,8 +827,9 @@ body {
 /* ---------- the inside of the cube ---------- */
 
 /*
- * The offer to go inside surfaces only after the closing screen has had time
- * to read as the end, so it fades in rather than appearing.
+ * Unlike the orbit offer, this one is there from the start — the cube is on
+ * the screen, and the invitation to look inside it belongs with it. The
+ * transition is kept for the way out, when `data-visible` goes false again.
  */
 .secret-offer {
   display: flex;
@@ -848,10 +926,19 @@ body {
   pointer-events: auto;
 }
 
+/*
+ * The one line on this screen that is not chrome: the card telling the reader
+ * it is not over. It is set brighter and larger than the secret offer below
+ * it, and lit the way the closing line and the line inside the cube are, so
+ * the three things the card actually *says* look like each other — and so the
+ * two offers read as a first and a second rather than as a pair.
+ */
 .orbit-offer__line {
-  font-size: 0.82rem;
-  letter-spacing: 0.08em;
-  color: var(--lunar);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--starlight);
+  text-shadow: 0 0 20px rgba(127, 212, 245, 0.35);
 }
 
 .orbit-offer__cue {
@@ -885,12 +972,14 @@ body {
  */
 .orbit-ui__tip {
   position: absolute;
-  top: var(--space-8);
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.78rem;
-  letter-spacing: 0.12em;
-  color: var(--titanium);
+  top: max(var(--space-8), env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 20px;
+  letter-spacing: 0.08em;
+  color: var(--lunar);
   opacity: 0;
   transition: opacity 800ms ease;
 }
@@ -899,21 +988,96 @@ body {
   opacity: 1;
 }
 
+/*
+ * The bar sits in a gradient foot rather than floating on the sky (M5, M14b).
+ * The planet's lit limb comes up into this corner, and without the wash the
+ * pills sit on whatever the scene happens to be doing underneath them.
+ */
 .orbit-bar {
   position: absolute;
-  left: 50%;
-  bottom: max(var(--space-3), env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) var(--space-2)
+    max(var(--space-4), env(safe-area-inset-bottom));
+  background: linear-gradient(rgba(5, 7, 12, 0), rgba(5, 7, 12, 0.72));
+  pointer-events: none;
+}
+
+/*
+ * Capped narrower than the screen so four pills fall onto two rows of two on
+ * a phone, as the mockups have them, instead of one scrolling line.
+ */
+.orbit-bar__row {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-1);
+  max-width: 358px;
   pointer-events: auto;
+}
+
+/*
+ * While something is being asked, the bar steps back. The glass is
+ * translucent by design, and four pills reading through a sheet that is
+ * itself offering two choices turns one question into six.
+ */
+body:has(.panel-layer) .orbit-bar,
+body:has(.sheet-layer) .orbit-bar,
+body:has(.panel-layer) .orbit-ui__aboard,
+body:has(.sheet-layer) .orbit-ui__aboard,
+body:has(.panel-layer) .orbit-ui__tip,
+body:has(.sheet-layer) .orbit-ui__tip {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.orbit-bar {
+  transition: opacity 240ms ease;
 }
 
 /* Receiver-facing controls are 48px tall, whatever the text in them (§23.1). */
 .orbit-bar .button {
   min-height: var(--control-h);
+  font-size: 0.82rem;
+}
+
+/* `‹ 手紙に戻る` — the way back carries the only chevron in the bar. */
+.orbit-bar__back-cue {
+  width: 14px;
+  height: 14px;
+  margin-right: calc(-1 * var(--space-half));
+  color: var(--titanium);
+}
+
+/*
+ * On a wide screen the satellite is the letter, and saying so under it is
+ * kinder than expecting anyone to try tapping a cube (mockup M5b).
+ */
+.orbit-ui__reread {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+@media (hover: hover) and (min-width: 721px) {
+  .orbit-ui:hover .orbit-ui__reread,
+  .orbit-ui__reread:focus-within {
+    opacity: 1;
+  }
+}
+
+/* No hover to reveal it on a phone, and the bar already says it. */
+@media (max-width: 720px) {
+  .orbit-ui__reread {
+    display: none;
+  }
 }
 
 /*
@@ -923,9 +1087,9 @@ body {
 .orbit-ui .social {
   position: absolute;
   left: max(var(--space-2), env(safe-area-inset-left));
-  bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
   margin: 0;
-  gap: var(--space-2);
+  gap: var(--space-1);
   pointer-events: auto;
 }
 
@@ -936,18 +1100,43 @@ body {
   }
 }
 
+/* Over the sky they need a fill of their own; on the closing screen they do not. */
+.orbit-ui .social__link {
+  background: rgba(5, 7, 12, 0.35);
+  backdrop-filter: blur(8px);
+}
+
 /* ---------- orbit panels (§8.4, §10.2, §11.3) ---------- */
 
+/*
+ * Anchored to the bottom, like the comet sheet (mockups M13, M14a). Every
+ * panel in the orbit view is a thing you are asked *about the sky*, and the
+ * sky is the top two-thirds of the frame — a centred box sits on the subject
+ * of the screen it belongs to. The scrim is lighter than it was for the same
+ * reason: what is behind it is still meant to be seen.
+ */
 .panel-layer {
   position: fixed;
   inset: 0;
   z-index: 70;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* Overridden by [data-place="high"] below. */
   padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-2)
-    max(var(--space-3), env(safe-area-inset-bottom));
-  background: rgba(5, 7, 12, 0.56);
+    max(var(--space-2), env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent 40%, rgba(5, 7, 12, 0.5));
   animation: panel-arrive 240ms ease both;
+}
+
+/*
+ * A panel with a form in it sits high instead (M8a): clear of the planet, and
+ * clear of the keyboard that is about to take the bottom half of a phone.
+ */
+.panel-layer[data-place="high"] {
+  align-items: flex-start;
+  padding-top: max(var(--space-10), env(safe-area-inset-top));
+  background: linear-gradient(to bottom, rgba(5, 7, 12, 0.5), transparent 60%);
 }
 
 @keyframes panel-arrive {
@@ -955,16 +1144,38 @@ body {
   to { opacity: 1; }
 }
 
+/* The hairline between a panel's label and the form under it. */
+.panel__rule {
+  height: 1px;
+  background: rgba(176, 180, 186, 0.16);
+}
+
+/* What a form panel asks, above its fields. */
+.panel__prompt {
+  font-size: 0.94rem;
+  font-weight: 500;
+  line-height: 24px;
+  color: var(--starlight);
+}
+
+/*
+ * The panel and the sheet are the same glass (M12–M14): same radius, same
+ * border, same shadow, same blur. They differ only in where they sit.
+ */
 .panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   width: min(420px, 100%);
   max-height: 100%;
   overflow-y: auto;
   padding: var(--space-3);
   text-align: left;
-  border: 1px solid var(--charcoal);
-  border-radius: var(--radius-2);
-  background: rgba(10, 12, 16, 0.92);
-  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-3);
+  background: var(--glass);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
 }
 
 .panel:focus-visible {
@@ -972,35 +1183,47 @@ body {
   outline-offset: 3px;
 }
 
+/*
+ * No rule under the head. The mockups let the label float over the contents,
+ * because a sheet this small is already one thing — a line across it makes it
+ * read as two.
+ */
 .panel__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
-  padding-bottom: var(--space-1);
-  border-bottom: 1px solid var(--charcoal);
+  height: 24px;
 }
 
 .panel__title {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.2em;
-  color: var(--lunar);
+  letter-spacing: 0.3em;
+  line-height: 24px;
+  color: var(--label);
 }
 
 .panel__close {
   /* A full-size target around a glyph much smaller than it; the negative
      margin pulls it back to the panel's corner optically. */
+  display: grid;
+  place-items: center;
   width: var(--control-h);
   height: var(--control-h);
   margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
   border: 0;
+  border-radius: var(--radius-pill);
   background: none;
-  color: var(--titanium);
+  color: var(--lunar);
   font-size: 0.9rem;
   cursor: pointer;
   transition: color 200ms ease;
+}
+
+.panel__close svg {
+  width: 18px;
+  height: 18px;
 }
 
 .panel__close:hover,
@@ -1368,11 +1591,10 @@ body {
  * written rather than something displayed.
  */
 .comet__message {
-  margin-top: var(--space-2);
   font-size: 0.94rem;
-  line-height: 2;
-  letter-spacing: 0.04em;
-  color: var(--asteroid);
+  line-height: 28px;
+  letter-spacing: 0.03em;
+  color: var(--starlight);
 }
 
 /* The line that makes the seal explicit before anyone commits to it. */
@@ -1398,13 +1620,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-half);
-  width: var(--control-h);
+  gap: var(--space-1);
   height: var(--control-h);
-  border: 1px solid transparent;
+  padding: 0 var(--space-2);
+  border: 1px solid rgba(176, 180, 186, 0.25);
   border-radius: var(--radius-pill);
-  background: none;
-  color: var(--titanium);
+  background: var(--chrome-fill);
+  backdrop-filter: blur(8px);
+  color: var(--lunar);
   cursor: pointer;
   transition: color 240ms ease, border-color 240ms ease;
 }
@@ -1412,7 +1635,7 @@ body {
 .sound-toggle:hover,
 .sound-toggle:focus-visible {
   color: var(--starlight);
-  border-color: rgba(176, 180, 186, 0.25);
+  border-color: var(--ion);
 }
 
 .sound-toggle:focus-visible {
@@ -1425,35 +1648,22 @@ body {
   height: 18px;
 }
 
-/* The label is for screen readers and wide screens; the icon carries it. */
+/*
+ * The label stays at every width (mockups M5, M12). A lone speaker glyph in
+ * the corner of a dark screen reads as a mute indicator as easily as a
+ * control; one kanji beside it settles which.
+ */
 .sound-toggle__label {
-  font-size: 0.62rem;
-  letter-spacing: 0.1em;
-}
-
-@media (max-width: 720px) {
-  .sound-toggle__label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
 }
 
 /* ---------- the reply and comet forms (spec v0.2 §10.2, §11.3) ---------- */
-
-.reply__prompt {
-  font-size: 0.92rem;
-  line-height: 1.9;
-  color: var(--asteroid);
-}
 
 .message-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-top: var(--space-2);
 }
 
 .message-form__field {
@@ -1464,9 +1674,10 @@ body {
 }
 
 .message-form__label {
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  color: var(--titanium);
+  font-size: 0.75rem;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  color: var(--lunar);
 }
 
 .message-form__input {
@@ -1475,11 +1686,15 @@ body {
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--titanium);
   border-radius: var(--radius-1);
-  background: rgba(5, 7, 12, 0.6);
+  background: rgba(10, 12, 16, 0.8);
   color: var(--starlight);
   font-family: inherit;
   font-size: 0.94rem;
-  line-height: 1.7;
+  line-height: 24px;
+}
+
+.message-form__textarea {
+  min-height: 96px;
 }
 
 .message-form__textarea {
@@ -1493,10 +1708,25 @@ body {
 
 .message-form__count {
   align-self: flex-end;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  line-height: 16px;
   letter-spacing: 0.08em;
-  color: var(--titanium);
+  color: var(--label);
   font-variant-numeric: tabular-nums;
+}
+
+/* Where the words are going, said once, just above the button that sends them. */
+.message-form__note {
+  /* grid-exempt: pulls the note up under the counter, which already has a gap. */
+  margin-top: -8px;
+  font-size: 0.75rem;
+  line-height: 20px;
+  color: var(--lunar);
+}
+
+.message-form__actions {
+  display: flex;
+  gap: var(--space-1);
 }
 
 .message-form__count[data-over="true"] {
@@ -1516,17 +1746,25 @@ body {
   overflow: hidden;
 }
 
+/*
+ * Above the button, not below it (mockup M8d), and in place of the note: the
+ * reader's next move is that button, and a failure written underneath it is
+ * read after they have already pressed it again.
+ */
 .message-form__error {
   font-size: 0.82rem;
-  line-height: 1.8;
-  color: #ff8a8a;
+  line-height: 20px;
+  color: #ffb4b4;
 }
 
-/* Where the message is going, which is the whole point of saying it. */
-.reply__note {
-  margin-top: var(--space-2);
-  font-size: 0.8rem;
-  color: var(--titanium);
+/* One button on its own is centred rather than stretched (M8a). */
+.message-form__actions:has(> :only-child) {
+  justify-content: center;
+}
+
+.message-form__actions:has(> :only-child) .button {
+  flex: 0 0 auto;
+  padding: 0 var(--space-5);
 }
 
 /* ---------- the sender's comet page (spec v0.2 §11.7) ---------- */
@@ -1962,10 +2200,11 @@ body {
   overflow-y: auto;
   padding: var(--space-3);
   text-align: left;
-  border: 1px solid var(--charcoal);
+  border: 1px solid var(--glass-edge);
   border-radius: var(--radius-3);
-  background: rgba(10, 12, 16, 0.94);
-  backdrop-filter: blur(10px);
+  background: var(--glass);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
 }
 
 .sheet__head {
@@ -1973,40 +2212,136 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  height: 24px;
+}
+
+/* The same small letter-spaced label the panels carry. */
+.sheet__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  line-height: 24px;
+  color: var(--label);
+}
+
+/* Two buttons at the foot of a sheet, or one filling the width. */
+.sheet__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/*
+ * The promise itself is a caption on the chart, not a line in the sheet
+ * (mockups M12c, M13a, M14c). It belongs to the ellipse behind it — the date
+ * and the drawing say one thing together — and putting it in the sheet made
+ * the sheet the subject of a screen whose subject is the sky.
+ */
+.chart-head {
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  top: max(var(--space-8), env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.chart-head__label {
+  margin-bottom: var(--space-1);
+  font-size: 0.75rem;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: var(--label);
+}
+
+.chart-head__promise {
+  font-size: 1.25rem;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--starlight);
+  /* The sky behind this is busy; the shadow is what keeps the line readable. */
+  text-shadow: 0 0 24px rgba(5, 7, 12, 0.9);
+  text-wrap: balance;
 }
 
 /* `次の冬 · 約3か月後` — the promise's own precision, never a raw date. */
-.sheet__when {
-  font-size: 0.78rem;
+.chart-head__when {
+  font-size: 0.82rem;
+  line-height: 20px;
   letter-spacing: 0.1em;
-  color: var(--ion);
+  color: var(--lunar);
   font-variant-numeric: tabular-nums;
 }
 
-.sheet__promise {
-  font-size: 1.05rem;
+/* The one line in a sheet that is the answer, rather than the explanation. */
+.sheet__headline {
+  font-size: 1.06rem;
   font-weight: 500;
-  line-height: 1.8;
-  letter-spacing: 0.04em;
+  line-height: 28px;
   color: var(--starlight);
   text-wrap: balance;
 }
 
-.sheet__from,
-.sheet__invite,
-.sheet__aboard,
-.sheet__note {
+/* When what happened is the comet carrying their words, it is said warmly. */
+.sheet__headline--warm {
+  letter-spacing: 0.04em;
+  color: var(--warm);
+}
+
+.sheet__body {
+  /* grid-exempt: pulls the explanation up under its own headline, against
+     the sheet's uniform 16px stack. */
+  margin-top: -8px;
+  font-size: 0.82rem;
+  line-height: 20px;
+  color: var(--lunar);
+}
+
+/*
+ * What is already sealed on the comet, with the lock that says so. The seal
+ * is the whole promise, so it is stated before anyone adds to it.
+ */
+.sheet__sealed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  line-height: 20px;
+  color: var(--lunar);
+}
+
+.sheet__sealed svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--stroke, #7fd4f5);
+}
+
+.sheet__from {
   font-size: 0.85rem;
   line-height: 1.9;
   color: var(--cosmic-silver);
 }
 
-.sheet__invite {
-  color: var(--starlight);
+/*
+ * The arrival's two lines belong together — what happened, and when it
+ * started — so they sit closer than the sheet's uniform stack (M9a).
+ */
+.sheet__arrival {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
 }
 
-.sheet__aboard {
-  color: var(--ion);
+/* Their own words came back too. Warm, and quieter than the sender's. */
+.sheet__also {
+  font-size: 0.75rem;
+  line-height: 20px;
+  color: var(--warm);
 }
 
 /* ---------- the crossroads (§8.8) ---------- */
@@ -2014,26 +2349,93 @@ body {
 .crossroads {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
-.crossroads .button {
-  width: 100%;
-  min-height: var(--control-h);
-}
-
-/* Where their words got to, in the hub. */
-.orbit-ui__aboard {
-  position: absolute;
-  left: 50%;
-  bottom: var(--space-10);
-  transform: translateX(-50%);
+/*
+ * Each way on is a card rather than a pill (mockup M14a): an icon for what it
+ * is, what it does, and what it costs — "5つの思い出", "今すぐ、みおに届きます".
+ * The reader has just been shown something and is being asked where to go
+ * next; three identical pills make that a menu, and the second line is what
+ * turns it back into a choice between two different things.
+ */
+.crossroads__choice {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
+  gap: var(--space-2);
+  width: 100%;
+  height: 72px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--chrome-edge);
+  border-radius: var(--radius-2);
+  background: rgba(28, 35, 51, 0.5);
   color: var(--lunar);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease;
+}
+
+.crossroads__choice:hover,
+.crossroads__choice:focus-visible {
+  border-color: var(--ion);
+  background: rgba(0, 174, 239, 0.1);
+  box-shadow: 0 0 26px rgba(0, 174, 239, 0.2);
+}
+
+.crossroads__icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--lunar);
+}
+
+.crossroads__text {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.crossroads__name {
+  font-size: 0.94rem;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--starlight);
+}
+
+.crossroads__cost {
+  font-size: 0.75rem;
+  line-height: 16px;
+  color: var(--lunar);
+}
+
+.crossroads__chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--titanium);
+}
+
+/* And the way that is not a way on: staying where you are. */
+.crossroads__stay {
+  display: flex;
+  justify-content: center;
+}
+
+/*
+ * Where their words got to, in the hub — a warm chip above the bar (M14b).
+ * It is the one thing the sky cannot say on its own: the comet carrying them
+ * is a speck, and this is lit the colour of what is aboard it.
+ */
+.orbit-ui__aboard {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 192px;
+  display: flex;
+  justify-content: center;
   opacity: 0;
   transition: opacity 800ms ease;
 }
@@ -2042,9 +2444,26 @@ body {
   opacity: 1;
 }
 
+.orbit-ui__aboard span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid rgba(243, 230, 207, 0.4);
+  border-radius: var(--radius-pill);
+  background: rgba(5, 7, 12, 0.55);
+  backdrop-filter: blur(8px);
+  color: var(--warm);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
 .orbit-ui__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #f3d7a4;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--warm);
+  box-shadow: 0 0 8px rgba(243, 215, 164, 0.9);
 }

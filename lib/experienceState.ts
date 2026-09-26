@@ -64,6 +64,17 @@ export type Experience = {
   panel: OrbitPanel;
   /** A reply was launched in this session. */
   launched: boolean;
+  /**
+   * How many times each ceremony has been arrived at, this session.
+   *
+   * Counted rather than flagged because what the screen actually asks is "is
+   * this the first time" — and a counter answers that on arrival, where a
+   * boolean would need a second field to say when it may be set. One is a
+   * full-length deployment or a hand-written closing line; two or more is a
+   * reader going somewhere they have already been (`REPLAY_SCALE`).
+   */
+  closings: number;
+  deployments: number;
   /** How the current comet moment began: automatically, or by a tap (§8.3). */
   chartVia: "deploy" | "tap" | null;
   comet: CometFlags;
@@ -118,6 +129,8 @@ export function initialExperience(ctx: ExperienceContext = EMPTY): Experience {
     activeMemory: 0,
     panel: null,
     launched: false,
+    closings: 0,
+    deployments: 0,
     chartVia: null,
     comet: ctx.comet,
     memoryCount: ctx.memoryCount,
@@ -141,7 +154,23 @@ const EMPTY: ExperienceContext = {
   comet: NO_COMET_FLAGS,
 };
 
+/**
+ * The machine itself, plus the count of how often it has arrived where it is.
+ *
+ * The counting is a wrapper rather than a line in each transition because
+ * "completed" is reached from three places and "deploying" from two, and a
+ * ceremony that forgot to count itself in one of them would look right in
+ * every test and wrong for exactly one route through the card.
+ */
 export function reduceExperience(current: Experience, event: ExperienceEvent): Experience {
+  const next = transition(current, event);
+  if (next.state === current.state) return next;
+  if (next.state === "completed") return { ...next, closings: next.closings + 1 };
+  if (next.state === "deploying") return { ...next, deployments: next.deployments + 1 };
+  return next;
+}
+
+function transition(current: Experience, event: ExperienceEvent): Experience {
   const { state, activeFace, activeMemory, panel, memoryCount, hasOrbit } = current;
   const lastMemory = memoryCount - 1;
 

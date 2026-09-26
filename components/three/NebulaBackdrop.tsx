@@ -21,14 +21,21 @@ export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
     () => ({
       uTime: { value: 0 },
       uVoid: { value: new THREE.Color("#05070c") },
-      uDeep: { value: new THREE.Color("#0d1b2a") },
-      uNebula: { value: new THREE.Color("#3b2e63") },
-      uIon: { value: new THREE.Color("#0f6d96") },
-      uEmber: { value: new THREE.Color("#6b3a63") },
+      /*
+       * Pushed towards the mockups' sky (M5, M12–M14): a teal that reads as
+       * teal rather than as dark blue, and a magenta in the warm gas instead
+       * of a plum that went grey as soon as it was dimmed. The card is mostly
+       * this backdrop, and it was the one part of the composition doing its
+       * job in monochrome.
+       */
+      uDeep: { value: new THREE.Color("#10203a") },
+      uNebula: { value: new THREE.Color("#4a3676") },
+      uIon: { value: new THREE.Color("#1a86b4") },
+      uEmber: { value: new THREE.Color("#8d4374") },
       // The filament palette of §23.2: violet through to cyan.
       uFilamentCool: { value: new THREE.Color("#4fc3f0") },
-      uFilamentWarm: { value: new THREE.Color("#8f7fd6") },
-      uIntensity: { value: 0.9 },
+      uFilamentWarm: { value: new THREE.Color("#b07fd6") },
+      uIntensity: { value: 1.15 },
     }),
     [],
   );
@@ -44,7 +51,7 @@ export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
     if (!reducedMotion) shader.uniforms.uTime.value = clock.elapsedTime;
     shader.uniforms.uIntensity.value = THREE.MathUtils.damp(
       shader.uniforms.uIntensity.value,
-      dimmed ? 0.34 : 0.9,
+      dimmed ? 0.34 : 1.15,
       3,
       delta,
     );

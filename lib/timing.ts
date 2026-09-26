@@ -8,11 +8,15 @@
  * that can drift apart.
  */
 
-/** The closing screen holds as an ending before it offers a continuation. */
+/**
+ * The closing screen holds as an ending before it offers a continuation.
+ *
+ * Only the orbit offer waits. The invitation to look inside the cube used to
+ * wait longer still, so the two would not arrive together — but the cube is
+ * already on the screen, so that offer is no surprise to hold back, and it is
+ * now there from the first frame.
+ */
 export const ORBIT_HINT_MS = 3500;
-/** And the secret waits longer still when there is an orbit offer above it. */
-export const SECRET_HINT_MS = 6000;
-export const SECRET_HINT_WITH_ORBIT_MS = 7000;
 
 /** Cube to satellite, and back. `CameraRig` must not outlast this. */
 export const DEPLOY_MS = 3600;
@@ -44,7 +48,31 @@ export const ORBIT_TIP_MS = 4000;
  */
 export const REDUCED_MS = 300;
 
-/** The duration to use for a phase, honouring the reader's preference. */
-export function duration(ms: number, reducedMotion: boolean): number {
-  return reducedMotion ? Math.min(ms, REDUCED_MS) : ms;
+/**
+ * How long a ceremony runs when it is played again, as a fraction of the
+ * first time.
+ *
+ * Two moments in this card are ceremonies rather than transitions: the cube
+ * becoming a satellite, and the closing line being written by hand. Both are
+ * worth their full length once — they are what the card is *for*. Neither is
+ * worth it twice, because the second time the reader is no longer watching
+ * something happen, they are waiting to get somewhere they have already been.
+ *
+ * Just over half: enough to feel brisk, not so little that the animation
+ * stops reading as the same animation. Below about a third the accordion's
+ * six panel hinges stop resolving as six separate things and the whole point
+ * of the unfold is lost, so this is a floor as much as a preference.
+ */
+export const REPLAY_SCALE = 0.55;
+
+/**
+ * A duration, shortened if this is a replay.
+ *
+ * Unit-agnostic on purpose — it is a multiply, and the closing screen times
+ * its stroke animations in seconds while everything else counts in
+ * milliseconds. One function rather than two keeps the two halves of one
+ * screen shortening by the same amount.
+ */
+export function replayed(value: number, again: boolean): number {
+  return again ? value * REPLAY_SCALE : value;
 }

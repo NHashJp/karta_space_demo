@@ -80,6 +80,8 @@ type Props = {
    * animation and announces its own end (spec v0.2 §8.2).
    */
   deploying?: "out" | "in" | null;
+  /** How long it runs: shorter once the reader has watched it (`REPLAY_SCALE`). */
+  deployMs?: number;
   /** True whenever the cube should be drawn in its satellite form. */
   deployed: boolean;
   onDeployEnd?: () => void;
@@ -109,6 +111,7 @@ export function CubeScene({
   onBoardEnd,
   dimmed,
   deploying,
+  deployMs,
   deployed,
   onDeployEnd,
   onZoomEnd,
@@ -275,6 +278,7 @@ export function CubeScene({
             dimmed={dimmed}
             stowed={cameraPhase === "trail"}
             deploying={deploying}
+            deployMs={deployMs}
             deployed={deployed}
             progress={presence}
             onDeployEnd={onDeployEnd}

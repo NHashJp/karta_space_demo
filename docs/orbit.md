@@ -201,6 +201,41 @@ The planet turns once every two minutes rather than §22's twenty. Twenty
 minutes is right for a planet you are standing on and wrong for one you look at
 for ninety seconds — at that rate nothing visibly moves.
 
+## The chrome, from the mockups (M5, M12–M14, M8, M9)
+
+The orbit view's interface is built from two shapes and nothing else.
+
+**Glass.** One recipe — `--glass`, `--glass-edge`, `--glass-shadow`,
+`--glass-blur` — for every sheet and panel: the comet sheet, the crossroads,
+the reply form. They are the same object seen in different places, and the eye
+notices immediately when the blur or the border disagree between them. Each
+one opens with a small letter-spaced label and a ✕, and no rule under it —
+except the form panels, which carry a hairline so the prompt does not read as
+the first field's label.
+
+**Pills.** The bar, the sound toggle and the social icons are all a 48px pill
+or circle with `--chrome-fill` behind them and an 8px blur. The fill is not
+decoration: the planet's lit limb comes up into the bottom-right corner, and a
+transparent control disappears into the bright half of the frame.
+
+Three placement rules fall out of the composition rather than out of taste:
+
+- **Panels sit at the bottom**, because the sky is the top two-thirds and a
+  centred box lands on the subject of the screen it belongs to. A panel with a
+  *form* in it sits high instead (`place="high"`), clear of the planet and of
+  the keyboard.
+- **The bar wraps to two rows**, capped at 358px so four pills break in the
+  same place on every phone rather than at whatever width the labels reach.
+- **The chrome hides while something is being asked.** `:has(.panel-layer)`
+  fades the bar, the tip and the aboard chip out. The glass is translucent by
+  design, and four pills reading through a sheet that is itself offering two
+  choices turns one question into six.
+
+The comet's invite is **two steps** (M13a, then M13b). Asking and answering are
+different sizes of decision: the first is "would you?", which is one line and
+two buttons; the second is a form. Opening straight into the form answered the
+first question on the reader's behalf.
+
 ## The rule that holds all of it together
 
 **Nothing is on a timer that can disagree with what is on screen.** Every

@@ -74,6 +74,12 @@ type Props = {
    */
   deploying?: "out" | "in" | null;
   /**
+   * How long that animation runs. A prop rather than the constant, because
+   * whether this is the reader's first trip to orbit is something only the
+   * experience knows, and a replay is shorter (`REPLAY_SCALE`).
+   */
+  deployMs?: number;
+  /**
    * Whether the cube *should* be a satellite right now, regardless of whether
    * the animation ever played. The two can disagree — see the reconcile in
    * `useFrame` — and when they do, this is the truth.
@@ -104,6 +110,7 @@ export function MessageCube({
   reducedMotion,
   onTransitionEnd,
   deploying = null,
+  deployMs = DEPLOY_MS,
   deployed = false,
   progress,
   onDeployEnd,
@@ -121,6 +128,7 @@ export function MessageCube({
   const local = useRef(progress?.current ?? 0);
   const deployStartedAt = useRef(0);
   const deployFrom = useRef(0);
+  const deployRunMs = useRef(deployMs);
 
   const from = useRef(new THREE.Quaternion().copy(FACE_ORIENTATIONS[0]));
   const to = useRef(new THREE.Quaternion().copy(FACE_ORIENTATIONS[0]));
@@ -143,7 +151,11 @@ export function MessageCube({
     if (!deploying) return;
     deployFrom.current = local.current;
     deployStartedAt.current = performance.now();
-  }, [deploying]);
+    // Held for the length of the run: the prop may change under a deployment
+    // that is already in the air, and a run that changes speed halfway reads
+    // as a dropped frame rather than as a shorter animation.
+    deployRunMs.current = deployMs;
+  }, [deploying, deployMs]);
 
   // A change of active face starts a transition from wherever the cube is now.
   useEffect(() => {
@@ -183,7 +195,7 @@ export function MessageCube({
     if (deploying) {
       const target = deploying === "out" ? 1 : 0;
       const span = Math.abs(target - deployFrom.current) || 1;
-      const total = (reducedMotion ? REDUCED_MS : DEPLOY_MS) * span;
+      const total = (reducedMotion ? REDUCED_MS : deployRunMs.current) * span;
       const t = Math.min((performance.now() - deployStartedAt.current) / total, 1);
       local.current = deployFrom.current + (target - deployFrom.current) * t;
 
@@ -264,19 +276,43 @@ export function MessageCube({
 
     if (local.current > 0) {
       // Deployed, the cube holds a 3/4 view rather than a face: it has stopped
-      // being a page to read and become an object to look at. Blended from
-      // whichever face was last read, so the turn is continuous.
+      // being a page to read and become an object to look at.
       // Yaw, pitch, then roll: the roll is what puts the wing axis on the
       // composition's -50 degree diagonal (rev 6 §3.1).
       DISPLAY.setFromEuler(
         EULER.set(DISPLAY_PITCH, DISPLAY_YAW, DISPLAY_ROLL, DISPLAY_EULER_ORDER),
       );
-      group.quaternion.slerp(DISPLAY, now.turn);
-      // A slow tumble, so a satellite at rest is not a still image of one.
-      if (!reducedMotion && local.current >= 1) {
-        const wobble = Math.sin(frameState.clock.elapsedTime * 0.21) * 0.105;
-        group.rotateY(wobble * delta);
-      }
+
+      /*
+       * Written as a *position* on the turn, from the face that was last read
+       * to the display orientation — not as a step towards it.
+       *
+       * The step version (`quaternion.slerp(DISPLAY, turn)`, applied to
+       * whatever last frame left behind) only ever moves one way. Running the
+       * deployment backwards ran `turn` back down to zero, which did not turn
+       * the cube home again; it just took smaller and smaller steps towards
+       * the pose it was already in. So docking put the reader back on the
+       * closing screen with the cube still sitting at its satellite angle,
+       * and the drawn line underneath a body that was no longer square-on.
+       *
+       * As an interpolation it lands exactly on the face whenever `turn`
+       * reaches 0 and exactly on the display pose at 1, in either direction —
+       * the same landing guarantee the rotation presets give.
+       */
+      group.quaternion.copy(FACE_ORIENTATIONS[activeFace]).slerp(DISPLAY, now.turn);
+
+      /*
+       * There is no tumble here. There used to be a `rotateY` on this group,
+       * and it never did anything: the step above ran `slerp(DISPLAY, 1)`
+       * every frame once the turn was complete, which discarded the previous
+       * frame's rotation before adding the next one. It was a degree of drift
+       * per frame, wiped per frame.
+       *
+       * As an interpolation that overwrite is now explicit, and anything
+       * added here would be wiped just as surely — so the satellite's motion
+       * lives where it always actually lived, on the `idle` group below,
+       * which is what carries the ±6° of rev 6 §3.2.
+       */
     } else if (preset.current) {
       const elapsed = performance.now() - startedAt.current;
       const t = Math.min(elapsed / preset.current.duration, 1);
@@ -289,6 +325,11 @@ export function MessageCube({
         preset.current = null;
         onTransitionEnd();
       }
+    } else {
+      // Docked and nothing running: hold the face square-on. Without this the
+      // cube keeps whatever orientation the last animation to touch it left,
+      // which is only ever correct by luck.
+      group.quaternion.copy(FACE_ORIENTATIONS[activeFace]);
     }
 
     // Reading state keeps an extremely subtle drift on an outer group, so the
@@ -389,15 +430,22 @@ export function MessageCube({
 
         <mesh ref={shell}>
           <boxGeometry args={[2, 2, 2]} />
+          {/*
+            Pale and translucent, the way the mockups draw it (M5, M14b): a
+            glass box with its edges showing, not a black one. At the old
+            metalness it was a mirror in a scene with almost nothing to
+            reflect, so it went to silhouette the moment the wings stopped
+            being the brightest thing beside it.
+          */}
           <meshPhysicalMaterial
-            color="#26304a"
-            metalness={0.6}
-            roughness={0.2}
+            color="#4c5680"
+            metalness={0.3}
+            roughness={0.38}
             transparent
-            opacity={0.46}
+            opacity={0.34}
             clearcoat={1}
-            clearcoatRoughness={0.1}
-            envMapIntensity={1.2}
+            clearcoatRoughness={0.18}
+            envMapIntensity={1.4}
           />
           <Edges scale={1.001} threshold={15} color="#9fb4c9" transparent />
         </mesh>

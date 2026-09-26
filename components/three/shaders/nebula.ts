@@ -177,8 +177,11 @@ export const nebulaFragmentShader = /* glsl */ `
     color = mix(color, uEmber, pow(clouds, 4.0) * 0.30 * smoothstep(0.48, 0.78, temperature));
 
     // Deepen the empty regions so the bright filaments feel further away.
+    // The floor is not zero: the mockups' sky has colour in it everywhere, and
+    // gas that falls all the way to the void leaves the frame reading as black
+    // paper with a few lit patches on it rather than as one body of cloud.
     float depth = pow(clouds, 1.35);
-    color *= (0.07 + depth * 1.02) * uIntensity * breath;
+    color *= (0.12 + depth * 1.18) * uIntensity * breath;
 
     // ---- filaments: their own field, at 0.7x the cloud's speed ------------
     // The different rate is the whole point. Two layers drifting together are
