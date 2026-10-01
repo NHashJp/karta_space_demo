@@ -171,3 +171,47 @@ function arcFractionAt(points: Point3[], u: number): number {
   const within = x - i;
   return (table[i] + (table[i + 1] - table[i]) * within) / table[SAMPLES];
 }
+
+/* ---------------------------------------------------------------------------
+ * The trail drifts (rev 6)
+ * ------------------------------------------------------------------------ */
+
+/**
+ * How far the trail wanders from its own curve, in world units, at full
+ * amplitude. About twice the ribbon's near width — enough to be seen moving,
+ * small enough that it is still recognisably the same curve.
+ */
+const SWAY = 0.3;
+
+/**
+ * Where the point at `u` has drifted to, at time `t`.
+ *
+ * A contrail is gas, not wire. The curve itself is fixed — it is the card's
+ * identity, seeded from the slug, and the memories hang at fixed places along
+ * it — so this does not change the curve. It displaces what is *drawn* from
+ * it, which is the difference between a trail that lives in the scene and a
+ * stripe painted on the sky.
+ *
+ * Three sines with periods that share no common multiple, so the drift never
+ * repeats, and each axis offset by `u` so the ribbon undulates along its
+ * length rather than sliding about rigidly. Anchored at the near end, where
+ * the satellite is actually attached to it, and freer further out — a trail
+ * tethered at one end is what the eye already expects.
+ *
+ * Pure, and here beside the curve, because three things are drawn from it —
+ * the ribbon, the memory glints, and anything else that lands on it — and all
+ * of them have to wander together or the trail comes apart.
+ */
+export function trailSway(u: number, t: number, seed: number): Point3 {
+  // Still at the satellite, loosening over the first quarter of the length.
+  const anchored = Math.min(Math.max((u - 0.02) / 0.23, 0), 1);
+  const ease = anchored * anchored * (3 - 2 * anchored);
+  // And freer further out, where there is nothing holding it.
+  const amplitude = SWAY * ease * (0.45 + 1.1 * u);
+
+  return [
+    Math.sin(t * 0.21 + u * 2.3 + seed) * amplitude,
+    Math.cos(t * 0.17 + u * 1.7 + seed * 1.7) * amplitude * 0.75,
+    Math.sin(t * 0.13 + u * 1.1 + seed * 2.3) * amplitude * 0.5,
+  ];
+}

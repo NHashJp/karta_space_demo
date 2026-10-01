@@ -1,7 +1,7 @@
 "use client";
 
 import { Panel } from "./Panel";
-import { ChevronRightIcon, RocketIcon, TrailIcon } from "./Icons";
+import { ChevronRightIcon, CometIcon, RocketIcon, TrailIcon } from "./Icons";
 import type { ClientCard } from "@/lib/clientCard";
 
 /**
@@ -25,11 +25,13 @@ export function CrossroadsPanel({
   card,
   onLookBack,
   onReply,
+  onTrajectory,
   onClose,
 }: {
   card: ClientCard;
   onLookBack: () => void;
   onReply: () => void;
+  onTrajectory: () => void;
   onClose: () => void;
 }) {
   const memories = card.memories?.length ?? 0;
@@ -41,8 +43,8 @@ export function CrossroadsPanel({
           <button className="crossroads__choice" onClick={onReply} lang="ja">
             <RocketIcon className="crossroads__icon" />
             <span className="crossroads__text">
-              <span className="crossroads__name">ロケットで、返事を</span>
-              <span className="crossroads__cost">今すぐ、{card.from}に届きます</span>
+              <span className="crossroads__name">ロケットを打ち上げる</span>
+              <span className="crossroads__cost">彗星より先に、今すぐ{card.from}へ</span>
             </span>
             <ChevronRightIcon className="crossroads__chevron" />
           </button>
@@ -54,6 +56,23 @@ export function CrossroadsPanel({
             <span className="crossroads__text">
               <span className="crossroads__name">ふたりの航跡をたどる</span>
               <span className="crossroads__cost">{memories}つの思い出</span>
+            </span>
+            <ChevronRightIcon className="crossroads__chevron" />
+          </button>
+        ) : null}
+
+        {/*
+          The third way on: the comet they have just watched leave. The sky
+          can only show where it is now — a speck — so this opens the drawing
+          that says when it comes back, which is the question the departure
+          puts in the reader's head and then does not answer.
+        */}
+        {card.comet ? (
+          <button className="crossroads__choice" onClick={onTrajectory} lang="ja">
+            <CometIcon className="crossroads__icon" />
+            <span className="crossroads__text">
+              <span className="crossroads__name">彗星の軌道を見る</span>
+              <span className="crossroads__cost">{card.comet.label.label}に戻ります</span>
             </span>
             <ChevronRightIcon className="crossroads__chevron" />
           </button>

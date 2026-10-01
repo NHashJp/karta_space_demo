@@ -12,8 +12,13 @@ way they are. For the how-to — running it, writing a card, deploying — see t
 
 ## Start here
 
+**New to this, or explaining it to someone?** Read
+[Overview](./overview.md) — the whole project on one page, in plain words.
+Everything below goes deep on one part of it.
+
 | Document | What it covers |
 |---|---|
+| [Overview](./overview.md) | The whole thing on one page: what it is, the journey, the ideas, where the code lives |
 | [Architecture](./architecture.md) | Layers, file map, what runs on the server and what runs in the browser |
 | [Content and cards](./content-and-cards.md) | Cards as configuration, the slug registry, one definition of a valid card, and how the editor writes the file |
 | [Experience flow](./experience-flow.md) | The state machine, how one gesture becomes one face, and the way into the cube |

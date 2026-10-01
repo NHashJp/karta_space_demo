@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { RAMP_SIZE, ribbonFragmentShader, ribbonVertexShader } from "./shaders/ribbon";
 import { trailColour, trailSeed, type TrailSeed } from "@/lib/trailColour";
-import { memoryU, trailPoint, trailTangent, type Point3 } from "@/lib/trailCurve";
+import { memoryU, trailPoint, trailSway, trailTangent, type Point3 } from "@/lib/trailCurve";
 import { useStagedTrail } from "./useStagedTrail";
 
 /**
@@ -47,15 +47,43 @@ type Props = {
   reducedMotion: boolean;
   /** The landing screen shows the same trail at a quarter strength (§7). */
   intensity?: number;
+  /**
+   * How much the trail wanders, 0 to 1.
+   *
+   * Zero while the trail is being *travelled*: down there the camera is
+   * flying to fixed points on the curve and the memory panels are pinned to
+   * it, so a trail that drifted would slide out from under both. In the hub
+   * it is scenery in the middle distance, and scenery that never moves is
+   * what made it read as a painted stripe.
+   */
+  sway?: number;
 };
 
-export function Trail({ curveSeed, seed, memoryCount, reducedMotion, intensity = 1 }: Props) {
+export function Trail({
+  curveSeed,
+  seed,
+  memoryCount,
+  reducedMotion,
+  intensity = 1,
+  sway = 0,
+}: Props) {
   const material = useRef<THREE.ShaderMaterial>(null);
   const glints = useRef<THREE.Points>(null);
+  /** True while the trail is drifting, so the last frame can be put back. */
+  const swaying = useRef(false);
   const points = useStagedTrail(curveSeed);
 
   const geometry = useMemo(() => buildRibbon(points), [points]);
 
+  /*
+   * The ribbon where it would be if it never moved, kept so each frame can
+   * displace it from the curve rather than from where it drifted to last
+   * time — which would wander off and never come back.
+   */
+  const restPositions = useMemo(
+    () => Float32Array.from(geometry.getAttribute("position").array as Float32Array),
+    [geometry],
+  );
   const glintGeometry = useMemo(() => {
     const positions = new Float32Array(memoryCount * 3);
     const us = new Float32Array(memoryCount);
@@ -74,11 +102,18 @@ export function Trail({ curveSeed, seed, memoryCount, reducedMotion, intensity =
     return geo;
   }, [points, memoryCount]);
 
+  const restGlints = useMemo(
+    () => Float32Array.from(glintGeometry.getAttribute("position").array as Float32Array),
+    [glintGeometry],
+  );
+
   const uniforms = useMemo(
     () => ({
       uRamp: { value: Array.from({ length: RAMP_SIZE }, () => new THREE.Color()) },
       uIntensity: { value: intensity },
       uNearFade: { value: NEAR_FADE },
+      /** Advances with the clock; the ribbon reads it as something moving. */
+      uFlow: { value: 0 },
     }),
     [intensity],
   );
@@ -93,6 +128,58 @@ export function Trail({ curveSeed, seed, memoryCount, reducedMotion, intensity =
         ramp[i].setRGB(r, g, b);
       }
       material.current.uniforms.uIntensity.value = intensity;
+      /*
+       * Slow: one pass down the trail every twelve seconds or so. Fast enough
+       * to be alive, far too slow to read as a loading bar. Frozen under
+       * reduced motion, where the whole scene is meant to stop moving (§18).
+       */
+      material.current.uniforms.uFlow.value = reducedMotion ? 0 : t * 0.07;
+    }
+
+    /*
+     * The trail wanders.
+     *
+     * Both the ribbon and the glints hanging on it are displaced by the same
+     * `trailSway`, read at each vertex's own `u` — so the whole thing bends
+     * as one piece and a memory's light never comes off the ribbon it is
+     * supposed to be sitting on.
+     *
+     * Written from `rest` rather than from the last frame's positions, so the
+     * drift is an offset from the card's own curve and cannot accumulate into
+     * a trail that has quietly left the scene.
+     */
+    const drift = reducedMotion ? 0 : sway;
+    if (drift > 0 || swaying.current) {
+      swaying.current = drift > 0;
+
+      const ribbon = geometry.getAttribute("position") as THREE.BufferAttribute;
+      const out = ribbon.array as Float32Array;
+      // `aU` is per-vertex, so both sides of a rib get the same displacement
+      // and the ribbon bends without being twisted or stretched.
+      const us = (geometry.getAttribute("aU") as THREE.BufferAttribute).array as Float32Array;
+      for (let i = 0; i < us.length; i++) {
+        const [dx, dy, dz] = trailSway(us[i], t, seed.noise);
+        out[i * 3] = restPositions[i * 3] + dx * drift;
+        out[i * 3 + 1] = restPositions[i * 3 + 1] + dy * drift;
+        out[i * 3 + 2] = restPositions[i * 3 + 2] + dz * drift;
+      }
+      ribbon.needsUpdate = true;
+      // No bounding sphere to recompute: both the ribbon and the glints are
+      // `frustumCulled={false}`, so nothing reads one, and recomputing it over
+      // 442 vertices every frame would be the most expensive part of this.
+
+      if (glints.current) {
+        const point = glints.current.geometry.getAttribute("position") as THREE.BufferAttribute;
+        const at = point.array as Float32Array;
+        const glintUs = glints.current.geometry.userData.us as Float32Array;
+        for (let i = 0; i < glintUs.length; i++) {
+          const [dx, dy, dz] = trailSway(glintUs[i], t, seed.noise);
+          at[i * 3] = restGlints[i * 3] + dx * drift;
+          at[i * 3 + 1] = restGlints[i * 3 + 1] + dy * drift;
+          at[i * 3 + 2] = restGlints[i * 3 + 2] + dz * drift;
+        }
+        point.needsUpdate = true;
+      }
     }
 
     // Each memory's glint takes the trail's colour where it hangs, from the

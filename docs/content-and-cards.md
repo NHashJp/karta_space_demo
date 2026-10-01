@@ -43,6 +43,33 @@ config/cards.config.ts     the content            edited by hand or by /editor
       └─ lib/cards.ts      slug -> card registry  built once, at import
 ```
 
+## Real cards are not committed
+
+`config/cards.config.ts` holds the **two sample cards** and nothing else. They
+are documentation: a fresh checkout has something to open, and these documents
+have something to point at.
+
+A real card lives in **`.karta/cards.local.json`**, which is gitignored — the
+same folder, and the same reason, as the plaintext passwords beside it. A real
+card is a letter to one person: their name, the thing you could not say out
+loud, where you first met, a line sealed until a date that means something to
+the two of you. Committing that writes it into the history of a repository you
+will later share, fork, or hand to someone for review, and there is no taking
+it out again.
+
+The two are merged by slug, local winning, so a local card can also *override*
+a sample — which is what happens the moment someone opens the editor, picks the
+sample card and starts typing over it. The editor saves there and only there.
+
+Two consequences worth knowing:
+
+- **`npm run verify` checks the samples, not your card.** A half-written draft
+  on one machine must not be able to fail a build. Local cards are validated
+  too, but reported at the end and never counted as failures.
+- **The local file is not a module**, so nothing rebuilds when it changes.
+  `lib/cards.ts` stats it on each lookup and rebuilds the registry when the
+  timestamp moves, which is what keeps the editor's preview honest.
+
 ## The registry
 
 `lib/cards.ts` turns the array into a `Map` keyed by slug, once, at module

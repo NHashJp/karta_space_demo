@@ -201,6 +201,27 @@ The planet turns once every two minutes rather than §22's twenty. Twenty
 minutes is right for a planet you are standing on and wrong for one you look at
 for ninety seconds — at that rate nothing visibly moves.
 
+## The satellite leaves as one object
+
+Its materials have very different opacities — the cube's glass at 0.34, the
+wires and the array's grid at 0.94, the booms and the mast at 1 — and when it
+stows for the trail they all have to go at once.
+
+**Dimming multiplies; stowing caps.** On the closing screen the satellite is
+still an object, just further back, so the brighter parts should stay
+brighter. On the way out it is leaving. Scaled by one multiplier the ratios
+survive to the bottom, and at the point where the cube has faded past noticing
+the metalwork is still three times as opaque — which looks exactly like the
+wings outliving the thing they are bolted to. A ceiling collapses the
+difference instead. `lib/satelliteFade.ts` has the rule and verify §20 holds
+it.
+
+Two separate bugs produced that same symptom, a month apart: first the booms,
+mast and panel outlines were not `transparent` at all, so the fade could not
+reach them; then lightening the cube for the mockups widened the gap between
+the faintest material and the rest. The second is the instructive one — it was
+a change to a colour, and nobody re-tests a fade after changing a colour.
+
 ## The chrome, from the mockups (M5, M12–M14, M8, M9)
 
 The orbit view's interface is built from two shapes and nothing else.
@@ -230,6 +251,29 @@ Three placement rules fall out of the composition rather than out of taste:
   fades the bar, the tip and the aboard chip out. The glass is translucent by
   design, and four pills reading through a sheet that is itself offering two
   choices turns one question into six.
+
+## The comet moment, end to end
+
+What the card does after the six faces, once a comet exists:
+
+1. the cube becomes a satellite, and the comet **leaves** — watched once per
+   cycle (`departed`), so a later deployment goes straight to the chart;
+2. the sheet says briefly what the comet is, and what is sealed on it;
+3. it asks whether to put the reader's words on it — the long ask the first
+   time, the short one after (M13a / M13e);
+4. and the **crossroads** offers the three ways on: the rocket, the trail, and
+   the comet's own trajectory.
+
+Step 4 gained the trajectory because step 1 raises a question — *when does it
+come back?* — that the sky cannot answer. Up there the comet is a speck with a
+short dotted lead; `TrajectoryPanel` is the pulled-back drawing that answers
+it, and `hasCrossroads` now counts a comet as somewhere to go so that a card
+whose only continuation is the comet does not close on that question.
+
+**The two ways of sending differ only in speed**, so both say so. The rocket
+overtakes the comet and arrives now; the comet carries words that cannot be
+read until the day. `打ち上げる` on its own was a verb with no object, and left
+the reader unsure which of the two they had just chosen.
 
 The comet's invite is **two steps** (M13a, then M13b). Asking and answering are
 different sizes of decision: the first is "would you?", which is one line and

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
-import { editorEnabled, refused, safeSlug } from "@/lib/editorGuard";
+import { editorDenied, safeSlug } from "@/lib/editorGuard";
 
 /**
  * The signature pad's output (spec v0.2 §15.5, §13.1).
@@ -19,7 +19,8 @@ const MAX_STROKES = 200;
 const MAX_POINTS = 4000;
 
 export async function POST(request: Request) {
-  if (!editorEnabled) return refused();
+  const denied = await editorDenied();
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => ({}))) as {
     slug?: unknown;

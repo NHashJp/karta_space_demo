@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_CENTRE, PLANET_RADIUS } from "./framing";
+import { PLANET_CENTRE, PLANET_RADIUS, cometAt } from "./framing";
 import { displayOrbitPoint, displayedProgress, toWorld } from "@/lib/cometOrbit";
 import { BOARD_MS, REDUCED_MS } from "@/lib/timing";
 
@@ -30,6 +30,7 @@ type Props = {
 };
 
 export function CapsuleBoarding({ progress, rotation, reducedMotion, onDone }: Props) {
+  const size = useThree((state) => state.size);
   const spark = useRef<THREE.Mesh>(null);
   const light = useRef<THREE.PointLight>(null);
   const startedAt = useRef<number | null>(null);
@@ -41,21 +42,42 @@ export function CapsuleBoarding({ progress, rotation, reducedMotion, onDone }: P
    * The path is the orbit line itself, from perihelion out to the comet — not
    * a straight line to it. Running up the line is what says "this is going
    * onto that", rather than "this is flying past".
+   *
+   * But the line has to *end on the comet*, and the comet is not drawn on its
+   * true ellipse: the hub places it along a composition path (`cometAt`), so
+   * the ellipse built here finished 7.6 units away from it and the words were
+   * seen being carried to an empty patch of sky.
+   *
+   * So the ellipse is kept for its shape — that is what reads as "up the
+   * line" — and bent onto the target by an offset that is zero at the planet
+   * and the full miss at the comet. Eased, so the correction is spread over
+   * the flight instead of appearing as a swerve at the end.
    */
   const path = useMemo(() => {
     const target = displayedProgress(progress);
-    const points: THREE.Vector3[] = [];
+    const raw: THREE.Vector3[] = [];
     for (let i = 0; i <= 48; i++) {
       const f = (target * i) / 48;
       const world = toWorld(displayOrbitPoint(f), rotation);
-      points.push(planet.clone().add(new THREE.Vector3(world.x, world.y, world.z)));
+      raw.push(planet.clone().add(new THREE.Vector3(world.x, world.y, world.z)));
     }
+
+    const comet = new THREE.Vector3(...cometAt(progress, size.width, size.height));
+    const miss = comet.clone().sub(raw[raw.length - 1]);
+
+    const points = raw.map((point, i) => {
+      const u = i / (raw.length - 1);
+      // Smoothstep: no kink at either end, all of the correction spent by the
+      // time it arrives.
+      return point.clone().addScaledVector(miss, u * u * (3 - 2 * u));
+    });
+
     // It starts at the planet's surface rather than its centre.
     points[0] = planet
       .clone()
       .add(points[1].clone().sub(planet).normalize().multiplyScalar(PLANET_RADIUS));
     return new THREE.CatmullRomCurve3(points);
-  }, [planet, rotation, progress]);
+  }, [planet, rotation, progress, size.width, size.height]);
 
   const streak = useMemo(() => {
     const geometry = new THREE.BufferGeometry();

@@ -34,6 +34,7 @@ export const JUMP_TARGETS = [
   "crossroads",
   "trail",
   "reply",
+  "trajectory",
 ] as const;
 
 /**
@@ -132,6 +133,9 @@ export function jumpEvents(target: string | undefined): ExperienceEvent[] | null
     case "reply":
       return [...TO_ORBIT, { type: "leaveChart" }, { type: "zoomEnd" },
         { type: "openPanel", panel: "reply" }];
+    case "trajectory":
+      return [...TO_ORBIT, { type: "leaveChart" }, { type: "zoomEnd" },
+        { type: "openPanel", panel: "trajectory" }];
   }
 }
 

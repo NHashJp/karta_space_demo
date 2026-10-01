@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { editorEnabled, refused, safeSlug } from "@/lib/editorGuard";
+import { editorDenied, safeSlug } from "@/lib/editorGuard";
 import { getCardBySlug } from "@/lib/cards";
 import { cardVersion } from "@/lib/cardVersion";
 
@@ -17,7 +17,8 @@ import { cardVersion } from "@/lib/cardVersion";
  * precisely so this check works without anyone's password.
  */
 export async function GET(request: Request) {
-  if (!editorEnabled) return refused();
+  const denied = await editorDenied();
+  if (denied) return denied;
 
   const slug = safeSlug(new URL(request.url).searchParams.get("slug"));
   if (!slug) return NextResponse.json({ error: "bad_request" }, { status: 400 });

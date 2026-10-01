@@ -38,7 +38,7 @@ export type ExperienceState =
 export type CameraPhase = "far" | "near" | "inside" | "orbit" | "chart" | "trail";
 
 /** Which orbit sheet is open, if any. Only one is ever open at a time. */
-export type OrbitPanel = null | "crossroads" | "reply";
+export type OrbitPanel = null | "crossroads" | "reply" | "trajectory";
 
 /**
  * What the card and this browser between them say about the comet, read once
@@ -77,6 +77,17 @@ export type Experience = {
   deployments: number;
   /** How the current comet moment began: automatically, or by a tap (§8.3). */
   chartVia: "deploy" | "tap" | null;
+  /**
+   * How the inside of the cube was entered, which decides where leaving it
+   * goes back to (rev 6).
+   *
+   * From the closing screen, in and out again is a detour off a screen the
+   * reader is standing on, and they should be put back on it. From orbit it
+   * is a journey: the satellite folds up, the camera goes in, and when they
+   * come out they expect to be back where they set off — not stranded on the
+   * closing screen, which they had already finished with.
+   */
+  insideVia: "closing" | "orbit" | null;
   comet: CometFlags;
   /* Fixed for the card's lifetime, set by initialExperience. */
   memoryCount: number;
@@ -93,6 +104,8 @@ export type ExperienceEvent =
   | { type: "replay" }
   /** Toggles the inside of the cube: from the closing screen in, from inside out. */
   | { type: "reveal" }
+  /** Into the cube from orbit, without stopping at the closing screen. */
+  | { type: "enterSatellite" }
   /* ---- v0.2 ---- */
   /** The button equivalent of move(+1) at the closing screen. */
   | { type: "deploy" }
@@ -132,6 +145,7 @@ export function initialExperience(ctx: ExperienceContext = EMPTY): Experience {
     closings: 0,
     deployments: 0,
     chartVia: null,
+    insideVia: null,
     comet: ctx.comet,
     memoryCount: ctx.memoryCount,
     hasOrbit: ctx.hasOrbit,
@@ -232,9 +246,25 @@ function transition(current: Experience, event: ExperienceEvent): Experience {
       return { ...current, state: "undeploying" };
 
     case "deployEnd":
-      if (state === "deploying") return afterDeploy(current);
-      // Undeploying returns to the closing screen the reader left, same face.
-      if (state === "undeploying") return { ...current, state: "completed", panel: null };
+      if (state === "deploying") {
+        /*
+         * Coming back out of the cube is not a fresh deployment: the comet
+         * has already left and the crossroads has already been offered, so
+         * this returns to the hub rather than replaying the comet moment.
+         */
+        if (current.insideVia === "orbit") {
+          return { ...current, state: "orbit", insideVia: null };
+        }
+        return afterDeploy(current);
+      }
+      // Undeploying returns to the closing screen the reader left, same face
+      // — unless they are on their way into the cube, in which case it does
+      // not stop there at all.
+      if (state === "undeploying") {
+        return current.insideVia === "orbit"
+          ? { ...current, state: "descending", panel: null }
+          : { ...current, state: "completed", panel: null };
+      }
       return current;
 
     case "departEnd":
@@ -309,7 +339,17 @@ function transition(current: Experience, event: ExperienceEvent): Experience {
       if (state === "entering" || state === "returning") return { ...current, state: "reading" };
       if (state === "leaving") return { ...current, state: "completed" };
       if (state === "descending") return { ...current, state: "inside" };
-      if (state === "ascending") return { ...current, state: "completed" };
+      /*
+       * Out of the cube, back the way they came in. Someone who went in from
+       * orbit is returned to orbit — the satellite unfolds again and the
+       * camera pulls out — rather than being left on the closing screen they
+       * had already finished with.
+       */
+      if (state === "ascending") {
+        return current.insideVia === "orbit"
+          ? { ...current, state: "deploying" }
+          : { ...current, state: "completed", insideVia: null };
+      }
       if (state === "rewinding" || state === "drifting") {
         return { ...current, state: "remembering" };
       }
@@ -324,9 +364,23 @@ function transition(current: Experience, event: ExperienceEvent): Experience {
         : current;
 
     case "reveal":
-      if (state === "completed") return { ...current, state: "descending" };
+      if (state === "completed") {
+        return { ...current, state: "descending", insideVia: "closing" };
+      }
       if (state === "inside") return { ...current, state: "ascending" };
       return current;
+
+    /*
+     * The satellite *is* the cube, so looking into it lands where 中をのぞく
+     * lands. It cannot be one move: the camera is out at the hub and there is
+     * no cube to be inside of until the satellite has folded up. So this is
+     * the fold, marked with where it is really going — `deployEnd` reads the
+     * mark and carries straight on in rather than stopping to show a closing
+     * screen the reader did not ask for and has already read.
+     */
+    case "enterSatellite":
+      if (state !== "orbit" || panel !== null) return current;
+      return { ...current, state: "undeploying", insideVia: "orbit" };
   }
 }
 
@@ -352,6 +406,29 @@ function afterDeploy(current: Experience): Experience {
     return { ...current, state: "charting", chartVia: "deploy" };
   }
   return { ...current, state: "orbit" };
+}
+
+/**
+ * Whether the closing screen — the drawn line, the signature, the offers — is
+ * on screen.
+ *
+ * `descending` and `deploying` are in the list because the screen is *still
+ * there*, fading, while the camera leaves it. But on the way into the cube
+ * from orbit the reader was never on it, so there is nothing to fade: showing
+ * it for those two seconds would be introducing a screen in order to dismiss
+ * it.
+ */
+export function showsCompletion(experience: Experience): boolean {
+  const { state, insideVia } = experience;
+  if (insideVia === "orbit" && (state === "descending" || state === "deploying")) {
+    return false;
+  }
+  return (
+    state === "completed" ||
+    state === "returning" ||
+    state === "descending" ||
+    state === "deploying"
+  );
 }
 
 /** Camera sits close to the cube — or, past the wall, within it. */

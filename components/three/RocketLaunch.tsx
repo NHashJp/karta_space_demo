@@ -1,23 +1,33 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_CENTRE, PLANET_RADIUS, orbitPosition } from "./framing";
+import { PLANET_CENTRE, PLANET_RADIUS, orbitPosition, replyStarAt } from "./framing";
 import { LAUNCH_MS, REDUCED_MS } from "@/lib/timing";
 
 /**
  * The reply, on its way (spec v0.2 §10.3).
  *
  * A point of light lifts off the planet's limb, rises on an arc to the orbit
- * ring, **pauses beside the satellite for a moment** and then drifts out and
- * settles as a star.
+ * ring, **pauses beside the satellite for a moment** and then goes on out
+ * along the comet's path, overtaking it, and settles as a star just beyond it
+ * (spec §10.3; mockups M8b, M8c).
  *
  * That pause is the whole animation. Without it this is a thing being fired
  * into space; with it, the reply visibly *meets* the letter that prompted it
  * before going on its way. There is no shake, no flash and no particle burst —
  * the message has already arrived by the time this plays, and the animation's
  * only job is to say so gently.
+ *
+ * **Where it goes matters as much as the pause.** The card offers two ways to
+ * send something and the only difference between them is speed, so the rocket
+ * has to be seen going the same way as the comet and getting there first. It
+ * used to settle up and to the right of the planet on a heading of its own —
+ * 9 units from the comet, and 2 units *towards* the camera, so it read as
+ * coming at the reader rather than leaving. Now it is aimed at the comet and
+ * carries on past it, which sends it into the depth of the scene, because
+ * that is where the comet is.
  */
 
 /** Where in the timeline the meeting happens, and how long it lasts. */
@@ -27,11 +37,17 @@ const MEET_UNTIL = 0.74;
 const TRAIL_POINTS = 28;
 
 type Props = {
+  /**
+   * Today's progress along the comet's orbit — the same number the comet
+   * itself is drawn from, so the rocket is aimed where the comet is.
+   */
+  cometProgress: number;
   reducedMotion: boolean;
   onDone: () => void;
 };
 
-export function RocketLaunch({ reducedMotion, onDone }: Props) {
+export function RocketLaunch({ cometProgress, reducedMotion, onDone }: Props) {
+  const size = useThree((state) => state.size);
   const spark = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.PointLight>(null);
   const startedAt = useRef<number | null>(null);
@@ -64,15 +80,16 @@ export function RocketLaunch({ reducedMotion, onDone }: Props) {
       .clone()
       .add(new THREE.Vector3(0.55, 0.83, 0.1).normalize().multiplyScalar(PLANET_RADIUS));
     const meet = new THREE.Vector3(...orbitPosition(0.9));
-    const to = meet
-      .clone()
-      .sub(planet)
-      .normalize()
-      .multiplyScalar(9)
-      .add(planet)
-      .add(new THREE.Vector3(0.6, 1.4, -1.2));
+
+    /*
+     * Past the comet, on the comet's own heading: it overtakes rather than
+     * catches up, so it ends slightly beyond it (M8c). `replyStarAt` is where
+     * the star will sit afterwards, so the arc cannot end anywhere else.
+     */
+    const to = new THREE.Vector3(...replyStarAt(cometProgress, size.width, size.height));
+
     return { from, meet, to };
-  }, []);
+  }, [cometProgress, size.width, size.height]);
 
   useFrame(({ clock }, delta) => {
     if (finished.current) return;

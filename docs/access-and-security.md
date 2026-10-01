@@ -31,6 +31,12 @@ It is demo access control. Do not put anything sensitive behind it.
 5. or neither, if you want      (link-only)
 ```
 
+And one more, in front of the authoring UI rather than a card:
+
+```
+6. a password on the editor     EDITOR_PASSWORD   (development only)
+```
+
 `getCardBySlug` accepts only slugs in the registry. Anything else renders the
 invalid-card state — and renders nothing else, so a wrong slug reveals no
 information about a real one.
@@ -74,6 +80,35 @@ A hash shorter than the full 32 bytes is refused outright: scrypt's output is a
 prefix under truncation, so a shortened hash would still verify while matching
 on far fewer bits.
 
+## The editor's own gate
+
+The editor already refuses to exist in production, and that remains the guard
+that matters — a deployed filesystem is read-only and an unauthenticated write
+endpoint on a public URL would be indefensible. `EDITOR_PASSWORD` is the
+second lock, for the ways a development server stops being private: a laptop
+on a shared network, a tunnel opened to show someone the preview, a machine
+left unlocked. What is behind it justifies one: the editor writes to the
+repository, and its Share tab shows every card's plaintext password.
+
+It is built from the same parts as the card gate — normalise, compare in
+constant time, derive the cookie from the secret itself — so there is one idea
+of what a password is here rather than two. The cookie is HttpOnly and lasts
+twelve hours, and because it is an HMAC over the password, changing the
+password invalidates every cookie already issued without anywhere needing to
+record that it changed.
+
+Two details worth knowing:
+
+- **The gate is checked before the page reads anything.** `hasEditorAccess()`
+  runs ahead of `listCards()`, so a locked editor renders no card data at all.
+  A gate that is a curtain over a page which was built anyway is not a gate.
+- **`/api/editor/access` is the one editor route that does not use
+  `editorDenied`**, for the obvious reason that it is how you stop being
+  denied. It keeps the production guard, so a deployed build cannot be
+  unlocked — there is nothing behind it to unlock.
+
+Leave `EDITOR_PASSWORD` empty and the editor is open exactly as it always was.
+
 ## A forgiving password
 
 A card password is often the answer to a hint only two people know — *the
@@ -89,6 +124,18 @@ NFKC  ->  trim  ->  drop spaces and hyphens  ->  lowercase  ->  katakana to hira
 `k7qm 2xpa` and `K7QM-2XPA`. The same normalisation runs before hashing and
 before checking, and **environment passwords go through it too** — the
 forgiveness is a property of the gate, not of where the password is kept.
+
+The gate also lets you **see what you typed**. A card password is a shared
+key that arrived in a message, usually being typed for the first time by
+someone reading it off another screen — and `K7QM-2XPA` behind dots is easy to
+get wrong and impossible to check. There is no reset here either: the only
+recovery is asking the sender again.
+
+The reveal starts off and is never remembered, because the one situation where
+someone really is being read over the shoulder should not be the situation
+that needs the extra tap. Toggling puts the caret back where it was, since
+changing an input's `type` makes the browser drop the selection and the moment
+people reach for that button is halfway through typing.
 
 Generated passwords are 8 characters from `ABCDEFGHJKMNPQRSTUVWXYZ23456789` —
 no `0`/`O` and no `1`/`I`/`L`, because these get read aloud and typed by hand —

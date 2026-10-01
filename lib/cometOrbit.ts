@@ -187,6 +187,58 @@ export function orbitRotation(slug: string, releasedOn: string): number {
  * Chosen so the outbound leg rises from the planet up the right-hand side and
  * recedes toward the top centre-right, which is where the sketch puts it.
  */
+/**
+ * The orbit drawn flat, for the diagrams (spec v0.2 §11.2; mockup M12c).
+ *
+ * Shared by the small chart in a panel and the full trajectory view, so the
+ * two cannot drift apart — and computed from the same `orbitPoint` the 3D
+ * comet flies, so the dot in the picture and the speck in the sky are always
+ * at the same place on the same orbit.
+ *
+ * The planet sits at a **focus**, not the centre. That is the whole shape of
+ * the promise: the comet spends most of its time at the far end, away from
+ * it, and comes back fast at the end.
+ */
+export type OrbitDiagram = {
+  centre: { x: number; y: number };
+  /** Semi-major and semi-minor axes, in diagram units. */
+  a: number;
+  b: number;
+  /** Where the planet is: the focus nearest perihelion. */
+  focus: { x: number; y: number };
+  /** The day it comes home, at the near end of the ellipse. */
+  perihelion: { x: number; y: number };
+  /** Where its dates put it today. */
+  comet: { x: number; y: number };
+};
+
+export function orbitDiagram(
+  f: number,
+  width: number,
+  height: number,
+  padding: number,
+): OrbitDiagram {
+  const a = (width - padding * 2) / 2;
+  const b = a * Math.sqrt(1 - ECCENTRICITY * ECCENTRICITY);
+  const centre = { x: width / 2, y: height / 2 };
+  const focusX = centre.x + a * ECCENTRICITY;
+
+  const point = orbitPoint(displayedProgress(f));
+  // Diagram units per world unit. `orbitPoint` measures from the focus, and
+  // its semi-minor axis is already a·√(1−e²), so one scale puts the dot
+  // exactly on the drawn ellipse on both axes.
+  const scale = a / SEMI_MAJOR;
+
+  return {
+    centre,
+    a,
+    b,
+    focus: { x: focusX, y: centre.y },
+    perihelion: { x: centre.x + a, y: centre.y },
+    comet: { x: focusX + point.x * scale, y: centre.y - point.y * scale },
+  };
+}
+
 export const HUB_ORBIT_HEADING = (-62 * Math.PI) / 180;
 
 /** The next 6% of the orbit, drawn dotted ahead of the comet (§4.1). */

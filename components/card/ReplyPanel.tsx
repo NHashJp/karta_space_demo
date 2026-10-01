@@ -2,6 +2,7 @@
 
 import { Panel } from "./Panel";
 import { MessageForm } from "./MessageForm";
+import { RocketIcon } from "./Icons";
 import { REPLY_MAX } from "@/lib/submission";
 import type { ClientCard } from "@/lib/clientCard";
 
@@ -35,12 +36,24 @@ export function ReplyPanel({
         to follow the form, where the one person who most needed it — someone
         about to press 打ち上げる — had already looked away.
       */}
+      {/*
+        What the button does, in the card's own terms. "打ち上げる" on its own
+        is a verb with no object: the reader is about to fire a rocket and the
+        screen has not said so, nor that the rocket is the fast way — it goes
+        out along the comet's path and overtakes it, which is the whole reason
+        there are two ways to send something here.
+      */}
+      <p className="reply__how" lang="ja">
+        <RocketIcon className="reply__how-icon" />
+        あなたの言葉をのせたロケットが、彗星を追い越して{card.from}に届きます。
+      </p>
+
       <MessageForm
         endpoint={`/c/${card.slug}/reply`}
         messageMax={REPLY_MAX}
-        submitLabel="打ち上げる"
-        sendingLabel="送信中…"
-        note={`すぐに、${card.from}に届きます。`}
+        submitLabel="ロケットを打ち上げる"
+        sendingLabel="打ち上げています…"
+        note={`彗星より先に、すぐに${card.from}へ。`}
         onSent={onSent}
       />
     </Panel>

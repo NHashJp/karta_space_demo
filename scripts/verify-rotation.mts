@@ -1,4 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { closingLines } from "../lib/closingLines.ts";
+import { trailSway } from "../lib/trailCurve.ts";
+import { SATELLITE_OPACITIES, fadeSpread, stowedOpacity } from "../lib/satelliteFade.ts";
 import * as THREE from "three";
 import {
   FOV,
@@ -7,6 +10,7 @@ import {
   PLANET_CENTRE,
   PLANET_RADIUS,
   WING_AXIS_DEG,
+  cometAt,
   hubComet,
   hubPlanet,
   hubPose,
@@ -16,6 +20,8 @@ import {
   orbitClearance,
   orbitPose,
   orbitPosition,
+  REPLY_OVERTAKE,
+  replyStarAt,
   satelliteHull,
   stagedTrail,
   trailPose,
@@ -31,6 +37,7 @@ import {
 import { cards } from "../config/cards.config.ts";
 import { serializeCards } from "../lib/cardsFile.ts";
 import { allProblems, cardProblems } from "../lib/cardRules.ts";
+import { readLocalCards } from "../lib/localCards.ts";
 import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
 import { civilDate, isCometDay, nextOccurrence } from "../lib/orbitClock.ts";
 import {
@@ -118,6 +125,7 @@ import {
   isDeployed,
   NO_COMET_FLAGS,
   showsCometSheet,
+  showsCompletion,
   isWithinCube,
   isZoomedIn,
   reduceExperience,
@@ -356,7 +364,13 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
     // A signature that is configured but not there would simply not draw, and
     // nothing on the closing screen would say so — hence a check, not a note.
     if (card.signature) {
-      const file = `public${card.signature}`;
+      /*
+       * The editor's signature pad appends `?v=<timestamp>` so the browser
+       * reloads the drawing after it is redrawn. That is a URL, not a path —
+       * `existsSync` was being handed it whole and failing on every card
+       * whose signature had ever been edited.
+       */
+      const file = `public${card.signature.split("?")[0]}`;
       const there = existsSync(file);
       check(id("signature file exists"), there, file);
       if (there) {
@@ -382,7 +396,7 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
   }
 }
 
-console.log("6. Experience flow (card content never shows on the end screens):");
+console.log("5. Experience flow (card content never shows on the end screens):");
 {
   // The v0.1 regression card: nothing past the closing screen. Every
   // transition below must behave exactly as it did before v0.2.
@@ -520,7 +534,7 @@ console.log("6. Experience flow (card content never shows on the end screens):")
 }
 
 
-console.log("7. v0.2 foundations (spec v0.2 §17):");
+console.log("6. v0.2 foundations (spec v0.2 §17):");
 {
   // ---- fuzzy dates: the table in §5, verbatim -----------------------------
   const table: [string, { approx?: boolean; season?: "summer" }, string][] = [
@@ -731,7 +745,7 @@ console.log("7. v0.2 foundations (spec v0.2 §17):");
   check("?now= rejects nonsense", resolveNow("tomorrow", realNow).getTime() === realNow.getTime());
 }
 
-console.log("8. Access: forgiving passwords, hashes and precedence (spec v0.2 §14.9):");
+console.log("7. Access: forgiving passwords, hashes and precedence (spec v0.2 §14.9):");
 {
   // ---- normalisation: the same answer, typed five different ways ----------
   const groups: string[][] = [
@@ -846,7 +860,7 @@ console.log("8. Access: forgiving passwords, hashes and precedence (spec v0.2 §
   else process.env.CARD_PASSWORD = before.shared;
 }
 
-console.log("9. Orbit, trail and panels (spec v0.2 §6):");
+console.log("8. Orbit, trail and panels (spec v0.2 §6):");
 {
   const MEMORIES = 5;
   const at = (state: Experience["state"], patch: Partial<Experience> = {}): Experience => ({
@@ -1103,7 +1117,7 @@ console.log("9. Orbit, trail and panels (spec v0.2 §6):");
   console.log(`  ?at= reaches all ${JUMP_TARGETS.length} preview targets`);
 }
 
-console.log("10. The moving sun and the camera's breath (spec v0.2 §23.3):");
+console.log("9. The moving sun and the camera's breath (spec v0.2 §23.3):");
 {
   const seed = lightSeed("2026-newyear-7k2m");
 
@@ -1229,7 +1243,7 @@ console.log("10. The moving sun and the camera's breath (spec v0.2 §23.3):");
   );
 }
 
-console.log("11. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
+console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 {
   const viewports: [string, number, number][] = [
     ["desktop 1512x945", 1512, 945],
@@ -1711,7 +1725,7 @@ console.log("11b. The comet moment (spec v0.2 rev 5, \u00a78.3):");
   console.log("  5 landings, 1 departure, boarding, and the crossroads rule");
 }
 
-console.log("12. The promise comet through a year (spec v0.2 rev 5, \u00a78.10, \u00a711.3):");
+console.log("11. The promise comet through a year (spec v0.2 rev 5, \u00a78.10, \u00a711.3):");
 {
   const sample = cards[0];
   const env = { mailReady: true, cometReady: true };
@@ -1727,8 +1741,13 @@ console.log("12. The promise comet through a year (spec v0.2 rev 5, \u00a78.10, 
   check("words may still board it", waiting.comet?.capsule === true);
   check("the sealed words are not in the payload",
     !JSON.stringify(waiting).includes("まだうまく言えない"));
+  /*
+   * By shape, not by literal: this used to hard-code the sample card's own
+   * month, so changing `writtenAt` in the editor failed a check about how the
+   * landing line is composed.
+   */
   check("the landing line says when it was written",
-    landingNote(waiting) === "2026年3月に書かれた手紙", landingNote(waiting));
+    /^\d{4}年\d{1,2}月に書かれた手紙$/.test(landingNote(waiting) ?? ""), landingNote(waiting));
 
   // ---- the day itself ----------------------------------------------------
   const day = at("2026-12-25T02:00:00Z");
@@ -1755,8 +1774,13 @@ console.log("12. The promise comet through a year (spec v0.2 rev 5, \u00a78.10, 
     nextCycle.comet?.leftOn === "2026-12-25", nextCycle.comet?.leftOn);
   // Opened words stay open: a later cycle does not re-seal what was read.
   check("the words stay readable in a later cycle", nextCycle.comet?.message !== undefined);
+  /*
+   * The point of this one is that the line follows `writtenAt` rather than
+   * the comet's cycle — so it is compared against the *first* cycle's line,
+   * which is the same card written on the same day.
+   */
   check("the landing line goes back to the writing date",
-    landingNote(nextCycle) === "2026年3月に書かれた手紙", landingNote(nextCycle));
+    landingNote(nextCycle) === landingNote(waiting), landingNote(nextCycle));
 
   // ---- a one-off comet becomes a keepsake --------------------------------
   const once = { ...sample, comet: { ...sample.comet!, yearly: false } };
@@ -1801,7 +1825,7 @@ console.log("12. The promise comet through a year (spec v0.2 rev 5, \u00a78.10, 
   );
 }
 
-console.log("13. Memories and the media route (spec v0.2 §9.2, §14.3):");
+console.log("12. Memories and the media route (spec v0.2 §9.2, §14.3):");
 {
   const sample = cards[0];
   const client = toClientCard(sample, new Date("2026-09-23T00:00:00Z"),
@@ -1852,7 +1876,7 @@ console.log("13. Memories and the media route (spec v0.2 §9.2, §14.3):");
   console.log(`  ${memories.length} memories, worst ramp step ${worstRamp.toFixed(3)} per channel`);
 }
 
-console.log("14. The comet in the sky (spec v0.2 §11.2):");
+console.log("13. The comet in the sky (spec v0.2 §11.2):");
 {
   const sample = cards[0];
   const env = { mailReady: false, cometReady: false };
@@ -1939,7 +1963,7 @@ console.log("14. The comet in the sky (spec v0.2 §11.2):");
   );
 }
 
-console.log("15. Email templates (spec v0.2 §14.8):");
+console.log("14. Email templates (spec v0.2 §14.8):");
 {
   const keep = { ...process.env };
   process.env.NOTIFY_TO = "SENTINEL-NOTIFY@example.com";
@@ -1959,8 +1983,14 @@ console.log("15. Email templates (spec v0.2 §14.8):");
     timeZone: sample.timeZone,
   })!;
   check("the reply mail is addressed", reply.to === "SENTINEL-NOTIFY@example.com", reply.to);
-  check("the reply subject names the card", reply.subject === "「2026年のあなたへ」に返事が届きました",
-    reply.subject);
+  /*
+   * Asserted by shape, not by literal. This used to compare against the
+   * sample card's title, so renaming your own card in the editor failed a
+   * check about email formatting — verify is here to catch the code changing,
+   * not the content.
+   */
+  check("the reply subject names the card",
+    reply.subject === `「${sample.title}」に返事が届きました`, reply.subject);
   check("the reply names the sender", reply.text.includes("そらさんから、返事が届きました。"));
   check("the reply carries the message", reply.text.includes("こちらこそ、ありがとう。"));
   // The stamp is in the card's time zone, not the server's.
@@ -2026,7 +2056,7 @@ console.log("15. Email templates (spec v0.2 §14.8):");
   console.log(`  3 templates, stamped ${formatSentAt(sentAt, sample.timeZone)}`);
 }
 
-console.log("16. What the receiver may send (spec v0.2 §14.4, §14.5):");
+console.log("15. What the receiver may send (spec v0.2 §14.4, §14.5):");
 {
   const ok = (body: object, max = REPLY_MAX) => validate(body, max);
 
@@ -2089,7 +2119,7 @@ console.log("16. What the receiver may send (spec v0.2 §14.4, §14.5):");
   console.log(`  name <= ${NAME_MAX}, reply <= ${REPLY_MAX}, comet <= ${COMET_MAX}, plus a honeypot`);
 }
 
-console.log("17. The comet's seal (spec v0.2 §11.5):");
+console.log("16. The comet's seal (spec v0.2 §11.5):");
 {
   const key = randomBytes(32);
   const other = randomBytes(32);
@@ -2161,7 +2191,7 @@ console.log("17. The comet's seal (spec v0.2 §11.5):");
   console.log(`  token ${token.length} chars, ${Math.ceil(raw.length / 7)} tamper positions tested`);
 }
 
-console.log("18. The comet-day reminder (spec v0.2 rev 5, §12.1, §14.6):");
+console.log("17. The comet-day reminder (spec v0.2 rev 5, §12.1, §14.6):");
 {
   const sample = cards[0];
   const tz = sample.timeZone ?? "Asia/Tokyo";
@@ -2219,7 +2249,7 @@ console.log("18. The comet-day reminder (spec v0.2 rev 5, §12.1, §14.6):");
   console.log(`  ${comet.returnsOn} in ${tz}, ${cron?.schedule} UTC, one send per card per day`);
 }
 
-console.log("19. A save rewrites the file whole, so its header must be current:");
+console.log("18. A save rewrites the file whole, so its header must be current:");
 {
   // `writeCards` rewrites config/cards.config.ts from the HEADER constant plus
   // the data. If the two drift apart — as they did once — then opening the
@@ -2243,7 +2273,7 @@ console.log("19. A save rewrites the file whole, so its header must be current:"
   console.log(`  header ${writtenHeader.split("\n").length} lines, identical`);
 }
 
-console.log("20. The deployment (spec v0.2 §8.2):");
+console.log("19. The deployment (spec v0.2 §8.2):");
 {
   // ---- the four parts overlap, which is what makes it one machine --------
   check("the turn starts at the very beginning", TURN.from === 0);
@@ -2430,6 +2460,281 @@ console.log("20. The deployment (spec v0.2 §8.2):");
     `  turn 0-${TURN.to}, panels ${PANELS.from}-${PANELS.to}, ` +
     `thruster ${THRUSTER.from}-${THRUSTER.to}, rise ${RISE.from}-1, over ${DEPLOY_MS}ms`,
   );
+}
+
+console.log("20. The satellite leaves as one object (rev 6):");
+{
+  /*
+   * It is built from materials with very different opacities, and on the way
+   * to the trail they all have to go at once. Scaled by a shared multiplier
+   * they do not: the ratios survive to the bottom, so the cube's glass fades
+   * past noticing while the metalwork bolted to it is still three times as
+   * opaque, and the wings are seen outliving the thing they hang off.
+   *
+   * Checked because it has been reported twice — once from the materials not
+   * being transparent at all, and once from lightening the cube, which is a
+   * change nobody would think to re-test the stow against.
+   */
+  const bases = SATELLITE_OPACITIES;
+  const faintest = Math.min(...bases);
+
+  check("nothing is touched while the satellite is simply there",
+    bases.every((b) => stowedOpacity(b, 1, 1) === b));
+
+  // Once the ceiling is under the faintest material, every part matches.
+  for (const ceiling of [faintest, 0.2, 0.1, 0.03]) {
+    check(`at ${ceiling}, every part of it is the same alpha`,
+      Math.abs(fadeSpread(bases, ceiling) - 1) < 1e-9,
+      `${fadeSpread(bases, ceiling).toFixed(2)}x apart`);
+  }
+
+  // And they reach nothing together, rather than one lingering after another.
+  check("and they all reach zero together",
+    bases.every((b) => stowedOpacity(b, 1, 0) === 0));
+
+  // The old behaviour, so this check cannot pass against a multiplier again.
+  const asMultiplier = (b: number, c: number) => b * c;
+  const oldSpread =
+    Math.max(...bases.map((b) => asMultiplier(b, 0.1))) /
+    Math.min(...bases.map((b) => asMultiplier(b, 0.1)));
+  check("a multiplier would not have done this", oldSpread > 2, `${oldSpread.toFixed(2)}x`);
+
+  console.log(`  ${bases.length} opacities, ${faintest}-1, together from ${faintest} down`);
+}
+
+console.log("21. The trail drifts, without coming off its own curve (rev 6):");
+{
+  const seed = 0.37;
+  const peakAt = (u: number) => {
+    let peak = 0;
+    for (let t = 0; t < 240; t += 0.05) {
+      const [x, y, z] = trailSway(u, t, seed);
+      peak = Math.max(peak, Math.hypot(x, y, z));
+    }
+    return peak;
+  };
+
+  // Tethered where the satellite actually holds it, freer further out.
+  check("the trail is still at the satellite", peakAt(0) < 1e-9, peakAt(0).toFixed(4));
+  check("and moves further down its length", peakAt(0.5) > peakAt(0.15),
+    `${peakAt(0.15).toFixed(3)} -> ${peakAt(0.5).toFixed(3)}`);
+  check("by enough to be seen", peakAt(0.5) > 0.16, peakAt(0.5).toFixed(3));
+
+  /*
+   * Bounded over a long sitting. The drift is an offset from the curve, not
+   * an accumulation onto the last frame — a trail that integrated its own
+   * motion would leave the scene while someone read the card.
+   */
+  let worst = 0;
+  for (let t = 0; t < 4000; t += 0.37) {
+    for (let u = 0; u <= 1; u += 0.05) {
+      worst = Math.max(worst, Math.hypot(...trailSway(u, t, seed)));
+    }
+  }
+  check("and never wanders off", worst < 0.8, worst.toFixed(3));
+
+  // Smooth frame to frame, or it reads as jitter rather than as drift.
+  let jump = 0;
+  for (let t = 0; t < 200; t += 1 / 60) {
+    for (let u = 0; u <= 1; u += 0.1) {
+      const a = trailSway(u, t, seed);
+      const b = trailSway(u, t + 1 / 60, seed);
+      jump = Math.max(jump, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]));
+    }
+  }
+  check("it drifts rather than jitters", jump < 0.01, `${(jump * 1000).toFixed(2)} milli-units/frame`);
+
+  console.log(`  still at the satellite, ${worst.toFixed(2)} units at its freest`);
+}
+
+console.log("22. Looking into the satellite lands where 中をのぞく lands (rev 6):");
+{
+  /*
+   * Two ways in, one destination. From the closing screen the reader presses
+   * 中をのぞく; from orbit they press the label on the satellite, because the
+   * satellite *is* the cube. If those two ever stop arriving at the same
+   * state, the card has grown a second inside.
+   *
+   * `reveal` only transitions from `completed`, so the orbit route is the two
+   * moves a reader would make chained together — dock, then go in once the
+   * card has come back. Checked because the chaining lives in an effect, and
+   * an effect that silently stops firing looks exactly like nothing.
+   */
+  const ctx = {
+    memoryCount: 5,
+    hasOrbit: true,
+    hasCrossroads: true,
+    comet: {
+      exists: true, returned: false, kept: false,
+      capsule: false, capsuleOpen: false, departed: true,
+    },
+  };
+
+  const play = (from: string, events: ExperienceEvent[]) => {
+    let s = initialExperience(ctx);
+    for (const e of jumpEvents(from) ?? []) s = reduceExperience(s, e);
+    for (const e of events) s = reduceExperience(s, e);
+    return s;
+  };
+
+  const toInside: ExperienceEvent[] = [
+    { type: "enterSatellite" }, { type: "deployEnd" }, { type: "zoomEnd" },
+  ];
+  const viaOrbit = play("orbit", toInside);
+  const viaClosing = play("closing", [{ type: "reveal" }, { type: "zoomEnd" }]);
+
+  check("the satellite leads inside the cube", viaOrbit.state === "inside", viaOrbit.state);
+  check("中をのぞく leads to the same place", viaClosing.state === "inside", viaClosing.state);
+  check("and they are the same place", viaOrbit.state === viaClosing.state);
+
+  /*
+   * And never by way of the closing screen. The reader came from orbit; they
+   * have finished with that screen, and putting it in front of them for two
+   * seconds on the way past is introducing a screen in order to dismiss it.
+   */
+  let onTheWayIn = play("orbit", []);
+  const seen: string[] = [];
+  for (const event of toInside) {
+    onTheWayIn = reduceExperience(onTheWayIn, event);
+    seen.push(onTheWayIn.state);
+    if (showsCompletion(onTheWayIn)) seen.push("(closing screen shown)");
+  }
+  check("the way in never passes the closing screen",
+    !seen.includes("completed") && !seen.includes("(closing screen shown)"),
+    seen.join(" -> "));
+
+  // Out again, back where they set off from — not stranded on the closing screen.
+  const out = [
+    ...toInside,
+    { type: "reveal" as const },
+    { type: "zoomEnd" as const },
+    { type: "deployEnd" as const },
+  ];
+  const backOut = play("orbit", out);
+  check("and coming out returns to orbit", backOut.state === "orbit", backOut.state);
+  check("the journey is finished with", backOut.insideVia === null, String(backOut.insideVia));
+
+  // The closing screen's own detour still comes back to the closing screen.
+  const closingRoundTrip = play("closing", [
+    { type: "reveal" }, { type: "zoomEnd" }, { type: "reveal" }, { type: "zoomEnd" },
+  ]);
+  check("from the closing screen, in and out returns there",
+    closingRoundTrip.state === "completed", closingRoundTrip.state);
+
+  console.log(`  orbit -> ${seen.join(" -> ")} -> ... -> ${backOut.state}`);
+}
+
+console.log("23. The closing line wraps rather than shrinking (rev 6):");
+{
+  const long = "改めてお世話になりました。とても濃い一年間をありがとう。これからもよろしくね。";
+  const short = "ありがとう。";
+  const unbroken = "区切りのないとてもながいおわりのことばでどこにもてんやまるがありません";
+
+  const phone = closingLines(long, 390);
+  check("a long farewell wraps on a phone", phone.length === 2, String(phone.length));
+  check("and breaks where the sentence already pauses",
+    phone[0]?.endsWith("。") === true, phone[0]);
+  check("the pieces are the whole line", phone.join("") === long);
+  check("the longest line is shorter than the whole",
+    Math.max(...phone.map((l) => l.length)) < long.length,
+    `${Math.max(...phone.map((l) => l.length))} < ${long.length}`);
+
+  check("the same line fits on a desktop", closingLines(long, 1440).length === 1);
+  check("a short farewell is left alone", closingLines(short, 390).length === 1);
+  /*
+   * Nowhere to break is not a reason to break anywhere: a wrong break in the
+   * middle of a phrase reads worse than small text does.
+   */
+  check("a line with no punctuation is never split",
+    closingLines(unbroken, 390).length === 1, String(closingLines(unbroken, 390).length));
+
+  console.log(`  ${long.length} characters -> ${phone.map((l) => l.length).join(" + ")} on a phone`);
+}
+
+console.log("24. Both ways of sending go towards the comet (§10.3, §8.7):");
+{
+  /*
+   * Direction is meaning here. The card offers two ways to send something and
+   * the only difference between them is speed, so both have to be *seen*
+   * going the same way — out, into the depth of the scene, where the comet
+   * is. Neither used to.
+   *
+   * The rocket settled up and to the right of the planet on a heading of its
+   * own: two units *towards* the lens, and nine units from the comet, so it
+   * read as coming at the reader. The capsule carrying the receiver's words
+   * ran up the comet's true ellipse, which is not where the comet is drawn,
+   * and stopped 7.6 units short of it.
+   *
+   * Checked rather than eyeballed, at both reference shapes, because a
+   * direction that quietly reverses is exactly the kind of thing that only
+   * shows up when someone watches the animation on the one device nobody has.
+   */
+  const shapes: [string, number, number][] = [
+    ["portrait", 390, 844],
+    ["landscape", 1280, 800],
+  ];
+
+  for (const [name, width, height] of shapes) {
+    const camera = new THREE.Vector3(...hubPose(width, height).position);
+    const comet = new THREE.Vector3(...cometAt(0.5, width, height));
+
+    // Where the rocket starts: the planet's lit limb.
+    const planet = new THREE.Vector3(...PLANET_CENTRE);
+    const from = planet
+      .clone()
+      .add(new THREE.Vector3(0.55, 0.83, 0.1).normalize().multiplyScalar(PLANET_RADIUS));
+    const to = new THREE.Vector3(...replyStarAt(0.5, width, height));
+
+    check(`${name}: the reply recedes rather than coming at the lens`,
+      to.z < from.z, `dz ${(to.z - from.z).toFixed(2)}`);
+    check(`${name}: the reply ends further from the camera than it started`,
+      to.distanceTo(camera) > from.distanceTo(camera),
+      `${from.distanceTo(camera).toFixed(2)} -> ${to.distanceTo(camera).toFixed(2)}`);
+    check(`${name}: the reply overtakes the comet rather than stopping short`,
+      to.distanceTo(comet) > 0.5 && to.distanceTo(comet) < 3,
+      `${to.distanceTo(comet).toFixed(2)} beyond it`);
+
+    // And it passes the comet going outward, not inward.
+    const outward = comet.clone().sub(from).normalize();
+    check(`${name}: the reply's heading is the comet's`,
+      to.clone().sub(from).normalize().dot(outward) > 0.9,
+      to.clone().sub(from).normalize().dot(outward).toFixed(3));
+  }
+
+  console.log(
+    `  reply lands ${replyStarAt(0.5, 390, 844)[2] < 0 ? "behind" : "in front of"} the satellite, ` +
+    `${REPLY_OVERTAKE} units past the comet`,
+  );
+}
+
+/*
+ * Local cards, if there are any (spec v0.2 §15.8).
+ *
+ * Reported, never failed. `npm run verify` is about what is in the
+ * repository, and a half-written draft on one machine must not be able to
+ * break a build or a CI run — but silently checking nothing would be worse
+ * than the old behaviour, where a real card lived in the committed config and
+ * was checked with it.
+ */
+{
+  const local = readLocalCards();
+  if (local.length > 0) {
+    console.log(`\nLocal cards (.karta/cards.local.json) — not part of the build:`);
+    const problems = allProblems(local);
+    let clean = true;
+    local.forEach((card, index) => {
+      const id = card.slug || `index ${index}`;
+      for (const error of problems[index].errors) {
+        clean = false;
+        console.log(`  ${id}: ${error}`);
+      }
+      for (const warning of problems[index].warnings) {
+        clean = false;
+        console.log(`  ${id}: ${warning}`);
+      }
+    });
+    if (clean) console.log(`  ${local.length} card(s), nothing to report.`);
+  }
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

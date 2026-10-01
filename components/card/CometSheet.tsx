@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MessageForm } from "./MessageForm";
 import { CloseIcon, CopyIcon, LockIcon } from "./Icons";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
@@ -42,6 +42,15 @@ type Props = {
    * (M14c), when the link is gone and only the email still has it.
    */
   justBoardedLink: string | null;
+  /**
+   * The invite has been shown before, on an earlier deployment, and they did
+   * not write (mockup M13e). The second ask is shorter: they have read the
+   * long version once, and repeating it is how an invitation turns into
+   * nagging.
+   */
+  askedBefore: boolean;
+  /** Called once, when the invite is actually put in front of them. */
+  onAsked: () => void;
   onBoarded: (token?: string) => void;
   onLeave: () => void;
 };
@@ -54,11 +63,31 @@ type Props = {
  */
 type Step = "asked" | "writing";
 
-export function CometSheet({ card, aboard, justBoardedLink, onBoarded, onLeave }: Props) {
+export function CometSheet({
+  card,
+  aboard,
+  justBoardedLink,
+  askedBefore,
+  onAsked,
+  onBoarded,
+  onLeave,
+}: Props) {
   const comet = card.comet;
   const [step, setStep] = useState<Step>("asked");
   const [copied, setCopied] = useState(false);
   const link = justBoardedLink;
+
+  /*
+   * Marked when the invite is actually put in front of them, not merely when
+   * the sheet opens: an arrival, or a promise with no room on it, has asked
+   * nothing, and should not spend the one long explanation the reader gets.
+   *
+   * Above the `!comet` return, because hooks cannot sit behind one.
+   */
+  const asking = Boolean(comet?.capsule) && comet?.status === "away" && !aboard;
+  useEffect(() => {
+    if (asking) onAsked();
+  }, [asking, onAsked]);
 
   if (!comet) return null;
 
@@ -184,10 +213,22 @@ export function CometSheet({ card, aboard, justBoardedLink, onBoarded, onLeave }
                 {card.from}の言葉がのっています。また会う日に、ひらきます。
               </p>
             ) : null}
-            <p className="sheet__headline">この彗星に、あなたの言葉ものせませんか。</p>
-            <p className="sheet__body">
-              {delivery}それまでは、{card.from}にも読めません。
+            <p className="sheet__headline">
+              {askedBefore
+                ? "彗星は、まだあなたの言葉を待っています。"
+                : "この彗星に、あなたの言葉ものせませんか。"}
             </p>
+            {/*
+              The long explanation is first-time only. Someone seeing this for
+              the second time already knows where the words go and that they
+              cannot be read until the day; saying it again is not clearer,
+              only heavier.
+            */}
+            {askedBefore ? null : (
+              <p className="sheet__body">
+                {delivery}それまでは、{card.from}にも読めません。
+              </p>
+            )}
             <div className="sheet__actions">
               <button className="button button--ghost button--wide" onClick={onLeave} lang="ja">
                 今はやめておく
@@ -242,13 +283,27 @@ export function CometSheet({ card, aboard, justBoardedLink, onBoarded, onLeave }
           </>
         ) : null}
 
-        {/* Nothing to write and nothing to read: just the way back. */}
+        {/*
+          Nothing to write — the sender turned the invite off, or this
+          deployment has no way to deliver words — and nothing to read yet
+          (mockup M13f). The comet is still a promise, so the sheet says what
+          the promise is rather than presenting a bare button.
+        */}
         {!inviting && !aboard && !opens && !(kept && !comet.message) ? (
-          <div className="sheet__actions">
-            <button className="button button--wide" onClick={onLeave} lang="ja">
-              軌道へもどる
-            </button>
-          </div>
+          <>
+            {sealed ? (
+              <p className="sheet__sealed">
+                <LockIcon />
+                {card.from}の言葉がのっています。また会う日に、ひらきます。
+              </p>
+            ) : null}
+            <p className="sheet__headline">{comet.label.label}に、ここへ戻ってきます。</p>
+            <div className="sheet__actions">
+              <button className="button button--wide" onClick={onLeave} lang="ja">
+                つづける
+              </button>
+            </div>
+          </>
         ) : null}
       </section>
     </div>

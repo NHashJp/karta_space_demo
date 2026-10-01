@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { allProblems } from "@/lib/cardRules";
 import { writeCards } from "@/lib/cardsFile";
 import { writeSecrets } from "@/lib/secretsFile";
-import { editorEnabled, refused } from "@/lib/editorGuard";
+import { editorDenied } from "@/lib/editorGuard";
 import type { CardConfig } from "@/types/card";
 
 /**
@@ -14,7 +14,8 @@ import type { CardConfig } from "@/types/card";
  * only ever carries the hash.
  */
 export async function POST(request: Request) {
-  if (!editorEnabled) return refused();
+  const denied = await editorDenied();
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => null)) as {
     cards?: CardConfig[];

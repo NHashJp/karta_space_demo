@@ -3,6 +3,8 @@ import { listCards } from "@/lib/cards";
 import { imagesBySlug } from "@/lib/cardsFile";
 import { readSecrets } from "@/lib/secretsFile";
 import { passwordEnvKey } from "@/lib/access";
+import { hasEditorAccess } from "@/lib/editorAccess";
+import { EditorGate } from "@/components/access/EditorGate";
 import { EditorShell } from "@/components/editor/EditorShell";
 import type { EnvFlags } from "@/components/editor/shared";
 
@@ -23,7 +25,7 @@ export const dynamic = "force-dynamic";
  * one, but they come from `.karta/` on this machine rather than from anything
  * committed.
  */
-export default function EditorPage() {
+export default async function EditorPage() {
   if (process.env.NODE_ENV === "production") {
     return (
       <div className="screen">
@@ -34,6 +36,13 @@ export default function EditorPage() {
       </div>
     );
   }
+
+  /*
+   * The second lock (§15.1). Checked before `listCards()` so a locked editor
+   * reads nothing and renders nothing of the cards — the gate must not be a
+   * curtain drawn over a page that was built anyway.
+   */
+  if (!(await hasEditorAccess())) return <EditorGate />;
 
   const cards = listCards();
 

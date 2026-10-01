@@ -1,7 +1,7 @@
 # The editor
 
 Source: `app/editor/`, `components/editor/`, `app/api/editor/*`,
-`lib/secretsFile.ts`, `lib/editorGuard.ts`
+`lib/secretsFile.ts`, `lib/editorGuard.ts`, `lib/editorAccess.ts`
 
 Development only. Two separate reasons, either one sufficient: a deployed
 filesystem is read-only, so a save could not work; and an unauthenticated write
@@ -10,6 +10,25 @@ files into the repository, and probe which slugs exist. The guard lives in
 `lib/editorGuard.ts` rather than in each route, so a new route cannot be added
 without it — forgetting it on one route is exactly the kind of mistake that is
 invisible in the only environment it is ever tested in.
+
+## Getting in
+
+`/editor`, development only — every route refuses in production.
+
+If `EDITOR_PASSWORD` is set, the editor asks for it first and every
+`/api/editor/*` route answers **401** until it has been given. Unset it and
+the editor is open as before. See
+[Access and security](./access-and-security.md#the-editors-own-gate) for how
+the lock is built and why it exists on top of the production guard.
+
+## Where a save goes
+
+**`.karta/cards.local.json`**, which is gitignored — not the committed config.
+A real card is a letter to one person, and the editor is how real cards get
+written, so that is where they belong.
+See [Content and cards](./content-and-cards.md#real-cards-are-not-committed).
+
+`config/cards.config.ts` keeps the two samples for anyone editing by hand.
 
 ## Why it is sections now
 
@@ -44,6 +63,20 @@ not there.
 The display string — `2023年夏` — is shown live underneath, because that is
 what the receiver reads, and the person typing should see exactly that rather
 than a form that happens to produce it.
+
+**The parts are held as typed, not re-derived.** They used to be rendered from
+the committed value every keystroke, which meant the field could not be typed
+into at all: `parseFuzzyDate` rejects `2`, `20` and `202`, so each of the first
+three digits of a year parsed to null, re-rendered the box as empty, and threw
+the character away. Only a paste of all four at once ever landed, and the bug
+was in every date on the card, not just one. A half-typed date is a normal
+state for a text field and a meaningless one for the card, so the two are kept
+apart: the draft is what you see, and only a date that parses is sent up.
+
+The control is also one row rather than four. `.field input { width: 100% }`
+outranked the width the date boxes asked for, so each date rendered as three
+full-width fields stacked — which is most of why the Memories tab was a
+scroll.
 
 ## Setup: every optional feature fails quietly
 
@@ -126,8 +159,28 @@ sender than to the receiver.
 
 ## Photographs
 
-`POST /api/editor/upload` writes into `private/cards/<slug>/`, not `public/`,
-because memory photographs are served through the gated media route (§14.3).
+`POST /api/editor/upload` takes a `to`, because the card has two kinds of
+picture and they live in different places:
+
+| | Goes to | Named by | Why |
+|---|---|---|---|
+| Memory photographs | `private/cards/<slug>/` | its path in the repository | personal, and served through the gated media route (§14.3) |
+| Cube faces | `public/cards/<slug>/` | its URL | part of the card itself, loaded as a texture by the scene |
+
+The default is the private one, the safer of the two to get wrong. Handing
+back the wrong spelling produces a card that validates and shows nothing, so
+the route returns the path the config should name, already in the right form.
+
+Faces only gained an upload recently. Before that the Faces tab offered a
+dropdown of files already on disk and a box to type a path into, so putting a
+picture on a face meant leaving the editor, copying a file in by hand, and
+coming back — while memories had had a file input all along.
+
+One wrinkle worth knowing: the list of files is a server prop, fixed until the
+page reloads, so a picture uploaded a moment ago is not in it — and a `select`
+whose value is not among its options renders **blank**. The face's own `src`
+is therefore always offered as an option, whether or not the listing has
+caught up.
 
 Nothing is ever overwritten. Two different photographs both called
 `IMG_0042.jpg` should end up as two photographs; silently replacing the first

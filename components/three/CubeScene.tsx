@@ -203,11 +203,20 @@ export function CubeScene({
         />
       ) : null}
 
+      {/*
+        Aimed at the comet, so it overtakes the thing it is racing. Without a
+        comet on this card it still flies the same way — out past where one
+        would be — which keeps the reply going *somewhere* rather than up.
+      */}
       {launching && onLaunchEnd ? (
-        <RocketLaunch reducedMotion={cube.reducedMotion} onDone={onLaunchEnd} />
+        <RocketLaunch
+          cometProgress={comet?.progress ?? 0.5}
+          reducedMotion={cube.reducedMotion}
+          onDone={onLaunchEnd}
+        />
       ) : null}
       {deployed && launched && !launching ? (
-        <ReplyStar reducedMotion={cube.reducedMotion} />
+        <ReplyStar cometProgress={comet?.progress ?? 0.5} reducedMotion={cube.reducedMotion} />
       ) : null}
 
       {/* Once, on the day, and never again while the page is open. */}
@@ -241,6 +250,13 @@ export function CubeScene({
           memoryCount={memories.length}
           reducedMotion={cube.reducedMotion}
           intensity={cameraPhase === "trail" || cameraPhase === "orbit" ? 1 : 0.25}
+          /*
+            Still while it is being travelled — down there the camera flies to
+            fixed points on the curve and the memory panels are pinned to it.
+            Everywhere else it is scenery, and scenery that never moves is
+            what made it read as a painted stripe.
+          */
+          sway={cameraPhase === "trail" ? 0 : 1}
         />
       ) : null}
 
@@ -258,7 +274,6 @@ export function CubeScene({
                 count={memories.length}
                 curveSeed={curveSeed}
                 seed={colourSeed}
-                revealed={revealMemory && index === activeMemory}
                 reducedMotion={cube.reducedMotion}
               />
             ) : null,

@@ -147,7 +147,7 @@ when needed.
 
 ## v0.2 sections
 
-The suite grew from six sections to twenty-one, plus a second script. Rather
+The suite grew from six sections to twenty-four, plus a second script. Rather
 than listing each, here is what each group is *for*:
 
 | Sections | What they protect |
@@ -168,8 +168,19 @@ than listing each, here is what each group is *for*:
 | 18 | the reminder's date logic and its idempotency key |
 | 19 | that a save would write the header the file already has |
 | 20 | the deployment's four overlapping windows |
-| 21 | the satellite's display attitude, and that three's Euler order agrees with it |
+| 20 | the satellite leaving as one object, rather than in pieces |
+| 21 | the trail drifting without coming off its own curve |
+| 22 | that looking into the satellite lands where 中をのぞく lands |
+| 23 | the closing line wrapping rather than shrinking to nothing |
+| 24 | both ways of sending going towards the comet |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
+
+Sections 20–24 are all **rev 6**, and they share a shape worth noticing: each
+one asserts something that is only visible in motion, by checking the number
+underneath it instead. A fade that leaves parts behind, a trail that wanders
+off, a route that ends in the wrong place, a line too small to read, a rocket
+flying at the camera — none of those can be caught by a typecheck, and all of
+them are arithmetic before they are pixels.
 
 Section 11 is the one that has caught the most. It projects the satellite's
 actual hull, the planet, the comet and the trail into each of four viewports
@@ -244,3 +255,99 @@ editor's write path works — none of which are pure functions. Those were
 exercised by hand against a running server during each phase (the routes'
 status codes, the media route's guards, the seal over real HTTP), and the
 editor's own **live check** is the standing version of that for deployments.
+
+## 20. The satellite leaves as one object
+
+The satellite is not one material. The cube's glass sits at 0.34 opacity, its
+wires and the solar array's grid at 0.94, the booms and the mast at 1. For a
+long time the stow scaled all of them by one multiplier, which preserves those
+ratios all the way down:
+
+| | base | at 15% of the fade |
+|---|---|---|
+| Cube glass | 0.34 | 0.051 |
+| Panel grid | 0.94 | 0.141 |
+| Booms, mast, outlines | 1.00 | 0.150 |
+
+The cube is imperceptible around 0.05. The metalwork bolted to it is still at
+0.15 — three times as opaque — so on the way to the trail the wings were seen
+outliving the thing they hang off.
+
+**Dimming multiplies; stowing caps.** On the closing screen the satellite is
+still an object, just further back, and brighter parts should stay brighter.
+On the way out it is leaving, and everything has to leave together. A ceiling
+changes nothing early, because every material is below it; as it comes down it
+takes the brightest parts first, and from the faintest material downwards they
+are all at the same alpha.
+
+This has been reported twice — once because the materials were not
+`transparent` at all, and once because lightening the cube widened the gap,
+which is a change nobody would think to re-test the stow against. Hence a
+check. It asserts the spread between the brightest and faintest part collapses
+to exactly 1, that they reach zero together, and — so it cannot quietly pass
+against a multiplier again — that a multiplier *would* have failed it.
+
+## 21. The trail drifts, without coming off its own curve
+
+The curve itself is the card's identity, seeded from the slug, with the
+memories pinned at fixed places along it. The drift displaces what is *drawn*
+from the curve rather than changing it, which is what lets the trail be alive
+without the memories moving.
+
+Three properties are checked: it is still where the satellite holds it and
+freer further out; it stays bounded over a long sitting, because an offset
+that accumulated would walk the trail out of the scene while someone read the
+card; and it moves slowly enough between frames to read as drift rather than
+jitter.
+
+## 22. Looking into the satellite lands where 中をのぞく lands
+
+Two ways in, one destination. From the closing screen the reader presses
+中をのぞく; from orbit they press the label on the satellite, because the
+satellite *is* the cube. If those ever stop arriving at the same state, the
+card has grown a second inside.
+
+`reveal` only transitions from `completed`, so the orbit route is two moves
+chained — fold the satellite up, then go in — and it deliberately does **not**
+stop at the closing screen on the way past, nor land there on the way out. The
+check walks the whole round trip and asserts it never touches `completed`,
+that it returns to orbit, and that the closing screen's own detour still comes
+back to the closing screen.
+
+## 23. The closing line wraps rather than shrinking
+
+`StrokeText` fits one line to the width it is given, so the size on screen is
+very nearly the width divided by the number of characters. A thirty-nine
+character farewell lands at 9px on a phone — visibly handwriting, unreadably
+so. Wrapping to a second line nearly doubles that, because the size is set by
+the longer of the two.
+
+The break goes at 。 or 、, never mid-phrase, and among those at the one that
+leaves the longest line shortest — the longest line is what sets the size. A
+line with no punctuation is left alone, because a wrong break reads worse than
+small text does. All of that is asserted, including that the pieces still add
+up to the whole line.
+
+## 24. Both ways of sending go towards the comet
+
+Direction carries meaning here, so it is asserted rather than watched.
+
+The card offers two ways to send something and the only difference between
+them is speed — so both have to be *seen* going the same way, out into the
+depth of the scene where the comet is. Neither did:
+
+| | Was | Now |
+|---|---|---|
+| The reply rocket | +2.06 in z, i.e. **towards the lens**, settling 9.4 units from the comet on a heading of its own | recedes, and settles 1.8 units past the comet on the comet's heading |
+| The capsule of words | ran up the comet's **true** ellipse and stopped 7.6 units short of where the comet is drawn | lands on it, 0.000 |
+
+The capsule's miss had a specific cause worth remembering: the comet is not
+drawn on its true orbit. The hub places it along a composition path so that it
+lands top-right of the frame (`cometAt`), and anything aiming at the comet has
+to aim there. Three components worked this out separately and two got it
+wrong, so there is now one function and the other two call it.
+
+The check runs at both reference shapes, and asserts four things per shape:
+the reply recedes in z, it ends further from the camera than it started, it
+passes the comet rather than stopping short of it or sailing off, and its
+heading is within 0.9 of the comet's own.

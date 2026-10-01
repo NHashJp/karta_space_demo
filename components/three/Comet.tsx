@@ -89,6 +89,9 @@ function minimumTail(width: number, height: number): number {
 
 export type CometTone = "sender" | "receiver";
 
+/** Points in the dotted lead. Enough that the marching reads as smooth. */
+const LEAD_POINTS = 24;
+
 const TONES: Record<CometTone, { nucleus: string; ion: string; dust: string }> = {
   // The sender's comet is ion-blue, like everything the card itself is made
   // of; the receiver's is warm, because it is theirs (principle 11).
@@ -141,14 +144,17 @@ export function Comet({
    * enough — and it is what makes the comet read as *passing by* rather than
    * as a bright dot parked in the corner.
    */
+  const leadPositions = useRef<Float32Array>(new Float32Array((LEAD_POINTS + 1) * 3));
+
   const orbitLine = useMemo(() => {
     const f = displayedProgress(progress);
     const points: THREE.Vector3[] = [];
-    for (let i = 0; i <= 24; i++) {
-      const ahead = Math.min(f + (SEGMENT_AHEAD * i) / 24, 1);
+    for (let i = 0; i <= LEAD_POINTS; i++) {
+      const ahead = Math.min(f + (SEGMENT_AHEAD * i) / LEAD_POINTS, 1);
       points.push(new THREE.Vector3(...hubComet(reach(ahead), size.width, size.height)));
     }
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    leadPositions.current = geometry.getAttribute("position").array as Float32Array;
     const material = new THREE.LineDashedMaterial({
       color: colours.ion,
       dashSize: 0.06,
@@ -225,6 +231,32 @@ export function Comet({
     // The segment ahead is always drawn in the hub (§4.1); the chart raises it.
     const material = orbitLine.material as THREE.Material & { opacity: number };
     material.opacity = THREE.MathUtils.damp(material.opacity, showOrbit ? 0.9 : 0.7, 4, delta);
+
+    /*
+     * The dashes march along the path (rev 6, mockup M12a's `kDraw`).
+     *
+     * The comet's real motion is a date, so across a visit it does not move
+     * at all — it was a lit speck parked in the corner with a dotted line
+     * drawn beside it. `LineDashedMaterial` has no dash offset to animate, so
+     * the phase is put into the geometry: the twenty-five points are laid out
+     * from a start that creeps forward and wraps, which walks the dashes
+     * toward the comet without the segment itself going anywhere.
+     */
+    if (!reducedMotion) {
+      const f = displayedProgress(progress);
+      const phase = (t * 0.06) % 1;
+      const array = leadPositions.current;
+      for (let i = 0; i <= LEAD_POINTS; i++) {
+        const along = ((i + phase) / LEAD_POINTS) * SEGMENT_AHEAD;
+        const [x, y, z] = hubComet(reach(Math.min(f + along, 1)), size.width, size.height);
+        array[i * 3] = x;
+        array[i * 3 + 1] = y;
+        array[i * 3 + 2] = z;
+      }
+      const attribute = orbitLine.geometry.getAttribute("position");
+      attribute.needsUpdate = true;
+      orbitLine.computeLineDistances();
+    }
   });
 
   return (

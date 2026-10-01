@@ -224,6 +224,47 @@ hard edges running its whole length, which is the one thing a tail never has.
   dust tail's lag, which is a real direction in the world and grows with the
   square of the distance travelled.
 
+## The contrail: a ribbon that has to look like gas
+
+The trail is a camera-width ribbon along the card's own curve, and three
+separate things were each making it read as a painted stripe rather than as
+something burning off. All three are rev 6.
+
+**It never moved.** The colours drifted, but drift has no direction. The
+geometry is built once and never rebuilt, so the ribbon itself was fixed in
+space. `trailSway` now displaces what is *drawn* from the curve — three sines
+with periods sharing no common multiple, offset along `u` so it undulates
+rather than sliding about rigidly. It is still where the satellite holds it
+and freer further out, because a trail tethered at one end is what the eye
+expects. The curve is untouched: it is the card's identity, and the memories
+hang at fixed places on it.
+
+The glints get the identical displacement at their own `u`, so a memory's
+light never comes off the ribbon under it. And the drift is **off in the trail
+view**, where the camera flies to fixed points on the curve and the panels are
+pinned to it — a trail that drifted down there would slide out from under
+both.
+
+**Its edges were hard.** The cross-section was a squared smoothstep, which
+holds most of its value out to about two-thirds of the half-width and then
+falls away — putting a visible rim there. It is now a gaussian, which spends
+most of the width on the falloff. The practical difference is where the
+`alpha < 0.002` discard fires: it used to cut at 87% of the half-width, well
+inside the ribbon, and now cuts at 97%, where the profile is genuinely
+nothing. The subtraction in that formula is doing real work — `exp(-K)` at the
+boundary is small but not zero, and a small non-zero alpha at the last vertex
+is exactly a hard edge.
+
+**One of its ends was cut off.** The far end tapered to nothing; the near one
+sat at full brightness and stopped where the geometry started, so the widest,
+brightest part of the ribbon ended in a flat cap drawn straight across it. It
+now comes in from nothing over the first eighth of the length, so the trail
+arrives at a point the way the far end already leaves at one.
+
+Each of those changes carries a scale factor chosen so the trail is no
+brighter or dimmer than it was — 0.948 on the cross-section, 1.119 on the
+length. The point was the shape of the edges, not the exposure.
+
 ## Speed is drawn, not simulated
 
 `SpeedStreaks` is short line segments sweeping past the lens, where the

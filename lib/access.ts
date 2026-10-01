@@ -104,6 +104,26 @@ export async function hasAccess(slug: string): Promise<boolean> {
 }
 
 /**
+ * In development, an unlocked editor session may preview any card.
+ *
+ * The editor's preview is an iframe on `/c/<slug>`, so a password-protected
+ * card showed the gate inside it — and every jump target then looked
+ * identical, because they were all the gate. The author was being asked for a
+ * password to look at a card they were in the middle of writing.
+ *
+ * Deliberately narrow. It requires `NODE_ENV !== "production"` *and* an
+ * `EDITOR_PASSWORD` that has actually been entered: with no editor password
+ * set there is no session to carry, so nothing changes for anyone who has not
+ * opted in, and the gate can still be tested in development exactly as
+ * before.
+ */
+async function editorPreview(): Promise<boolean> {
+  if (process.env.NODE_ENV === "production") return false;
+  const { editorLocked, hasEditorAccess } = await import("./editorAccess.ts");
+  return editorLocked() && (await hasEditorAccess());
+}
+
+/**
  * The one check every receiver-facing route under /c/[slug] makes: a link-only
  * card passes, a password card needs its cookie (spec v0.2 §14).
  *
@@ -111,7 +131,9 @@ export async function hasAccess(slug: string): Promise<boolean> {
  * in and has no identity here.
  */
 export async function canView(slug: string): Promise<boolean> {
-  return !passwordRequired(slug) || (await hasAccess(slug));
+  if (!passwordRequired(slug)) return true;
+  if (await hasAccess(slug)) return true;
+  return editorPreview();
 }
 
 /** Null when the card cannot issue a cookie at all (no secret, or no key). */

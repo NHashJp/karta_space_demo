@@ -88,7 +88,17 @@ export const panelCellsFragmentShader = /* glsl */ `
     // The glass is see-through; the wire ruled on it is not.
     float alpha = clamp(mix(0.5, 0.94, line) + rim * 0.16, 0.0, 1.0);
 
-    gl_FragColor = vec4(color, alpha * uOpacity);
+    /*
+     * uOpacity is a **ceiling**, not a multiplier, and matches the one
+     * MessageCube puts on every other material in the satellite.
+     *
+     * Multiplying kept this array's grid at 0.94 of whatever was left while
+     * the cube's glass had only 0.34 of it, so on the way to the trail the
+     * wings stayed visible long after the cube they are bolted to had gone.
+     * A ceiling takes the brightest parts down first and lets everything
+     * leave together.
+     */
+    gl_FragColor = vec4(color, min(alpha, uOpacity));
 
     #include <colorspace_fragment>
   }

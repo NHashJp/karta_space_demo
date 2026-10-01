@@ -111,6 +111,9 @@ revealsText(state)   // reading, and only reading
 revealsSecret(state) // inside, and only inside
 revealsMemory(state) // remembering, and only remembering
 isWithinCube(state)  // descending | inside | ascending — mounts the inner shell
+showsCompletion(x)   // the closing screen — takes the whole experience, not
+                     // just the state, because the way in from orbit passes
+                     // through `descending` without ever showing it
 isDeployed(state)    // everything past the closing screen — cube in satellite form
 dimsScene(state)     // leaving | completed | returning | ascending | undeploying
 acceptsInput(state)  // reading | completed | inside | orbit | remembering
@@ -132,6 +135,33 @@ line fades up after the motion has stopped rather than during it.
 closing screen, and lifting that dimming on the way in makes the cube brighten
 as you enter it. `ascending` dims again, so the closing screen is exactly as it
 was when you left it.
+
+## Two ways into the cube, and `insideVia`
+
+The inside can be reached from two places, and they are not the same journey.
+
+From the **closing screen**, 中をのぞく is a detour: the reader is standing on
+that screen, steps inside, and should be put back on it.
+
+From **orbit**, looking into the satellite is a journey. The satellite *is*
+the cube, so it leads to the same place — but `reveal` only transitions from
+`completed`, because the camera is out at the hub and there is no cube to be
+inside of until the satellite has folded up. So it is two moves chained:
+
+```
+orbit → undeploying → descending → inside → ascending → deploying → orbit
+```
+
+Note what is missing: **`completed` never appears.** The reader came from
+orbit, has already finished with the closing screen, and putting it in front
+of them for the length of the fold-up would be introducing a screen in order
+to dismiss it. `showsCompletion()` suppresses it for the same reason, and the
+final `deployEnd` goes straight to the hub rather than through `afterDeploy`,
+so the comet moment does not replay just because someone looked inside.
+
+`insideVia` is what remembers which of the two it is. It is reducer state
+rather than a ref in the component, because *where leaving goes back to* is a
+property of the journey, and the reducer is where journeys live.
 
 ## Why `entering` and `returning` are separate
 
@@ -291,7 +321,7 @@ It is ignored in production, for the same reason `?now=` is — a query paramete
 that walks past the closing screen, or unseals a comet, would be no seal at all.
 Targets, as `JUMP_TARGETS` in `lib/devJump.ts` lists them: `landing`,
 `face-1`…`face-6`, `closing`, `inside`, `orbit`, `departure`, `chart`,
-`crossroads`, `trail`, `reply`.
+`crossroads`, `trail`, `reply`, `trajectory`.
 
 `departure` and `chart` are the two halves of the comet moment — the first
 stops mid-flight, the second lands on the chart with the sheet open — and

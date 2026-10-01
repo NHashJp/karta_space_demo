@@ -1,31 +1,28 @@
 "use client";
 
 import { Suspense, useMemo, useRef } from "react";
-import { Html, useTexture } from "@react-three/drei";
+import { useTexture } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { MEMORY_PANEL_WORLD, memoryPanelFraming } from "./framing";
+import { MEMORY_PANEL_WORLD } from "./framing";
 import { SafeTexture } from "./SafeTexture";
-import { toCss, trailColour, type TrailSeed } from "@/lib/trailColour";
+import { trailColour, type TrailSeed } from "@/lib/trailColour";
 import { memoryU, trailPoint, trailTangent } from "@/lib/trailCurve";
 import { useStagedTrail } from "./useStagedTrail";
-import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import type { ClientMemory } from "@/lib/clientCard";
 
 /**
  * One memory, hanging on the trail (spec v0.2 §9.2).
  *
- * The photograph is a texture; the words are real DOM through `<Html
- * transform>`, on the same 40px-per-world-unit rule as a cube face, so
- * Japanese sets and breaks properly and a screen reader can read it.
+ * The photograph is a texture in a frame. The words are **not** here — they
+ * are read at the foot of the screen, in `TrailOverlay`, where there is room
+ * for them at a size anyone can read.
  *
  * Its border takes the trail's colour at its own point on the curve, which is
  * why each memory carries a slightly different, slowly shifting tint — the one
  * detail that makes a row of panels feel like points on a journey rather than
  * a gallery.
  */
-
-const CAPTION_SCALE = 40;
 
 type Props = {
   memory: ClientMemory;
@@ -34,8 +31,6 @@ type Props = {
   /** The card's curve seed; the panel stages the curve itself (§4.5). */
   curveSeed: number;
   seed: TrailSeed;
-  /** Text is attached only while this memory is the one being read (§6.5). */
-  revealed: boolean;
   reducedMotion: boolean;
 };
 
@@ -45,14 +40,11 @@ export function MemoryPanel({
   count,
   curveSeed,
   seed,
-  revealed,
   reducedMotion,
 }: Props) {
   const points = useStagedTrail(curveSeed);
   const group = useRef<THREE.Group>(null);
   const border = useRef<THREE.LineSegments>(null);
-  const size = useThree((state) => state.size);
-  const panelPx = memoryPanelFraming(size.width, size.height).screenPx;
 
   const u = memoryU(points, index, count);
 
@@ -89,8 +81,6 @@ export function MemoryPanel({
     }
   });
 
-  const tint = useMemo(() => toCss(trailColour(u, 0, seed, true)), [u, seed]);
-
   return (
     <group ref={group} position={position} quaternion={quaternion}>
       {memory.image ? (
@@ -112,25 +102,22 @@ export function MemoryPanel({
         <lineBasicMaterial transparent opacity={0.45} toneMapped={false} />
       </lineSegments>
 
-      <Html
-        transform
-        scale={MEMORY_PANEL_WORLD / CAPTION_SCALE}
-        position={[0, memory.image ? -MEMORY_PANEL_WORLD * 0.5 : 0, 0.02]}
-        zIndexRange={[20, 10]}
-        pointerEvents="none"
-      >
-        <div
-          className="memory"
-          style={{ width: panelPx, ["--memory-tint" as string]: tint }}
-          data-visible={revealed}
-          aria-hidden={!revealed}
-          lang="ja"
-        >
-          <p className="memory__date">{formatFuzzyDate(memory.date, memory)}</p>
-          <h2 className="memory__title">{memory.title}</h2>
-          {memory.caption ? <p className="memory__caption">{memory.caption}</p> : null}
-        </div>
-      </Html>
+      {/*
+        The words are *not* in the scene.
+        
+        They used to be, as `<Html transform>` scaled to the panel — which
+        means they are typeset in world units and shrink with distance, so at
+        the camera's actual standoff they were a few pixels tall: legible as
+        "there is writing here" and as nothing else. And `TrailOverlay` was
+        already showing the same date, title and caption at the foot of the
+        screen, at a readable size. The scene had two copies of every memory's
+        words, and the one inside the frame could not be read.
+        
+        So the frame holds the photograph, and the words are read where there
+        is room for them. Nothing is lost to assistive technology either: every
+        memory's date, title, caption and alt text is in the `sr-only` block
+        in `CardExperience`.
+      */}
     </group>
   );
 }

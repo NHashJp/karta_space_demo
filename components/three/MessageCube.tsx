@@ -24,6 +24,7 @@ import {
   deploymentAt,
 } from "@/lib/deployment";
 import { DEPLOY_MS, REDUCED_MS } from "@/lib/timing";
+import { stowedOpacity } from "@/lib/satelliteFade";
 
 const HALF_PI = Math.PI / 2;
 
@@ -254,13 +255,18 @@ export function MessageCube({
     if (!stowed && stow.current < 0.002) stow.current = 0;
     if (stowed && stow.current > 0.998) stow.current = 1;
 
-    // The wings are shader materials and carry their own opacity; the ref is
-    // how `SolarWings` reads this same number rather than deriving its own.
+    // The wings are shader materials and carry their own opacity, so they
+    // cannot be reached by the traverse below; the ref hands them the same
+    // ceiling rather than letting them derive one of their own.
     stowFade.current = 1 - stow.current;
     group.visible = stow.current < 0.999;
 
     if (dim.current > 0 || wasDimmed || stow.current > 0 || wasStowed) {
-      const fade = (1 - dim.current * 0.88) * (1 - stow.current);
+      // Dimming multiplies, stowing caps — see `lib/satelliteFade.ts` for
+      // why those are different operations and what goes wrong if they are not.
+      const dimming = 1 - dim.current * 0.88;
+      const ceiling = 1 - stow.current;
+
       group.traverse((node) => {
         const material = (node as THREE.Mesh).material as THREE.Material | undefined;
         if (!material || Array.isArray(material) || !("opacity" in material)) return;
@@ -270,7 +276,7 @@ export function MessageCube({
           base = opaque.opacity;
           baseOpacity.current.set(opaque, base);
         }
-        opaque.opacity = base * fade;
+        opaque.opacity = stowedOpacity(base, dimming, ceiling);
       });
     }
 

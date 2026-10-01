@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { editorEnabled, refused } from "@/lib/editorGuard";
+import { editorDenied } from "@/lib/editorGuard";
 
 /**
  * Generating the three secrets into `.env.local` (spec v0.2 §15.2, §15.7).
@@ -23,7 +23,8 @@ type Generatable = (typeof GENERATABLE)[number];
 const ENV_PATH = join(process.cwd(), ".env.local");
 
 export async function POST(request: Request) {
-  if (!editorEnabled) return refused();
+  const denied = await editorDenied();
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => ({}))) as { generate?: string };
   const name = GENERATABLE.find((key) => key === body.generate) as Generatable | undefined;
@@ -48,7 +49,8 @@ export async function POST(request: Request) {
 
 /** Which of the environment's features are configured — never their values. */
 export async function GET() {
-  if (!editorEnabled) return refused();
+  const denied = await editorDenied();
+  if (denied) return denied;
 
   const present = (key: string) => Boolean(process.env[key]);
   return NextResponse.json({

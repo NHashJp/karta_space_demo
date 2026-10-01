@@ -189,7 +189,15 @@ body {
   max-width: min(92vw, 62rem);
 }
 
+/*
+ * One block per line, stacked. The gap is tight on purpose: two lines of one
+ * sentence should read as one piece of handwriting that ran out of room, not
+ * as two sentences.
+ */
 .completion__stroke {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
   width: 100%;
   filter: drop-shadow(0 0 28px rgba(0, 174, 239, 0.28));
 }
@@ -360,11 +368,23 @@ body {
   color: var(--starlight);
 }
 
-/* Two buttons sharing a row at the foot of a sheet, evenly. */
+/*
+ * Two buttons sharing a row at the foot of a sheet, evenly.
+ *
+ * A sheet on a phone leaves about 150px per button, and at the default
+ * tracking 「今はやめておく」 needed more than that — so both labels broke
+ * across two lines and the pills grew tall and lopsided. Tighter tracking and
+ * a shade smaller is enough for seven Japanese characters to fit on one line,
+ * and `nowrap` makes it a visible overflow rather than a silent wrap if a
+ * longer label is ever added.
+ */
 .button--wide {
   flex: 1 1 0;
   min-width: 0;
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-1);
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .button:focus-visible,
@@ -391,10 +411,20 @@ body {
   color: var(--lunar);
 }
 
+.gate__field {
+  position: relative;
+  width: 100%;
+}
+
 .gate__input {
   width: 100%;
   height: var(--control-h);
-  padding: 0 var(--space-2);
+  /*
+   * The same room on both sides, though only the right holds the reveal
+   * button: the text is centred, and padding it on one side only would shift
+   * every password half a button to the left.
+   */
+  padding: 0 var(--control-h);
   border: 1px solid var(--titanium);
   border-radius: var(--radius-1);
   background: rgba(10, 12, 16, 0.8);
@@ -403,6 +433,49 @@ body {
   font-size: 1rem;
   text-align: center;
   letter-spacing: 0.2em;
+}
+
+/*
+ * Inside the field, on the right. A full 48px target rather than the 18px
+ * glyph it draws — this is the one control on the screen someone reaches for
+ * mid-typing, often one-handed, having just been told their password was
+ * wrong.
+ */
+.gate__reveal {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  border: 0;
+  border-radius: var(--radius-1);
+  background: none;
+  color: var(--titanium);
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.gate__reveal:hover,
+.gate__reveal[aria-pressed="true"] {
+  color: var(--lunar);
+}
+
+.gate__reveal:focus-visible {
+  outline: 2px solid var(--ion);
+  outline-offset: -2px;
+  color: var(--starlight);
+}
+
+.gate__reveal svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* A revealed password is not letter-spaced apart: it is there to be read. */
+.gate__input[type="text"] {
+  letter-spacing: 0.06em;
 }
 
 .gate__hint {
@@ -760,6 +833,7 @@ body {
 }
 
 .field input,
+.field select,
 .editor textarea {
   width: 100%;
   padding: var(--space-1);
@@ -774,8 +848,85 @@ body {
 }
 
 .field input:focus-visible,
+.field select:focus-visible,
 .editor textarea:focus-visible {
   outline: 1px solid var(--ion);
+}
+
+/*
+ * Dropdowns were the one control here still drawn by the operating system: a
+ * light-grey box on a dark panel, in the system font, with a system chevron.
+ * `appearance: none` takes the box back, and the chevron is drawn as a
+ * background image because a wrapper element around every `<select>` in the
+ * editor would be a lot of markup for one triangle.
+ */
+.field select,
+.preview select {
+  appearance: none;
+  /* grid-exempt: room for the chevron, which is 12px and not a layout gap. */
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%23adacb5' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5 6 6.5l5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-1) center;
+  cursor: pointer;
+}
+
+.field select:hover,
+.preview select:hover {
+  border-color: var(--lunar);
+}
+
+/*
+ * The list itself is still the OS's, and on Windows and Linux it inherits
+ * nothing — so the options are given the panel's colours explicitly, or they
+ * open as black text on a black background.
+ */
+.field select option,
+.preview select option {
+  background: var(--void-deep);
+  color: var(--starlight);
+}
+
+/*
+ * The file input, which is really two controls: a button and a filename. The
+ * button gets the same pill as everything else, and the filename beside it is
+ * the only place the editor says what is about to be uploaded, so it is not
+ * left in the system font either.
+ */
+.field input[type="file"] {
+  padding: var(--space-half);
+  font-size: 0.82rem;
+  color: var(--lunar);
+  cursor: pointer;
+}
+
+.field input[type="file"]::file-selector-button {
+  margin-right: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid rgba(176, 180, 186, 0.45);
+  border-radius: var(--radius-pill);
+  background: rgba(28, 35, 51, 0.55);
+  color: var(--starlight);
+  font-family: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+
+.field input[type="file"]::file-selector-button:hover {
+  border-color: var(--ion);
+  background: rgba(0, 174, 239, 0.12);
+}
+
+/* Mid-upload the control is disabled; say so rather than just going grey. */
+.field input[type="file"]:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.field input[type="file"]:disabled::file-selector-button {
+  cursor: progress;
 }
 
 .face {
@@ -1029,7 +1180,9 @@ body:has(.sheet-layer) .orbit-bar,
 body:has(.panel-layer) .orbit-ui__aboard,
 body:has(.sheet-layer) .orbit-ui__aboard,
 body:has(.panel-layer) .orbit-ui__tip,
-body:has(.sheet-layer) .orbit-ui__tip {
+body:has(.sheet-layer) .orbit-ui__tip,
+body:has(.panel-layer) .orbit-ui__reread,
+body:has(.sheet-layer) .orbit-ui__reread {
   opacity: 0;
   pointer-events: none;
 }
@@ -1056,14 +1209,31 @@ body:has(.sheet-layer) .orbit-ui__tip {
  * On a wide screen the satellite is the letter, and saying so under it is
  * kinder than expecting anyone to try tapping a cube (mockup M5b).
  */
+/*
+ * Centred on the satellite's body, not floating below it. The two fractions
+ * come from `hubTargets` — the composition the camera is solved from — so the
+ * label stays on the satellite at every aspect ratio.
+ */
 .orbit-ui__reread {
   position: absolute;
-  left: 50%;
-  top: 62%;
-  transform: translateX(-50%);
+  left: var(--sat-x, 47%);
+  top: var(--sat-y, 50%);
+  transform: translate(-50%, -50%);
   pointer-events: auto;
   opacity: 0;
   transition: opacity 400ms ease;
+}
+
+/*
+ * Over the cube rather than over the sky, so it has to hold its own against
+ * a lit face without hiding one: a darker fill than the bar's pills, and a
+ * little more blur behind it.
+ */
+.orbit-ui__reread .button {
+  background: rgba(5, 7, 12, 0.72);
+  backdrop-filter: blur(12px);
+  border-color: rgba(176, 180, 186, 0.4);
+  color: var(--starlight);
 }
 
 @media (hover: hover) and (min-width: 721px) {
@@ -1515,47 +1685,6 @@ body:has(.sheet-layer) .orbit-ui__tip {
 
 /* ---------- memories on the trail (spec v0.2 §9.2) ---------- */
 
-/*
- * The words under a photograph. They fade in once the camera has arrived and
- * never move while they are being read; the tint comes from the trail's own
- * colour at this point on the curve, so each memory carries its own.
- */
-.memory {
-  --memory-tint: var(--ion);
-  text-align: center;
-  opacity: 0;
-  transition: opacity 600ms ease;
-  pointer-events: none;
-}
-
-.memory[data-visible="true"] {
-  opacity: 1;
-}
-
-.memory__date {
-  font-size: 0.8em;
-  letter-spacing: 0.1em;
-  color: var(--lunar);
-  font-variant-numeric: tabular-nums;
-}
-
-.memory__title {
-  margin-top: var(--space-1);
-  font-size: 1.25em;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--starlight);
-  text-shadow: 0 0 20px color-mix(in srgb, var(--memory-tint) 45%, transparent);
-}
-
-.memory__caption {
-  margin-top: var(--space-1);
-  font-size: 0.9em;
-  line-height: 1.8;
-  color: var(--cosmic-silver);
-  text-wrap: balance;
-}
-
 /* ---------- the comet panel (spec v0.2 §11.3) ---------- */
 
 .comet-section + .comet-section {
@@ -1896,27 +2025,45 @@ body:has(.sheet-layer) .orbit-ui__tip {
 
 /* ---- the fuzzy date input ---- */
 
+/*
+ * One line rather than four.
+ *
+ * The label, the three number boxes, the season, the "about" tick and the
+ * live preview used to stack, so every date on the card was four rows tall —
+ * and a card with five memories is mostly dates. Laid out in a row that wraps
+ * only when it has to, the Memories tab stops being a scroll.
+ */
 .fuzzy {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-half);
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .fuzzy__label {
+  flex: none;
   font-size: 0.72rem;
   letter-spacing: 0.1em;
   color: var(--titanium);
 }
 
+/* The parts of one date never break across lines from each other. */
 .fuzzy__parts {
   display: flex;
   align-items: center;
   gap: var(--space-half);
-  flex-wrap: wrap;
+  flex: none;
+  flex-wrap: nowrap;
 }
 
-.fuzzy__input {
-  width: 3.5rem;
+/*
+ * Scoped to `.fuzzy` so it outranks `.field input { width: 100% }` above.
+ * Without that these boxes stretched to the full column — three full-width
+ * fields for one date, which is most of why the Memories tab was a scroll.
+ */
+.fuzzy .fuzzy__input {
+  flex: none;
+  width: 3rem;
   min-height: var(--control-h-compact);
   padding: 0 var(--space-1);
   border: 1px solid var(--titanium);
@@ -1928,11 +2075,11 @@ body:has(.sheet-layer) .orbit-ui__tip {
   text-align: center;
 }
 
-.fuzzy__input--year {
-  width: 5rem;
+.fuzzy .fuzzy__input--year {
+  width: 4.25rem;
 }
 
-.fuzzy__input--season {
+.fuzzy .fuzzy__input--season {
   width: auto;
   text-align: left;
 }
@@ -1950,8 +2097,13 @@ body:has(.sheet-layer) .orbit-ui__tip {
   color: var(--asteroid);
 }
 
-/* What the receiver will read, which is the point of all of the above. */
+/*
+ * What the receiver will read, which is the point of all of the above — so it
+ * keeps the end of the row to itself rather than being squeezed between the
+ * controls that produce it.
+ */
 .fuzzy__preview {
+  margin-left: auto;
   font-size: 0.88rem;
   color: var(--ion);
 }
@@ -2156,8 +2308,7 @@ body:has(.sheet-layer) .orbit-ui__tip {
 .experience,
 .screen,
 .comet-page,
-.face-text,
-.memory {
+.face-text {
   -webkit-user-select: none;
   user-select: none;
   /* Long-press on iOS pops a selection/callout menu over the card. */
@@ -2344,6 +2495,75 @@ body:has(.sheet-layer) .orbit-ui__tip {
   color: var(--warm);
 }
 
+/*
+ * What the rocket is and where it goes, above the form (M8a). It carries the
+ * icon from the crossroads card that led here, so the two read as one thing.
+ */
+.reply__how {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  line-height: 20px;
+  color: var(--lunar);
+}
+
+.reply__how-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--stroke, #7fd4f5);
+}
+
+/* ---------- the comet's trajectory (mockup M12c) ---------- */
+
+.trajectory-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trajectory {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The drawing is the subject of this panel, so it gets the room. */
+  margin: var(--space-1) 0;
+  overflow: visible;
+}
+
+/*
+ * The three labels that turn a curve into a sentence. Small and quiet: the
+ * ellipse is what is being read, and a label that competes with it makes the
+ * panel a diagram with captions rather than a picture of a promise.
+ */
+.trajectory__label {
+  fill: var(--lunar);
+  font-family: var(--font-ja);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+/* Where it comes home — the one label that is the point. */
+.trajectory__label--return {
+  fill: var(--starlight);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.trajectory__label--now {
+  fill: var(--asteroid);
+}
+
+.trajectory-panel__when {
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 20px;
+  letter-spacing: 0.1em;
+  color: var(--lunar);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- the crossroads (§8.8) ---------- */
 
 .crossroads {
@@ -2359,13 +2579,21 @@ body:has(.sheet-layer) .orbit-ui__tip {
  * next; three identical pills make that a menu, and the second line is what
  * turns it back into a choice between two different things.
  */
+/*
+ * `min-height`, not `height`.
+ *
+ * At a fixed 72px a name that wrapped pushed its own subtitle out of the box,
+ * and because the three cards wrapped differently they stopped lining up with
+ * each other. Sized to their contents they stay equal when the contents are
+ * equal, and grow together when they are not.
+ */
 .crossroads__choice {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  height: 72px;
-  padding: 0 var(--space-3);
+  min-height: 72px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--chrome-edge);
   border-radius: var(--radius-2);
   background: rgba(28, 35, 51, 0.5);
@@ -2401,8 +2629,9 @@ body:has(.sheet-layer) .orbit-ui__tip {
   font-size: 0.94rem;
   line-height: 24px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--starlight);
+  text-wrap: balance;
 }
 
 .crossroads__cost {

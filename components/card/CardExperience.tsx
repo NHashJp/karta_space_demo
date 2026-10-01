@@ -13,6 +13,7 @@ import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
 import { CometSheet } from "./CometSheet";
 import { CrossroadsPanel } from "./CrossroadsPanel";
+import { TrajectoryPanel } from "./TrajectoryPanel";
 import { ReplyPanel } from "./ReplyPanel";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
@@ -50,6 +51,7 @@ import {
   revealsSecret,
   revealsText,
   showsCometSheet,
+  showsCompletion,
 } from "@/lib/experienceState";
 
 export function CardExperience({
@@ -128,6 +130,13 @@ export function CardExperience({
   const onOpenChart = useCallback(() => dispatch({ type: "openChart" }), []);
   const onLeaveChart = useCallback(() => dispatch({ type: "leaveChart" }), []);
   const onDock = useCallback(() => dispatch({ type: "dock" }), []);
+
+  /*
+   * Into the satellite, from orbit (rev 6). One event: the reducer owns the
+   * whole journey, including not stopping at the closing screen on the way
+   * in and coming back out to orbit rather than to it.
+   */
+  const onEnterSatellite = useCallback(() => dispatch({ type: "enterSatellite" }), []);
   const onLookBack = useCallback(() => dispatch({ type: "lookBack" }), []);
   const onClosePanel = useCallback(() => dispatch({ type: "closePanel" }), []);
   const onOpenPanel = useCallback(
@@ -190,6 +199,20 @@ export function CardExperience({
   }, [remember]);
 
   const onBoardEnd = useCallback(() => dispatch({ type: "boardEnd" }), []);
+
+  /*
+   * The invite has been shown. Written the first time the sheet offers to
+   * carry their words, so a later deployment can ask the shorter way (§11.6,
+   * mockup M13e).
+   *
+   * `nudged` was in the visit record and in `?visit=`, but nothing ever set
+   * it — so the second ask was unreachable outside the editor's preview, and
+   * every repeat visitor read the first-time copy again.
+   */
+  const askedBefore = Boolean(visit.nudged);
+  const onAsked = useCallback(() => {
+    if (!visit.nudged) remember({ nudged: true });
+  }, [visit.nudged, remember]);
 
   /* ---------------------------------------------------------------------
    * Sound (spec v0.2 §12.2). Cues are fired by watching the state change,
@@ -365,10 +388,7 @@ export function CardExperience({
         </>
       ) : null}
 
-      {state === "completed" ||
-      state === "returning" ||
-      state === "descending" ||
-      state === "deploying" ? (
+      {showsCompletion(experience) ? (
         <CompletionState
           closing={card.closing}
           social={card.social}
@@ -393,6 +413,8 @@ export function CardExperience({
           onOpenChart={onOpenChart}
           onLookBack={onLookBack}
           onDock={onDock}
+          onEnterSatellite={onEnterSatellite}
+          hasSecret={Boolean(secret)}
         />
       ) : null}
 
@@ -402,6 +424,8 @@ export function CardExperience({
           card={card}
           aboard={aboard}
           justBoardedLink={cometLink}
+          askedBefore={askedBefore}
+          onAsked={onAsked}
           onBoarded={(token) => {
             // Remembered in this browser so the nudge does not come back, and
             // so the chip in the hub can say where their words got to. The
@@ -420,8 +444,13 @@ export function CardExperience({
           card={card}
           onLookBack={onLookBack}
           onReply={() => onOpenPanel("reply")}
+          onTrajectory={() => onOpenPanel("trajectory")}
           onClose={onClosePanel}
         />
+      ) : null}
+
+      {panel === "trajectory" ? (
+        <TrajectoryPanel card={card} aboard={aboard} onClose={onClosePanel} />
       ) : null}
 
       {panel === "reply" ? (

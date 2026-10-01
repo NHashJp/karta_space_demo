@@ -130,8 +130,15 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
   // Everything past the closing screen is optional; without any of it the card
   // ends where v0.1 ended.
   const hasOrbit = Boolean(comet || memories?.length || replyAvailable);
-  // The crossroads asks "where next?"; with nowhere to go it is skipped.
-  const hasCrossroads = Boolean(memories?.length || replyAvailable);
+  /*
+   * The crossroads asks "where next?"; with nowhere to go it is skipped.
+   *
+   * A comet counts as somewhere to go. It is the thing the reader has just
+   * watched leave, and the crossroads is where the card offers to show them
+   * its trajectory — so a card whose only continuation is the comet used to
+   * answer the question it had just raised by closing.
+   */
+  const hasCrossroads = Boolean(memories?.length || replyAvailable || comet);
 
   const { comet: _comet, reply: _reply, access, ...rest } = card;
 

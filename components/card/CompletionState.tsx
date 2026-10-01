@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StrokeText, { strokeTextDuration } from "@/components/text/StrokeText";
 import { SocialLinks } from "./SocialLinks";
 import { Signature } from "./Signature";
 import { ORBIT_HINT_MS, SIGNATURE_DRAW_MS, replayed } from "@/lib/timing";
 import { usePrefersReducedMotion } from "@/lib/useFaceNavigation";
+import { closingLines } from "@/lib/closingLines";
 import type { SocialLink } from "@/types/card";
 
 type Props = {
@@ -84,7 +85,52 @@ export function CompletionState({
   const [offerOrbit, setOfferOrbit] = useState(false);
   const [written, setWritten] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
-  const fontSize = strokeFontSize(width, closing.length);
+
+  /*
+   * One line, or two when one would be too small to read as handwriting. The
+   * size is set by the longest line, so the font is measured against that
+   * rather than against the whole sentence.
+   */
+  const lines = useMemo(() => closingLines(closing, width), [closing, width]);
+  const longest = lines.reduce((most, line) => Math.max(most, line.length), 0);
+  const fontSize = strokeFontSize(width, longest);
+
+  /** Line `i` starts when line `i - 1` has finished: one hand, not two. */
+  const lineStart = (index: number) =>
+    lines
+      .slice(0, index)
+      .reduce(
+        (total, line) =>
+          total +
+          strokeTextDuration({
+            characters: line.length,
+            drawDuration: CLOSING_DRAW_S,
+            fillDelay: CLOSING_FILL_DELAY_S,
+            stagger: CLOSING_STAGGER_S,
+            fillMode: "wipe",
+          }),
+        0,
+      );
+
+  /** Seconds from mount until the last stroke of the last line is dry. */
+  const writingEndsS =
+    lineStart(lines.length - 1) +
+    strokeTextDuration({
+      characters: lines[lines.length - 1]?.length ?? 0,
+      drawDuration: CLOSING_DRAW_S,
+      fillDelay: CLOSING_FILL_DELAY_S,
+      stagger: CLOSING_STAGGER_S,
+      fillMode: "wipe",
+    });
+
+  /*
+   * A single line keeps the signature delay it has always had. With two, the
+   * hand is still writing at 2.6s, so the signature waits for it — otherwise
+   * two things are being written at once, which is the one thing this screen
+   * is arranged not to show.
+   */
+  const signatureDelayMs =
+    lines.length > 1 ? Math.max(SIGNATURE_DELAY_MS, writingEndsS * 1000) : SIGNATURE_DELAY_MS;
 
   /*
    * Everything on this screen is paced against everything else — the fill
@@ -131,21 +177,14 @@ export function CompletionState({
       setWritten(true);
       return;
     }
-    const lineEnds =
-      strokeTextDuration({
-        characters: closing.length,
-        drawDuration: CLOSING_DRAW_S,
-        fillDelay: CLOSING_FILL_DELAY_S,
-        stagger: CLOSING_STAGGER_S,
-        fillMode: "wipe",
-      }) * 1000;
-    const signatureEnds = signature ? SIGNATURE_DELAY_MS + SIGNATURE_DRAW_MS : 0;
+    const lineEnds = writingEndsS * 1000;
+    const signatureEnds = signature ? signatureDelayMs + SIGNATURE_DRAW_MS : 0;
     const timer = setTimeout(
       () => setWritten(true),
       brisk(Math.max(lineEnds, signatureEnds)),
     );
     return () => clearTimeout(timer);
-  }, [closing, signature, again, reducedMotion]);
+  }, [writingEndsS, signatureDelayMs, signature, again, reducedMotion]);
 
   useEffect(() => {
     if (!hasOrbit) return;
@@ -157,22 +196,26 @@ export function CompletionState({
     <div className="screen screen--completion" data-leaving={leaving} aria-hidden={leaving}>
       <div className="completion">
         <div className="completion__stroke" lang="ja">
-          <StrokeText
-            text={closing}
-            strokeColor="#7fd4f5"
-            fillColor="#e8e9eb"
-            strokeWidth={1.1}
-            drawDuration={brisk(CLOSING_DRAW_S)}
-            fillDelay={brisk(CLOSING_FILL_DELAY_S)}
-            stagger={brisk(CLOSING_STAGGER_S)}
-            ease="power2.out"
-            trigger="mount"
-            fillMode="wipe"
-            fontSize={fontSize}
-            fontWeight={500}
-            letterSpacing={2}
-            dashLength={fontSize * DASH_PER_EM}
-          />
+          {lines.map((line, index) => (
+            <StrokeText
+              key={`${lines.length}:${index}`}
+              text={line}
+              strokeColor="#7fd4f5"
+              fillColor="#e8e9eb"
+              strokeWidth={1.1}
+              drawDuration={brisk(CLOSING_DRAW_S)}
+              fillDelay={brisk(CLOSING_FILL_DELAY_S)}
+              stagger={brisk(CLOSING_STAGGER_S)}
+              startDelay={brisk(lineStart(index))}
+              ease="power2.out"
+              trigger="mount"
+              fillMode="wipe"
+              fontSize={fontSize}
+              fontWeight={500}
+              letterSpacing={2}
+              dashLength={fontSize * DASH_PER_EM}
+            />
+          ))}
         </div>
         {/*
           Drawn once the closing line's own fill wipe has finished, so the
@@ -181,7 +224,7 @@ export function CompletionState({
         {signature ? (
           <Signature
             src={signature}
-            delayMs={brisk(SIGNATURE_DELAY_MS)}
+            delayMs={brisk(signatureDelayMs)}
             drawMs={brisk(SIGNATURE_DRAW_MS)}
           />
         ) : null}

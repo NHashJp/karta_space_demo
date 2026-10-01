@@ -215,7 +215,9 @@ function NavLight({
     // Ten per cent of the cycle, so it reads as a beacon rather than a pulse.
     const phase = (clock.elapsedTime % 2.6) / 2.6;
     const blink = reducedMotion ? 0.35 : phase < 0.1 ? 1 : 0.08;
-    material.opacity = blink * fade.current;
+    // The same ceiling the rest of the satellite is under, so the beacon
+    // cannot still be flashing after everything around it has gone.
+    material.opacity = Math.min(blink, fade.current);
   });
 
   return (

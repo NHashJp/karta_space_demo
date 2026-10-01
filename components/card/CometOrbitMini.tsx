@@ -1,6 +1,6 @@
 "use client";
 
-import { displayedProgress, ECCENTRICITY, orbitPoint, SEMI_MAJOR } from "@/lib/cometOrbit";
+import { orbitDiagram } from "@/lib/cometOrbit";
 
 /**
  * The comet's orbit, small enough to sit in a panel (spec v0.2 §11.2).
@@ -28,28 +28,16 @@ type Props = {
 };
 
 export function CometOrbitMini({ progress, tone = "sender", label }: Props) {
-  // The ellipse in diagram space. The planet is at a focus, not the centre,
-  // which is the whole shape of the thing: the comet spends most of its time
-  // at the far end, away from it.
-  const padding = 8;
-  const a = (WIDTH - padding * 2) / 2;
-  const b = a * Math.sqrt(1 - ECCENTRICITY * ECCENTRICITY);
-  const focusOffset = a * ECCENTRICITY;
-
-  const centreX = WIDTH / 2;
-  const centreY = HEIGHT / 2;
-  // Perihelion is the end nearest the focus, which is on the right here.
-  const focusX = centreX + focusOffset;
-  const perihelionX = centreX + a;
-
-  const f = displayedProgress(progress);
-  const point = orbitPoint(f);
-  // Diagram units per world unit. `orbitPoint` measures from the focus, and
-  // its semi-minor axis is already a·√(1−e²), so one scale puts the dot
-  // exactly on the drawn ellipse on both axes.
-  const scale = a / SEMI_MAJOR;
-  const cometX = focusX + point.x * scale;
-  const cometY = centreY - point.y * scale;
+  // The ellipse in diagram space, from the same helper the full trajectory
+  // view uses — the planet at a focus, not the centre.
+  const d = orbitDiagram(progress, WIDTH, HEIGHT, 8);
+  const { a, b } = d;
+  const centreX = d.centre.x;
+  const centreY = d.centre.y;
+  const focusX = d.focus.x;
+  const perihelionX = d.perihelion.x;
+  const cometX = d.comet.x;
+  const cometY = d.comet.y;
 
   const colour = tone === "receiver" ? "#f3d7a4" : "#7fd4f5";
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { editorEnabled, refused } from "@/lib/editorGuard";
+import { editorDenied } from "@/lib/editorGuard";
 import { formatPassword, generatePassword, hashPassword } from "@/lib/password";
 
 /**
@@ -16,7 +16,8 @@ const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const SLUG_RANDOM = 10;
 
 export async function POST(request: Request) {
-  if (!editorEnabled) return refused();
+  const denied = await editorDenied();
+  if (denied) return denied;
 
   const body = (await request.json().catch(() => ({}))) as {
     generate?: boolean;

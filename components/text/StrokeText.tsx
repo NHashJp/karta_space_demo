@@ -32,6 +32,11 @@ export interface StrokeTextProps {
   drawDuration?: number;
   fillDelay?: number;
   stagger?: number;
+  /**
+   * Seconds of stillness before the first stroke, so several of these can be
+   * written one after another as one hand would write them.
+   */
+  startDelay?: number;
   ease?: string;
   trigger?: StrokeTextTrigger;
   fillMode?: StrokeTextFillMode;
@@ -72,21 +77,24 @@ export function strokeTextDuration({
   drawDuration = 1.6,
   fillDelay = 0.2,
   stagger = 0.05,
+  startDelay = 0,
   fillMode = 'wipe'
 }: {
   characters: number;
   drawDuration?: number;
   fillDelay?: number;
   stagger?: number;
+  /** Stillness before the first stroke, for lines written one after another. */
+  startDelay?: number;
   fillMode?: StrokeTextFillMode;
 }): number {
   // The last character's stroke starts this far behind the first one's.
   const lastStarts = stagger * Math.max(0, characters - 1);
   const strokesEnd = drawDuration + lastStarts;
-  if (fillMode === 'none') return strokesEnd;
+  if (fillMode === 'none') return startDelay + strokesEnd;
   // The wipe is one tween across the whole line; a fade is staggered per character.
   const fillStarts = drawDuration + fillDelay + (fillMode === 'wipe' ? 0 : lastStarts);
-  return Math.max(strokesEnd, fillStarts + fillDurationFor(drawDuration));
+  return startDelay + Math.max(strokesEnd, fillStarts + fillDurationFor(drawDuration));
 }
 
 const StrokeText = ({
@@ -97,6 +105,7 @@ const StrokeText = ({
   drawDuration = 1.6,
   fillDelay = 0.2,
   stagger = 0.05,
+  startDelay = 0,
   ease = 'power2.out',
   trigger = 'mount',
   fillMode = 'wipe',
@@ -219,19 +228,23 @@ const StrokeText = ({
         defaults: { overwrite: 'auto' }
       });
 
-      tl.to(strokes, { strokeDashoffset: 0, duration: drawDuration, ease, stagger: staggerConfig }, 0);
+      tl.to(
+        strokes,
+        { strokeDashoffset: 0, duration: drawDuration, ease, stagger: staggerConfig },
+        startDelay,
+      );
 
       if (useWipe && wipe) {
         tl.to(
           wipe,
           { attr: { width: box.width }, duration: fillDuration, ease: 'power2.inOut' },
-          drawDuration + fillDelay
+          startDelay + drawDuration + fillDelay
         );
       } else if (fillEnabled) {
         tl.to(
           fills,
           { opacity: 1, duration: fillDuration, ease: 'power2.out', stagger: staggerConfig },
-          drawDuration + fillDelay
+          startDelay + drawDuration + fillDelay
         );
       }
 
@@ -271,7 +284,7 @@ const StrokeText = ({
       timeline?.kill();
       gsap.killTweensOf(targets);
     };
-  }, [box, dash, drawDuration, fillDelay, stagger, ease, trigger, fillMode, reverse]);
+  }, [box, dash, drawDuration, fillDelay, stagger, startDelay, ease, trigger, fillMode, reverse]);
 
   const viewBox = box ? `${box.x} ${box.y} ${box.width} ${box.height}` : `0 ${-fontSize} 600 ${fontSize * 1.3}`;
 

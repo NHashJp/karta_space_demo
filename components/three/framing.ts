@@ -1,4 +1,10 @@
 /** Camera framing maths, kept out of the component so it can be checked. */
+import {
+  DISPLAY_FAR,
+  DISPLAY_NEAR,
+  displayOrbitPoint,
+  displayedProgress,
+} from "../../lib/cometOrbit.ts";
 import { DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
 import { trailControlPoints, trailPoint, trailTangent } from "../../lib/trailCurve.ts";
 import { SAT_SCALE, displayDirection } from "../../lib/deployment.ts";
@@ -350,6 +356,53 @@ const COMET_DEPTH = 3.4;
  * the top-right, well clear of the satellite, and comes home beside the planet
  * — and screen space is where those words mean something.
  */
+/**
+ * Where the comet actually is on screen, for a given day.
+ *
+ * The one place that answers this. `hubComet` maps a *reach* 0..1 along the
+ * composition's bow; turning a date into that reach needs `displayOrbitPoint`
+ * as well, and every component that wants to point at the comet needs both.
+ *
+ * It exists because three of them did the sum separately and two got it
+ * wrong: the reply rocket flew off to its own corner of the sky, and the
+ * capsule carrying the receiver's words ran up the comet's *true* ellipse —
+ * which is not where the comet is drawn — and stopped 7.6 units short of it.
+ * Anything aimed at the comet aims with this.
+ */
+export function cometReach(f: number): number {
+  return (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
+}
+
+export function cometAt(progress: number, width: number, height: number): Vec3 {
+  return hubComet(cometReach(displayedProgress(progress)), width, height);
+}
+
+/** How far past the comet the reply settles, in world units (mockup M8c). */
+export const REPLY_OVERTAKE = 1.8;
+
+/**
+ * Where the reply ends up: just beyond the comet, on the comet's own heading.
+ *
+ * Shared by the rocket that flies there and the star that stays behind, which
+ * had the arc's end formula written out twice — so moving one moved the
+ * rocket and left the star in the old place.
+ */
+export function replyStarAt(
+  cometProgress: number,
+  width: number,
+  height: number,
+): Vec3 {
+  const comet = cometAt(cometProgress, width, height);
+  const meet = orbitPosition(0.9);
+  const heading: Vec3 = [comet[0] - meet[0], comet[1] - meet[1], comet[2] - meet[2]];
+  const length = Math.hypot(...heading) || 1;
+  return [
+    comet[0] + (heading[0] / length) * REPLY_OVERTAKE,
+    comet[1] + (heading[1] / length) * REPLY_OVERTAKE,
+    comet[2] + (heading[2] / length) * REPLY_OVERTAKE,
+  ];
+}
+
 export function hubComet(u: number, width: number, height: number): Vec3 {
   const aspect = width / height;
   const { halfV, halfH } = hubHalfTangents(aspect);

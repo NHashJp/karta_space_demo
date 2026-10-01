@@ -43,7 +43,7 @@ every email to `.mail/` instead of to Resend, so the reply rocket and the
 comet can be tested end to end with no mail account. See below.
 
 `?at=` accepts: `landing`, `face-1` … `face-6`, `closing`, `inside`, `orbit`,
-`departure`, `chart`, `crossroads`, `trail`, `reply`.
+`departure`, `chart`, `crossroads`, `trail`, `reply`, `trajectory`.
 
 Without these, reaching the trail means six scrolls, a deployment and a
 rewind — every time. Use them for everything except the run described under
@@ -283,6 +283,24 @@ form does not leave the card believing anything was sent.
 Try the link **before** the date. It must refuse. That is the entire promise of
 the object.
 
+### The trajectory (`?at=trajectory`)
+
+The sky can only say *which* light is the comet. This says **when**, and it is
+the third way on from the crossroads.
+
+| Step | Expected |
+|---|---|
+| `彗星の軌道を見る` at the crossroads | the drawing, captioned with the return date |
+| The ellipse | dashed, with the planet at a **focus** — not the centre |
+| The three labels | `あなたの星` on the planet, `いま、ここ` on the comet, `また、ここで。` at the tick where it comes home |
+| Once it has arrived | `いま、ここ` becomes `帰ってきました` |
+| With their words aboard | the whole drawing is warm rather than ion-blue |
+
+The dot is placed by the same `orbitDiagram` the small chart in the sender's
+page uses, which is placed by the same `orbitPoint` the 3D comet flies. If the
+dot in the picture and the speck in the sky ever disagree, one of those three
+has been given its own copy of the maths.
+
 ### The reply rocket
 
 Fastest way in: **`?at=reply`**, which opens the panel directly. Otherwise
@@ -293,6 +311,13 @@ card has no `reply` block — see above.
 
 `返事を打ち上げる` → up to 140 characters → the rocket rises, becomes a star,
 and the star stays in the sky for the rest of the session.
+
+The panel must say **what is being launched and where it goes** before the
+button is pressed: `あなたの言葉をのせたロケットが、彗星を追い越して…に届きます。`
+above the fields, and `彗星より先に、すぐに…へ。` under them. The button is
+`ロケットを打ち上げる`, not a bare `打ち上げる`. There are two ways to send
+something from this card and the only difference between them is speed, so a
+verb with no object leaves the reader guessing which one they just chose.
 
 The panel sits **high** rather than at the bottom, unlike every other one: the
 planet's lit limb comes up into the bottom-right corner, and on a phone the

@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_CENTRE, orbitPosition } from "./framing";
+import { replyStarAt } from "./framing";
 
 /**
  * Where a launched reply settled (spec v0.2 §10.3, §10.4).
@@ -19,21 +19,24 @@ import { PLANET_CENTRE, orbitPosition } from "./framing";
  * is correct rather than a bug: the mark belongs to the moment, not to an
  * account they never made.
  */
-export function ReplyStar({ reducedMotion }: { reducedMotion: boolean }) {
+export function ReplyStar({
+  cometProgress,
+  reducedMotion,
+}: {
+  /** The same number the rocket was aimed with. */
+  cometProgress: number;
+  reducedMotion: boolean;
+}) {
+  const size = useThree((state) => state.size);
   const star = useRef<THREE.Mesh>(null);
   const flare = useRef<THREE.Mesh>(null);
 
-  const position = useMemo(() => {
-    const planet = new THREE.Vector3(...PLANET_CENTRE);
-    // The same place the rocket's arc ends, so a returning visitor finds the
-    // star exactly where they watched it settle.
-    return new THREE.Vector3(...orbitPosition(0.9))
-      .sub(planet)
-      .normalize()
-      .multiplyScalar(9)
-      .add(planet)
-      .add(new THREE.Vector3(0.6, 1.4, -1.2));
-  }, []);
+  // The same place the rocket's arc ends, from the same function, so a
+  // returning visitor finds the star exactly where they watched it settle.
+  const position = useMemo(
+    () => new THREE.Vector3(...replyStarAt(cometProgress, size.width, size.height)),
+    [cometProgress, size.width, size.height],
+  );
 
   useFrame(({ clock }) => {
     if (reducedMotion) return;
