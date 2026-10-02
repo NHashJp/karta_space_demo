@@ -132,6 +132,9 @@ $ npm run verify       # the maths
 $ npm run check        # typecheck + verify
 ```
 
+Going live is [Deployment](./deployment.md) — mostly environment variables, and
+one decision about whether a real card belongs in the repository.
+
 Two sample cards ship with it. `/c/2026-newyear-7k2m` has everything;
 `/c/thanks-sample-3f9q` is text only.
 

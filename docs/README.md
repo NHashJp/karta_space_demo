@@ -31,6 +31,7 @@ Everything below goes deep on one part of it.
 | [The editor](./editor.md) | Writing a card without editing the config by hand |
 | [Verification](./verification.md) | What `npm run verify` proves, and the bugs it has actually caught |
 | [Testing](./testing.md) | How to exercise every feature by hand, and what each one should do |
+| [Deployment](./deployment.md) | The checklist before going live on Vercel, and what breaks without each variable |
 | [Spec v0.2 「またね」](./spec-v0.2.md) | The specification being implemented: the letter becomes a satellite, and something comes back |
 | [Revision 6](./spec-v0.2-r6-orbit.md) | The orbit composition, which overrides the spec where the two disagree |
 
