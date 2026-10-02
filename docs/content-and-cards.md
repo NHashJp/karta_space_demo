@@ -43,6 +43,33 @@ config/cards.config.ts     the content            edited by hand or by /editor
       └─ lib/cards.ts      slug -> card registry  built once, at import
 ```
 
+## Real cards are not committed
+
+`config/cards.config.ts` holds the **two sample cards** and nothing else. They
+are documentation: a fresh checkout has something to open, and these documents
+have something to point at.
+
+A real card lives in **`.karta/cards.local.json`**, which is gitignored — the
+same folder, and the same reason, as the plaintext passwords beside it. A real
+card is a letter to one person: their name, the thing you could not say out
+loud, where you first met, a line sealed until a date that means something to
+the two of you. Committing that writes it into the history of a repository you
+will later share, fork, or hand to someone for review, and there is no taking
+it out again.
+
+The two are merged by slug, local winning, so a local card can also *override*
+a sample — which is what happens the moment someone opens the editor, picks the
+sample card and starts typing over it. The editor saves there and only there.
+
+Two consequences worth knowing:
+
+- **`npm run verify` checks the samples, not your card.** A half-written draft
+  on one machine must not be able to fail a build. Local cards are validated
+  too, but reported at the end and never counted as failures.
+- **The local file is not a module**, so nothing rebuilds when it changes.
+  `lib/cards.ts` stats it on each lookup and rebuilds the registry when the
+  timestamp moves, which is what keeps the editor's preview honest.
+
 ## The registry
 
 `lib/cards.ts` turns the array into a `Map` keyed by slug, once, at module
@@ -79,6 +106,17 @@ The editor **saves through warnings** — a half-written card is a normal state
 while writing, and an empty face renders as an empty face rather than breaking.
 `npm run verify` **fails on them**, because it is the gate you run before
 deploying. Same rules, different strictness, chosen per tool.
+
+## Adding a card now goes through the editor
+
+v0.1 said: append an entry, drop images in `public/cards/<slug>/`, redeploy.
+That still works, and the config is still a file you can edit by hand.
+
+But a v0.2 card has a slug whose random part is what protects it, a password
+whose hash is computed with scrypt, and photographs that belong in
+`private/cards/<slug>/` rather than `public/`. Doing all of that by hand is
+possible and easy to get subtly wrong, so the editor's **Share** tab does it:
+see [the editor](./editor.md).
 
 ## The editor
 
@@ -141,6 +179,35 @@ answer first.
 
 `npm run verify` checks that each referenced file actually exists, which is the
 mistake this layout makes easy to catch and easy to make.
+
+## v0.2 additions, and two decisions the spec left open
+
+[Spec v0.2](./spec-v0.2.md) adds optional fields — `from`, `writtenAt`,
+`timeZone`, `memories`, `satellite`, `comet`, `reply`, `access`, `signature`,
+`sound` — and §0.3 makes it an acceptance criterion that **a card using none of
+them behaves exactly as it did in v0.1**. That is why every new rule in
+`cardRules.ts` runs only when its field is present.
+
+It also added a third severity, which the spec does not have: **notes**. §5
+marks "closing line over 18 characters" and "short random slug" as warnings,
+while §17 wants the slug one reported as a NOTE that does not fail. Since this
+project's `verify` fails on warnings, and §18 requires a v0.1 card to stay
+clean, both became notes: printed, never fatal. Errors and warnings are
+unchanged.
+
+Two constants deviate from the spec, both because the spec's own verification
+bound (§17: colour continuous to < 0.08 per channel between samples 0.01 apart
+in `u`) contradicts its suggested numbers:
+
+| §9.1 says | Implemented | Why |
+|---|---|---|
+| `BAND_SCALE` 3.0 | 1.2 | 3.0 measures 0.21 per channel — and puts more than the "two to four" bands §9.1 describes on the trail |
+| exhaust ramp 5% of `u` | 30% | ramping to white across 5% moves a channel 0.18 per sample step on its own |
+
+Measured worst cases are printed by `npm run verify` section 7. Seeding for
+both the trail and each comet's orbit lives in `lib/seed.ts`, which the spec's
+file map does not mention — it is one FNV-1a hash plus value noise, shared
+rather than written twice.
 
 ## The content model
 

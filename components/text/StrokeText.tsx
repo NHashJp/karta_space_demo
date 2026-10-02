@@ -32,6 +32,11 @@ export interface StrokeTextProps {
   drawDuration?: number;
   fillDelay?: number;
   stagger?: number;
+  /**
+   * Seconds of stillness before the first stroke, so several of these can be
+   * written one after another as one hand would write them.
+   */
+  startDelay?: number;
   ease?: string;
   trigger?: StrokeTextTrigger;
   fillMode?: StrokeTextFillMode;
@@ -54,6 +59,44 @@ interface StrokeTextBox {
 
 const DEFAULT_TEXT = 'Draw Attention';
 
+/** The fill chases the stroke at half its speed, and never faster than 0.4s. */
+const fillDurationFor = (drawDuration: number) => Math.max(0.4, drawDuration * 0.5);
+
+/**
+ * How long the whole animation runs, in seconds.
+ *
+ * Exported because a caller that has to wait for the writing to finish cannot
+ * work it out from the props it passed: the fill's duration is derived in
+ * here, and the stagger means the answer also depends on how many characters
+ * there are. `CompletionState` waits for exactly this before it lets the
+ * replay button come up to full strength, and a change to the timeline below
+ * has to be a change to this function too.
+ */
+export function strokeTextDuration({
+  characters,
+  drawDuration = 1.6,
+  fillDelay = 0.2,
+  stagger = 0.05,
+  startDelay = 0,
+  fillMode = 'wipe'
+}: {
+  characters: number;
+  drawDuration?: number;
+  fillDelay?: number;
+  stagger?: number;
+  /** Stillness before the first stroke, for lines written one after another. */
+  startDelay?: number;
+  fillMode?: StrokeTextFillMode;
+}): number {
+  // The last character's stroke starts this far behind the first one's.
+  const lastStarts = stagger * Math.max(0, characters - 1);
+  const strokesEnd = drawDuration + lastStarts;
+  if (fillMode === 'none') return startDelay + strokesEnd;
+  // The wipe is one tween across the whole line; a fade is staggered per character.
+  const fillStarts = drawDuration + fillDelay + (fillMode === 'wipe' ? 0 : lastStarts);
+  return startDelay + Math.max(strokesEnd, fillStarts + fillDurationFor(drawDuration));
+}
+
 const StrokeText = ({
   text = DEFAULT_TEXT,
   strokeColor = '#A78BFA',
@@ -62,6 +105,7 @@ const StrokeText = ({
   drawDuration = 1.6,
   fillDelay = 0.2,
   stagger = 0.05,
+  startDelay = 0,
   ease = 'power2.out',
   trigger = 'mount',
   fillMode = 'wipe',
@@ -151,7 +195,7 @@ const StrokeText = ({
 
     const fillEnabled = fillMode !== 'none';
     const useWipe = fillEnabled && fillMode === 'wipe';
-    const fillDuration = Math.max(0.4, drawDuration * 0.5);
+    const fillDuration = fillDurationFor(drawDuration);
     const staggerConfig: number | gsap.StaggerVars = reverse ? { each: stagger, from: 'end' as const } : stagger;
     const targets = [...strokes, ...fills, wipe].filter(Boolean);
 
@@ -184,19 +228,23 @@ const StrokeText = ({
         defaults: { overwrite: 'auto' }
       });
 
-      tl.to(strokes, { strokeDashoffset: 0, duration: drawDuration, ease, stagger: staggerConfig }, 0);
+      tl.to(
+        strokes,
+        { strokeDashoffset: 0, duration: drawDuration, ease, stagger: staggerConfig },
+        startDelay,
+      );
 
       if (useWipe && wipe) {
         tl.to(
           wipe,
           { attr: { width: box.width }, duration: fillDuration, ease: 'power2.inOut' },
-          drawDuration + fillDelay
+          startDelay + drawDuration + fillDelay
         );
       } else if (fillEnabled) {
         tl.to(
           fills,
           { opacity: 1, duration: fillDuration, ease: 'power2.out', stagger: staggerConfig },
-          drawDuration + fillDelay
+          startDelay + drawDuration + fillDelay
         );
       }
 
@@ -236,7 +284,7 @@ const StrokeText = ({
       timeline?.kill();
       gsap.killTweensOf(targets);
     };
-  }, [box, dash, drawDuration, fillDelay, stagger, ease, trigger, fillMode, reverse]);
+  }, [box, dash, drawDuration, fillDelay, stagger, startDelay, ease, trigger, fillMode, reverse]);
 
   const viewBox = box ? `${box.x} ${box.y} ${box.width} ${box.height}` : `0 ${-fontSize} 600 ${fontSize * 1.3}`;
 

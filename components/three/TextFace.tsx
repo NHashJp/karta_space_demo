@@ -3,7 +3,7 @@
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import type { TextFace as TextFaceData } from "@/types/card";
-import { fitFontSize, textPanelPx, textPanelScale } from "./framing";
+import { fitFontSize, fitLineFaceSize, textPanelPx, textPanelScale } from "./framing";
 
 type Props = {
   face: TextFaceData;
@@ -21,9 +21,13 @@ type Props = {
 export function TextFace({ face, position, rotation, visible, index }: Props) {
   const size = useThree((state) => state.size);
   const panelPx = textPanelPx(size.width, size.height);
+  const isLine = face.style === "line";
   // Type is fitted to the face, so a longer message sets smaller rather than
-  // spilling past the cube edge.
-  const fontPx = fitFontSize(panelPx, face.body.length);
+  // spilling past the cube edge. A `line` face is fitted to land as a beat
+  // instead (spec v0.2 §13.2).
+  const fontPx = isLine
+    ? fitLineFaceSize(panelPx, face.body.length)
+    : fitFontSize(panelPx, face.body.length);
 
   return (
     <group position={position} rotation={rotation}>
@@ -41,6 +45,7 @@ export function TextFace({ face, position, rotation, visible, index }: Props) {
       >
         <div
           className="face-text"
+          data-style={isLine ? "line" : "paragraph"}
           style={{ width: panelPx, height: panelPx, fontSize: `${fontPx}px` }}
           data-visible={visible}
           aria-hidden={!visible}

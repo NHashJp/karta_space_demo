@@ -24,7 +24,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_password" }, { status: 401 });
   }
 
+  const cookie = accessCookie(slug);
+  if (!cookie) {
+    // A hash-protected card with no ACCESS_SECRET: the password may be right,
+    // but there is no key to sign a cookie with, so the card stays shut.
+    return NextResponse.json({ error: "not_configured" }, { status: 503 });
+  }
+
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(accessCookie(slug));
+  response.cookies.set(cookie);
   return response;
 }

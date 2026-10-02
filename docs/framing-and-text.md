@@ -153,3 +153,43 @@ through `map-repeat` and `map-offset`. `contain` instead shrinks the plane to
 Image materials are declared `transparent` up front even though they are
 opaque, so that [dimming](./cube-and-motion.md#dimming) can change their
 opacity without triggering a shader recompile mid-animation.
+
+## The orbit view (v0.2)
+
+`orbitPose(width, height)` frames two things at once: the whole of the
+satellite's tilted ellipse, and the planet's silhouette.
+
+The obvious implementation — take the composition's bounding box, size the
+frame to it — is wrong here, and wrong in a way worth recording. The
+composition is over four units deep: the planet's near pole is 3.2 units closer
+to the camera than the far side of the orbit, and the frame is correspondingly
+smaller there. Sizing for the widest extent *and* the nearest depth at the same
+time pushes the camera back far enough to satisfy both at a point where neither
+actually occurs, and the result was a 31% margin where 8% was required — a
+composition a third smaller than it needed to be, on every screen.
+
+So the distance is solved **per sample point**: for each point on the ellipse
+and on the planet's limb, the distance at which that point would sit exactly on
+the margin, and the answer is the furthest of them. That lands on a 10.7%
+margin at every viewport, tight against §17's 8% floor with room for tuning.
+
+The camera looks straight down −z through `ORBIT_TARGET`, which sits above the
+planet's centre rather than at it. That is what puts the planet low in the
+frame and leaves the sky to the satellite, the comets and the trail. Tilting
+the camera as well was tried and removed: it bought nothing the target offset
+did not already buy, and made the framing maths much harder to reason about.
+
+## Memory panels on the trail
+
+`memoryViewDistance(width, height)` is the same idea as `cameraDistance`, for
+the same reason: a fixed stand-off distance makes a memory fill a phone's
+narrow frame and get lost in a wide one. Portrait is governed by width (72% of
+it), landscape by height (55%), which is where §17 asks a memory to land —
+exactly the share of the frame a cube face fills.
+
+The camera backs off along the **curve's own tangent** rather than along +z.
+That is the difference between travelling a path and looking at a line from
+outside it, and it costs nothing: `lib/trailCurve.ts` is pure and both the
+camera and the ribbon read the same curve from it, so they cannot disagree
+about where the trail is. A camera that stops half a unit off the ribbon is
+invisible in a screenshot and obvious in motion.

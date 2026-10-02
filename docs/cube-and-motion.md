@@ -138,3 +138,206 @@ One wrinkle worth knowing about: `THREE.MathUtils.damp` approaches its target
 asymptotically and never arrives. Without a snap, materials would settle
 permanently at 99.9% opacity on the way back. The loop therefore zeroes the
 tail below 0.002 and runs one final pass at full opacity.
+
+## The deployment (v0.2)
+
+The cube turns over, pushes two booms out of its side faces, unfolds three
+panels on each of them, lights a thruster and rises into orbit. It is the
+moment the whole of v0.2 is built around, and it is one animation with four
+**overlapping** parts (windows per revision 6 §2.2):
+
+```
+0        0.15     0.25              0.6  0.7  0.8       1
+|- turn ----------|
+         |------- booms + unfold ---------|
+                                     |thr-|
+                                |--- rise ----------------|
+```
+
+The overlaps are the point. Four strictly sequential steps read as a list of
+four things happening; bleeding into each other, they read as one machine doing
+one thing. `lib/deployment.ts` holds the windows and is pure, so verify can
+assert the shape rather than anyone having to watch it: that the phases overlap
+as specified, that the thruster fires exactly once, that the ends are exact,
+and that every part is monotonic in `t`.
+
+That last one is what makes **docking** safe. Undeploying is not a second
+animation — it is the same timeline with `t` running down instead of up. If one
+part of it went forwards while the rest went back, the cube would come home in
+a shape it was never in on the way out.
+
+### The turn is a position, not a step
+
+It has to be, and for a while it was not.
+
+`MessageCube` used to hold the attitude with
+`group.quaternion.slerp(DISPLAY, turn)` — take whatever last frame left, and
+move it a fraction of the way towards the deployed pose. Under a rising `turn`
+that converges, so the deployment looked right.
+
+Running it backwards did not work at all. A step only ever moves one way:
+winding `turn` back down to zero did not turn the cube home again, it just
+took smaller and smaller steps towards the pose the cube was already in. So
+docking returned the reader to the closing screen with the cube still sitting
+at its satellite angle — the drawn line and the signature written underneath a
+body that was no longer square-on to them. It looked like the closing screen
+had been knocked askew, which is why it read as a glitch rather than as a
+missing animation.
+
+It is now an interpolation between two fixed ends:
+
+```ts
+group.quaternion.copy(FACE_ORIENTATIONS[activeFace]).slerp(DISPLAY, now.turn);
+```
+
+At `turn = 0` that is exactly the face that was last read and at `turn = 1`
+exactly the display pose, in **either** direction — the same landing guarantee
+the rotation presets give, for the same reason. It is also frame-rate
+independent, which the step version never was: at 30fps it reached the display
+pose visibly later than at 60.
+
+Two consequences worth knowing:
+
+- There is an `else` branch now. When nothing is animating the cube — docked,
+  with no face transition running — it holds `FACE_ORIENTATIONS[activeFace]`
+  explicitly. Leaving the quaternion wherever the last animation to touch it
+  stopped is only ever correct by luck, and that luck is what ran out above.
+- **The tumble on this group is gone**, because it was never there. A
+  `rotateY` of about a degree a frame sat under the slerp, and
+  `slerp(DISPLAY, 1)` discarded it on every following frame. Writing the
+  attitude as a position makes that overwrite explicit rather than accidental.
+  The satellite's actual motion is on the `idle` group, which is what carries
+  revision 6 §3.2's ±6°.
+
+### The second trip is shorter
+
+The deployment is a ceremony, and a ceremony is worth its full length once.
+A reader who has been to orbit and come back is no longer watching a cube
+become a spacecraft; they are travelling between two parts of a card they have
+already seen, and 3.6 seconds each way is a toll.
+
+So `lib/timing.ts` has one factor, `REPLAY_SCALE = 0.55`, and one function that
+applies it. The first trip out and the first trip home both run in full — the
+closing screen coming back is the other half of the same ceremony, not a
+separate thing — and from the second trip on both halves are brisk.
+
+Three details that are easy to get wrong:
+
+- **The animation is compressed, not re-cut.** `SolarWings` still reads
+  `DEPLOY_MS` when it converts the stagger into `t`, so the shape of the
+  unfold in `t` is identical and only the wall-clock length changes. Verify
+  checks what this costs: at 0.55 the six hinges still land 66ms apart, which
+  is far enough to be counted as six.
+- **The sound is compressed with it.** `cue("deploy")` takes a `speed`, and
+  every offset in it goes through one helper. Without that, a 3.6s pad keeps
+  rising over a satellite that settled a second and a half ago.
+- **The duration is held for the length of the run.** `MessageCube` captures
+  it when the deployment starts rather than reading the prop each frame: a run
+  that changes speed halfway reads as a dropped frame, not as a shorter
+  animation.
+
+Which trip this is comes from the reducer, not from the components — see
+[Experience flow](./experience-flow.md#counting-the-ceremonies).
+
+### Continuity, and why a threshold cannot check it
+
+The obvious check — "no two samples differ by more than X" — cannot tell a
+*fast* curve from a *discontinuous* one, and the thruster is deliberately the
+fastest part of this: it rises and falls inside a window a tenth of the
+timeline wide, so it fails any bound the other three pass.
+
+What separates the two is how the worst step behaves as the sampling gets
+finer. A continuous curve halves when you double the resolution; a jump does
+not move at all. So verify samples at two resolutions and asserts the finer one
+is proportionally smaller.
+
+### Who owns it
+
+The cube. `MessageCube` runs the clock and dispatches `deployEnd`, and nothing
+else may: `CameraRig` reads the same `DEPLOY_MS`, but if the camera announced
+the end the two could disagree by a frame at a low frame rate, and the panels
+would still be moving when the orbit UI appeared.
+
+Progress is published through a **ref** rather than state. The carrier that
+flies the cube to its ellipse and the ring that fades in under it both read it
+every frame, and none of those 60 reads a second should be a React render. The
+only thing that goes through state is the panel mount, which crosses a
+threshold once per deployment.
+
+### The arrays, and why the spec's mechanism was replaced
+
+§8.2 describes four plates hinged flat against the cube's side faces, swinging
+up into a cross. It is a tidy idea, and it does not read as a satellite: the
+plates are the same size as the body and never leave it, so the result looks
+like a box that opened rather than a spacecraft that deployed.
+
+Real arrays are **carried away from the bus on a boom** and are much larger
+than it, and that proportion is most of what makes the silhouette recognisable:
+
+```
+┌───┐
+│bus│──┬──[ segment 1 ][ segment 2 ]
+└───┘  └── the boom, and the joint the array pivots on
+```
+
+Two wings rather than four, because port-and-starboard is the shape everyone
+already knows and two large arrays read better at 30 px on a phone than four
+small ones. They deploy in the order the real ones do — boom telescopes out,
+folded array swings off the joint, outer segment unfolds from the inner — with
+each starting before the last has finished, so it reads as one mechanism. The
+second wing lags the first by a beat, which is the difference between two
+mechanisms and one object mirrored.
+
+Once open they tilt a few degrees toward the sun, and keep adjusting as it
+moves. An array that ignores where the light comes from is a decoration.
+
+**The wingspan is load-bearing.** A deployed tip reaches 1.43 units from the
+bus at satellite scale, and the orbit's clearance over the planet is 1.85 —
+sized against it. `wingReach()` and `orbitClearance()` both live in modules
+verify can read, and it asserts the first is comfortably inside the second:
+the bus clearing the planet is not enough once the arrays are out, and a tip
+sweeping through the planet twice a lap is the same bug moved to the wingtips.
+
+The shape itself lives in `lib/satelliteGeometry.ts`, not in the component that
+draws it, because three different things have to agree about where a panel is:
+`SolarWings` draws it, the framing checks measure its projected silhouette, and
+verify asserts that no panel passes through the body or through another panel
+at any point in the deployment. A shape that only exists inside a component
+cannot be checked — and a wing that clips through the bus for four frames is
+exactly the kind of thing nobody sees until it is in front of someone.
+
+### The display attitude, and measuring the thing you drew
+
+Once deployed the satellite holds a three-quarter view: yaw −35°, pitch −20°,
+roll +36.5°. The first two are the pose; the **roll is what puts the wing axis
+on the composition's −50° diagonal**, and without it the wings run at about
+−13°, very nearly horizontal. The yaw is negative so the +X wing leans *towards
+the camera*, which is what revision 6 §3.1 asks for in so many words: the near
+wing is the upper-right one and the larger one. Yawed the other way the picture
+still reads, but the wing drawn big is the one going away, and the satellite
+looks like it is receding rather than keeping station.
+
+Two traps here, both of which were live for a while:
+
+**A check must go through the same rotation as the drawing.** `MessageCube`
+turned the cube by three angles while `satelliteHull` rotated about Y alone by
+`WING_AXIS_DEG`, so every composition check reported a tidy −50° while the
+wings were drawn nearly horizontal. The checks were measuring a construct that
+could not disagree with itself. There is now one `displayDirection`, and the
+cube, the hull and the tip-to-tip measurement all go through it.
+
+**Euler order is not the order you say it in.** Yaw, then pitch, then roll is
+`"ZXY"` in three.js, because it applies the axes right to left. `"YXZ"` — which
+is what the sequence reads like — is about twenty degrees out: small enough to
+look deliberate, large enough to put the wings somewhere the checks never
+looked. `DISPLAY_EULER_ORDER` is a named constant so verify can assert that a
+three quaternion built from those angles agrees with `displayDirection` to
+within 1e-9.
+
+### The glint comes free
+
+`shaders/panelCells.ts` draws the cells rather than texturing them, and gives
+them a hard specular (exponent 68) — glass over silicon is nearly black until
+the sun's angle lines up, and then it flares. Because the sun *moves* on its
+own (§23.3), that flare sweeps across the six panels in turn every couple of
+minutes without anyone animating it.

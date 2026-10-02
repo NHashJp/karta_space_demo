@@ -12,16 +12,27 @@ way they are. For the how-to — running it, writing a card, deploying — see t
 
 ## Start here
 
+**New to this, or explaining it to someone?** Read
+[Overview](./overview.md) — the whole project on one page, in plain words.
+Everything below goes deep on one part of it.
+
 | Document | What it covers |
 |---|---|
+| [Overview](./overview.md) | The whole thing on one page: what it is, the journey, the ideas, where the code lives |
 | [Architecture](./architecture.md) | Layers, file map, what runs on the server and what runs in the browser |
 | [Content and cards](./content-and-cards.md) | Cards as configuration, the slug registry, one definition of a valid card, and how the editor writes the file |
-| [Experience flow](./experience-flow.md) | The ten-state machine, how one gesture becomes one face, and the way into the cube |
+| [Experience flow](./experience-flow.md) | The state machine, how one gesture becomes one face, and the way into the cube |
 | [Cube and motion](./cube-and-motion.md) | Face orientations, rotation presets, and why a showy spin still lands exactly square-on |
 | [Framing and text](./framing-and-text.md) | Camera distance, the `<Html transform>` scale rule, and fitting type to a cube face |
 | [Scene and shaders](./scene-and-shaders.md) | Nebula, starfield, wandering lights, dimming and the performance budget |
 | [Access and security](./access-and-security.md) | Slug, password, cookie, and an honest account of what this does and does not protect |
+| [The orbit](./orbit.md) | What v0.2 is for: the satellite, the trail of memories, the comet that comes back |
+| [Messaging](./messaging.md) | The reply, the comet, the three emails, and the daily job |
+| [The editor](./editor.md) | Writing a card without editing the config by hand |
 | [Verification](./verification.md) | What `npm run verify` proves, and the bugs it has actually caught |
+| [Testing](./testing.md) | How to exercise every feature by hand, and what each one should do |
+| [Spec v0.2 「またね」](./spec-v0.2.md) | The specification being implemented: the letter becomes a satellite, and something comes back |
+| [Revision 6](./spec-v0.2-r6-orbit.md) | The orbit composition, which overrides the spec where the two disagree |
 
 ## The seven mechanisms worth understanding
 
@@ -41,8 +52,9 @@ If you only read parts of this, read these.
    than fixed.
    → [Framing and text](./framing-and-text.md#fitting-type-to-a-face)
 
-4. **The experience is a pure reducer.** Seven states, five events, no
-   side effects — which is why the whole flow can be tested without a browser.
+4. **The experience is a pure reducer.** Twenty-three states, nineteen events,
+   no side effects — no timers, no fetches, no storage — which is why the whole
+   flow can be walked and checked without a browser.
    → [Experience flow](./experience-flow.md)
 
 5. **Card content never reaches the browser before access is granted.** The
@@ -59,12 +71,34 @@ If you only read parts of this, read these.
    has actually arrived in there.
    → [Content and cards](./content-and-cards.md#the-inside-of-the-cube)
 
+8. **The scene is composed backwards from the screen.** The satellite, the
+   planet, the comet and the trail are all placed by solving for where they
+   should land as *fractions of the viewport*, not by choosing world
+   coordinates and hoping. It is why the composition survives a phone.
+   → [The orbit](./orbit.md#the-trail-is-staged-not-placed)
+
+## Checks
+
+```console
+$ npm run check      # typecheck, then verify
+```
+
+There is no ESLint in this project and never has been — the `lint` script was
+`create-next-app`'s, calling a `next lint` that Next 16 removed, so it exited
+zero having linted nothing. It has been replaced rather than repaired: what
+this project actually gates on is the type checker and the verify suite.
+
 ## Conventions
 
-- The spec this implements is `KARTA_SPACE_MVP_Implementation_Spec.md` v0.1.
-  Section references like *spec §12* in code comments point at it.
+- Section references in code comments point at the spec being implemented.
+  Unqualified — *spec §12* — means [v0.2](./spec-v0.2.md); the v0.1 spec is
+  superseded and kept only for the parts v0.2 does not restate. A comment that
+  says *rev 6 §4.1* means [revision 6](./spec-v0.2-r6-orbit.md), which wins
+  wherever the two disagree.
 - "Face" always means one of the six cube sides, numbered 1–6 in reading order.
   `activeFace` is the zero-based index of the same thing.
 - "World units" are three.js scene units. The cube is 2 of them across.
 - "Card" means one six-faced message on one slug. One deployment serves many;
   they share code and nothing else — not content, not passwords, not cookies.
+- Revision 6 overrides §8.2, §8.4, §8.9, §8.10, §9.1, §10.3–10.4, §11.2,
+  §12.2, §16, §17, §18, §22 and §23 where stated.

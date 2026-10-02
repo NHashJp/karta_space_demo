@@ -5,8 +5,15 @@ Source: `lib/experienceState.ts`, `lib/useFaceNavigation.ts`,
 
 ## The machine
 
-Ten states, six events, one pure reducer. No timers, no side effects, no
-async — which is why the whole flow is testable in Node.
+Twenty-three states, nineteen events, one pure reducer. No timers, no side effects,
+no async — which is why the whole flow is testable in Node. It also carries a
+little session history, which is still pure: whether a reply has been
+`launched`, and how many times each ceremony has been watched (below).
+
+v0.1 ended at the closing screen. v0.2 continues past it (spec v0.2 §6), but
+**only for a card that has something there**: with `hasOrbit` false the new
+events are no-ops, and the walk below is exactly the v0.1 walk, transition for
+transition.
 
 ```
                     open
@@ -36,6 +43,39 @@ The right-hand branch only exists for a card that has a `secret` — see
 [content and cards](./content-and-cards.md). Without one, `reveal` is never
 dispatched and those three states are unreachable.
 
+Past the closing screen, for a card with an orbit:
+
+```
+                move(+1) / deploy                  deployEnd
+      completed ──────────────────> deploying ───────────────> orbit
+          ^                                                    │  ^
+          │           deployEnd         move(-1) / dock        │  │
+          └──────────── undeploying <────────────────────────────┘ │
+                                                                   │
+                     move(+1) / lookBack          zoomEnd          │
+               orbit ────────────────> rewinding ────────> remembering
+                                                            │   ^  │
+                                          move(±1) in range │   │  │ off either end
+                                                            v   │  v
+                                                       drifting │ resurfacing
+                                                            │   │  │ zoomEnd
+                                                    zoomEnd └───┘  └─> orbit
+
+               orbit ── openPanel(p) ──> orbit, panel = p
+    panel "reply" ── launch ──> launching ── launchEnd ──> orbit, launched
+    panel "comet" ── release ─> releasing  ── releaseEnd ─> orbit, released
+```
+
+Two rules hold the trail together. **Either end of it returns to orbit** rather
+than stopping dead, so a reader scrolling through someone else's memories is
+never stranded at the far end of them. And **while a panel is open every `move`
+is ignored**, because the reader may be typing a reply into it; the ✕, Escape
+and the space around the panel are the ways out.
+
+`launch` and `release` are dispatched *only after the server has accepted* the
+reply or the comet (§10, §11). The animation is a confirmation, never a guess:
+if the send fails there is nothing to confirm, and the panel says so instead.
+
 | State | Camera | Face text | Secret line | Accepts input |
 |---|---|---|---|---|
 | `landing` | far back | hidden | hidden | no |
@@ -48,18 +88,35 @@ dispatched and those three states are unreachable.
 | `descending` | through the wall | hidden | hidden | no |
 | `inside` | within the cube | hidden | **shown** | yes (to leave) |
 | `ascending` | back out | hidden | hidden | no |
+| `deploying` | pulling out to orbit | hidden | hidden | no |
+| `orbit` | the orbit pose | hidden | hidden | yes |
+| `undeploying` | back to far | hidden | hidden | no |
+| `rewinding` | joining the trail | hidden | hidden | no |
+| `remembering` | at one memory | hidden | hidden | yes |
+| `drifting` | along the trail | hidden | hidden | no |
+| `resurfacing` | leaving the trail | hidden | hidden | no |
+| `launching` | the orbit pose | hidden | hidden | no |
+| `releasing` | the orbit pose | hidden | hidden | no |
+
+A memory's title, date and caption follow the same rule face text does, in
+`remembering` and nowhere else — `revealsMemory`.
 
 Derived predicates keep those columns honest, so no component tracks them
 independently:
 
 ```ts
-cameraPhase(state)   // "far" | "near" | "inside"
+cameraPhase(state)   // "far" | "near" | "inside" | "orbit" | "trail"
 isZoomedIn(state)    // cameraPhase !== "far"
 revealsText(state)   // reading, and only reading
 revealsSecret(state) // inside, and only inside
+revealsMemory(state) // remembering, and only remembering
 isWithinCube(state)  // descending | inside | ascending — mounts the inner shell
-dimsScene(state)     // leaving | completed | returning | ascending
-acceptsInput(state)  // reading | completed | inside
+showsCompletion(x)   // the closing screen — takes the whole experience, not
+                     // just the state, because the way in from orbit passes
+                     // through `descending` without ever showing it
+isDeployed(state)    // everything past the closing screen — cube in satellite form
+dimsScene(state)     // leaving | completed | returning | ascending | undeploying
+acceptsInput(state)  // reading | completed | inside | orbit | remembering
 ```
 
 `isZoomedIn` was a boolean until the cube acquired an inside; the camera now has
@@ -78,6 +135,33 @@ line fades up after the motion has stopped rather than during it.
 closing screen, and lifting that dimming on the way in makes the cube brighten
 as you enter it. `ascending` dims again, so the closing screen is exactly as it
 was when you left it.
+
+## Two ways into the cube, and `insideVia`
+
+The inside can be reached from two places, and they are not the same journey.
+
+From the **closing screen**, 中をのぞく is a detour: the reader is standing on
+that screen, steps inside, and should be put back on it.
+
+From **orbit**, looking into the satellite is a journey. The satellite *is*
+the cube, so it leads to the same place — but `reveal` only transitions from
+`completed`, because the camera is out at the hub and there is no cube to be
+inside of until the satellite has folded up. So it is two moves chained:
+
+```
+orbit → undeploying → descending → inside → ascending → deploying → orbit
+```
+
+Note what is missing: **`completed` never appears.** The reader came from
+orbit, has already finished with the closing screen, and putting it in front
+of them for the length of the fold-up would be introducing a screen in order
+to dismiss it. `showsCompletion()` suppresses it for the same reason, and the
+final `deployEnd` goes straight to the hub rather than through `afterDeploy`,
+so the comet moment does not replay just because someone looked inside.
+
+`insideVia` is what remembers which of the two it is. It is reducer state
+rather than a ref in the component, because *where leaving goes back to* is a
+property of the journey, and the reducer is where journeys live.
 
 ## Why `entering` and `returning` are separate
 
@@ -103,6 +187,51 @@ The [verification suite](./verification.md) asserts the first of these at every
 step of a full journey, because it is the kind of regression that is easy to
 reintroduce and easy to miss.
 
+## Counting the ceremonies
+
+Two moments in the card are ceremonies rather than transitions: the cube
+becoming a satellite, and the closing line being written out by hand under the
+sender's signature. Both are worth their full length the first time and a toll
+every time after it, so both play at `REPLAY_SCALE` from the second time on
+(see [Cube and motion](./cube-and-motion.md#the-second-trip-is-shorter)).
+
+"The second time" is a fact about the reader's journey, so it lives in the
+reducer beside `launched`, as two counts:
+
+| Field | Counts | Read by |
+|---|---|---|
+| `deployments` | arrivals at `deploying` | the deploy animation, and the sound under it |
+| `closings` | arrivals at `completed` | the closing line, the signature, the two invitations, and how long the replay button stays faint |
+
+Counts rather than booleans, because what a screen actually asks is *is this
+the first time* — and a count answers that on arrival, where a flag would need
+a second field to say when it may be set.
+
+They are incremented in a thin wrapper around the reducer rather than in the
+transitions themselves:
+
+```ts
+export function reduceExperience(current, event) {
+  const next = transition(current, event);
+  if (next.state === current.state) return next;
+  if (next.state === "completed") return { ...next, closings: next.closings + 1 };
+  if (next.state === "deploying") return { ...next, deployments: next.deployments + 1 };
+  return next;
+}
+```
+
+`completed` is reached from three places — the end of the letter, coming back
+out of the inside of the cube, and docking from orbit — and `deploying` from
+two. A transition that forgot to count itself would look right in every test
+and be wrong on exactly one route through the card, which is the hardest kind
+of bug to see. The `next.state === current.state` guard is what keeps a refused
+gesture from ticking a counter; verify checks all of this by walking each
+route.
+
+Note what is *not* here: none of it is written to storage. A reader who comes
+back tomorrow gets the full ceremony again, which is right — they have come
+back to see it.
+
 ## Who ends a phase
 
 Nothing is on a timer. Each animated phase ends when the thing that is
@@ -113,8 +242,22 @@ animating says it has arrived:
 | `transitioning` | `MessageCube`, when rotation progress reaches 1 | `rotationEnd` |
 | `entering`, `returning`, `leaving` | `CameraRig`, when the dolly reaches its target | `zoomEnd` |
 | `descending`, `ascending` | `CameraRig`, same mechanism, third target | `zoomEnd` |
+| `rewinding`, `drifting`, `resurfacing` | `CameraRig`, arriving along the trail | `zoomEnd` |
+| `deploying`, `undeploying` | `MessageCube`, when the panels finish | `deployEnd` |
+| `launching` | `RocketLaunch` | `launchEnd` |
+| `releasing` | `CometRelease` | `releaseEnd` |
 
 So the phase and the animation cannot drift apart, whatever the frame rate.
+
+The last three components are built in later phases (spec §19 phases 6, 13,
+14). Until they exist, `CardExperience` ends those phases on a timer of the
+same duration and dispatches the same event, so the flow is walkable end to end
+and nothing but the visuals changes when they take over.
+
+`CameraRig` needs one thing the phase alone cannot tell it: **which** memory it
+is heading for. Moving from one memory to the next never leaves the `trail`
+phase, so without a `leg` the rig would think it had already arrived and the
+second memory would never announce itself.
 
 ## One gesture, one face
 
@@ -139,6 +282,11 @@ from stealing the swipe.
 
 **Keyboard.** `↑ ↓`, `PageUp/PageDown`, `Space` and `Shift+Space`.
 
+**Except in a text field.** Every listener returns early when the event's
+target is inside an `input`, `textarea`, `select` or `[contenteditable]`. Once
+a card can carry a reply form, Space means "a space" there, and scrolling a
+long message means scrolling the message — not turning the cube behind it.
+
 Inside the cube, *any* `move` in either direction leaves — there is nowhere
 else to go in there, so asking the reader to find the right direction would be
 a puzzle with one answer. The button on screen does the same thing, which is
@@ -157,3 +305,24 @@ flash enabled for a frame.
 
 If `errors.length > 0`, the whole experience is replaced by the asset-failure
 state with a reload button (spec §28).
+
+## Starting somewhere else (`?at=`, development only)
+
+The editor's live preview cannot walk the whole journey every time a line
+changes, so `/c/<slug>?at=orbit` starts there instead (spec v0.2 §6.6).
+
+The reducer has **no** second way in. `lib/devJump.ts` computes the events a
+reader would have sent to reach the target, and `CardExperience` replays them
+at once. So the preview can only reach states a reader can reach, there is no
+alternative path into any state that could quietly rot, and a card that cannot
+reach the target simply stops at the last state it does have.
+
+It is ignored in production, for the same reason `?now=` is — a query parameter
+that walks past the closing screen, or unseals a comet, would be no seal at all.
+Targets, as `JUMP_TARGETS` in `lib/devJump.ts` lists them: `landing`,
+`face-1`…`face-6`, `closing`, `inside`, `orbit`, `departure`, `chart`,
+`crossroads`, `trail`, `reply`, `trajectory`.
+
+`departure` and `chart` are the two halves of the comet moment — the first
+stops mid-flight, the second lands on the chart with the sheet open — and
+`orbit` deliberately goes *past* both, into the plain hub.

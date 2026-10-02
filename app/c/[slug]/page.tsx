@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getCardBySlug } from "@/lib/cards";
-import { hasAccess, passwordRequired } from "@/lib/access";
+import { canView, passwordRequired } from "@/lib/access";
+import { toClientCard } from "@/lib/clientCard";
+import { resolveNow } from "@/lib/devTime";
+import { firstParam, isVisitMode, type VisitMode } from "@/lib/devJump";
+import { cardVersion } from "@/lib/cardVersion";
+import { mailReady, cometReady } from "@/lib/notify";
 import { PasswordGate } from "@/components/access/PasswordGate";
 import { CardExperience } from "@/components/card/CardExperience";
 
@@ -8,27 +14,57 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-type Props = { params: Promise<{ slug: string }> };
+/**
+ * Per request, never at build time: the satellite's countdown and a comet's
+ * seal are both decided by comparing dates to *now*, and a prerendered page
+ * would freeze that at deploy time (spec v0.2 §14.1).
+ */
+export const dynamic = "force-dynamic";
 
-export default async function CardPage({ params }: Props) {
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function CardPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const card = getCardBySlug(slug);
 
-  if (!card) {
+  // An unknown slug is a real 404, not a page that renders a message: the
+  // editor's live check reads the status code (spec v0.2 §14.1, §15.6).
+  if (!card) notFound();
+
+  const version = cardVersion(card);
+
+  if (passwordRequired(card.slug) && !(await canView(card.slug))) {
     return (
-      <div className="screen">
-        <div className="notice">
-          <p className="landing__brand">KARTA_SPACE</p>
-          <p lang="ja">このカードは見つかりませんでした。</p>
-        </div>
-      </div>
+      <>
+        <meta name="karta-version" content={version} />
+        <PasswordGate slug={card.slug} hint={card.access?.hint} />
+      </>
     );
   }
 
-  // Card content is only sent to the browser once access is granted (spec §21).
-  if (passwordRequired(card.slug) && !(await hasAccess(card.slug))) {
-    return <PasswordGate slug={card.slug} />;
-  }
+  const query = await searchParams;
+  const now = resolveNow(firstParam(query.now));
+  const clientCard = toClientCard(card, now, {
+    mailReady: mailReady(card.slug),
+    cometReady: cometReady(),
+  });
 
-  return <CardExperience card={card} />;
+  return (
+    <>
+      <meta name="karta-version" content={version} />
+      <CardExperience
+        card={clientCard}
+        jumpTo={firstParam(query.at)}
+        visitMode={visitMode(firstParam(query.visit))}
+      />
+    </>
+  );
+}
+
+/** `?visit=` is dev-only preview, like `?at=` and `?now=` (§6.6). */
+function visitMode(value: string | undefined): VisitMode | undefined {
+  return isVisitMode(value) ? value : undefined;
 }
