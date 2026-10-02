@@ -2,6 +2,20 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { closingLines } from "../lib/closingLines.ts";
 import { trailSway } from "../lib/trailCurve.ts";
 import { SATELLITE_OPACITIES, fadeSpread, stowedOpacity } from "../lib/satelliteFade.ts";
+import { AGE_CEILING, AGE_HALF_LIFE_DAYS, cardEpoch, elapsedDays, sky, skyAge } from "../lib/skyAge.ts";
+import {
+  BEHIND,
+  MAX_MISS,
+  MIN_MISS,
+  PASS_MEAN_S,
+  POOL,
+  RANGE,
+  asteroidAt,
+  asteroidPass,
+  asteroidPasses,
+  asteroidSeed,
+  clearance,
+} from "../lib/asteroids.ts";
 import * as THREE from "three";
 import {
   FOV,
@@ -13,8 +27,10 @@ import {
   cometAt,
   hubComet,
   hubPlanet,
+  hubLabel,
   hubPose,
   hubTargets,
+  LABEL_SHARE,
   memoryPanelFraming,
   memoryViewDistance,
   orbitClearance,
@@ -2704,6 +2720,278 @@ console.log("24. Both ways of sending go towards the comet (§10.3, §8.7):");
   console.log(
     `  reply lands ${replyStarAt(0.5, 390, 844)[2] < 0 ? "behind" : "in front of"} the satellite, ` +
     `${REPLY_OVERTAKE} units past the comet`,
+  );
+}
+
+console.log("25. The sky ages with the letter, and never winds back (skyAge):");
+{
+  /*
+   * The background is made out of how long ago the card was sent. Three
+   * properties, and all three are things a reader would actually notice:
+   *
+   * - **Monotone.** Coming back to a card must never find it fresher than it
+   *     was. Checked day by day over twenty years, on every output.
+   * - **It never arrives.** The curve approaches `AGE_CEILING` and stops short,
+   *     so there is no day on which the sky has finished. A card that visibly
+   *     completed would be a countdown, which is the opposite of 「またね」.
+   * - **It cannot be caught moving.** The input is a civil date, so the whole
+   *     thing steps once a day. One day's step has to be small enough that two
+   *     readings a day apart are the same picture — and the range as a whole
+   *     wide enough that two a season apart are not.
+   */
+  const DAYS = 365 * 20;
+  let worstStep = 0;
+  let monotone = true;
+  let ceilingHeld = true;
+
+  for (let day = 0; day <= DAYS; day++) {
+    const here = sky(skyAge(day));
+    const next = sky(skyAge(day + 1));
+    // Gas and warmth fall, stars rise; none of them may ever turn round.
+    if (next.gas > here.gas + 1e-12) monotone = false;
+    if (next.warmth > here.warmth + 1e-12) monotone = false;
+    if (next.stars < here.stars - 1e-12) monotone = false;
+    if (skyAge(day) >= AGE_CEILING) ceilingHeld = false;
+    worstStep = Math.max(worstStep, skyAge(day + 1) - skyAge(day));
+  }
+
+  check("the sky only ever ages", monotone);
+  check("it never reaches the ceiling", ceilingHeld, skyAge(DAYS).toFixed(6));
+  // A day's step, as a fraction of the whole journey. 1% would be visible
+  // between two readings on consecutive evenings, which it must not be.
+  check("a day's change is imperceptible", worstStep < 0.005, worstStep.toFixed(5));
+
+  /*
+   * Wide enough to be worth doing. A season apart has to look different, or
+   * the whole thing is arithmetic nobody can see. Measured on the gas, which
+   * is the output that carries most of it.
+   */
+  const season = sky(skyAge(0)).gas - sky(skyAge(90)).gas;
+  check("a season apart is visibly different", season > 0.1, season.toFixed(3));
+
+  /*
+   * Where the date comes from. `writtenAt` first — it is what the sender said
+   * about when this was sent, and it is already on the landing screen, so the
+   * sky and that line cannot disagree.
+   */
+  check("writtenAt wins", cardEpoch({ writtenAt: "2026-03", comet: { leftOn: "2025-01-01" } }) === "2026-03");
+  check("the comet's departure stands in", cardEpoch({ comet: { leftOn: "2025-01-01" } }) === "2025-01-01");
+  check("a card with no date is a fresh sky", skyAge(elapsedDays({}, "2030-01-01")) === 0);
+  /*
+   * A card dated in the future is a sender post-dating a letter, or a clock
+   * that is wrong. Either way it is read as sent today rather than as a sky
+   * running backwards.
+   */
+  check("a future date does not invert the sky",
+    elapsedDays({ writtenAt: "2027-01-01" }, "2026-10-02") === 0);
+
+  const year = sky(skyAge(365));
+  console.log(
+    `  half-life ${AGE_HALF_LIFE_DAYS}d, ceiling ${AGE_CEILING}; ` +
+    `at one year gas ${year.gas.toFixed(2)}, warmth ${year.warmth.toFixed(2)}, ` +
+    `stars ${year.stars.toFixed(2)}`,
+  );
+  console.log(`  a day's step: ${(worstStep * 100).toFixed(2)}% of the whole journey`);
+}
+
+console.log("26. Passing rocks never touch the satellite (rev 6 §3.2):");
+{
+  /*
+   * The one hard requirement of the asteroid field. A rock through the
+   * satellite is not a glitch a reader forgives — it is the object the whole
+   * card is about, being hit.
+   *
+   * It is guaranteed by construction rather than by rejection: every path is
+   * built around its own closest-approach point, so the miss distance is an
+   * input. This check does two separate things with that. It confirms the
+   * construction is honest — that `miss` really is the distance from the
+   * satellite to the line, computed independently — and then it measures the
+   * clearance against the satellite's **real deployed hull** and against the
+   * camera, so neither margin can be quietly eaten by a satellite that grows
+   * or a composition that moves in closer.
+   */
+  const hull = satelliteHull();
+  const views: [string, number, number][] = [
+    ["phone", 390, 844],
+    ["tablet", 820, 1180],
+    ["laptop", 1440, 900],
+    ["desktop", 1920, 1080],
+    // The widest shape in use: the hub camera stands closest here, so this is
+    // where a rock has the least room between the satellite and the lens.
+    ["ultrawide", 2560, 1080],
+  ];
+
+  let worstLine = Infinity;
+  let worstHull = Infinity;
+  let worstCamera = Infinity;
+  let worstCameraAt = "";
+  let highest = -Infinity;
+  let behind = true;
+  let exact = true;
+
+  // Many cards, many passes each: the paths are seeded, so this is the whole
+  // population rather than a sample of one card's luck.
+  for (let card = 0; card < 40; card++) {
+    const seed = asteroidSeed(`verify-${card}`);
+    for (let index = 0; index < 400; index++) {
+      const pass = asteroidPass(seed, index);
+
+      // Independently: the distance from the origin to the infinite line.
+      const t = -(
+        pass.from[0] * pass.direction[0] +
+        pass.from[1] * pass.direction[1] +
+        pass.from[2] * pass.direction[2]
+      );
+      const nearest = asteroidAt(pass, t / pass.speed);
+      const line = Math.hypot(nearest[0], nearest[1], nearest[2]);
+      if (Math.abs(line - pass.miss) > 1e-9) exact = false;
+      worstLine = Math.min(worstLine, line);
+
+      // Behind the satellite, not across the front of it.
+      if (nearest[2] > -BEHIND + 1e-9) behind = false;
+      highest = Math.max(highest, pass.from[2], pass.from[2] + pass.direction[2] * 2 * RANGE);
+
+      // The real hull, and the rock's own radius taken off both margins.
+      for (const point of hull) {
+        worstHull = Math.min(worstHull, clearance(pass, point as [number, number, number]) - pass.radius);
+      }
+      for (const [name, width, height] of views) {
+        const gap = clearance(pass, hubPose(width, height).position) - pass.radius;
+        if (gap < worstCamera) { worstCamera = gap; worstCameraAt = name; }
+      }
+    }
+  }
+
+  check("the stated miss distance is the real one", exact);
+  check("nothing comes closer than the floor", worstLine >= MIN_MISS - 1e-9, worstLine.toFixed(4));
+  // Comfortably clear of the deployed wings, which reach about 2.0 units.
+  check("the deployed hull is never touched", worstHull > 1.5, worstHull.toFixed(3));
+  check("every pass runs behind the satellite", behind);
+  /*
+   * And behind the camera's shoulder too. `Z_TILT` caps how much depth a path
+   * can have and `RANGE` caps how long it is, so the highest z any rock can
+   * reach is bounded — which is what keeps one from arriving in the reader's
+   * lap on a wide screen, where the camera stands closest.
+   */
+  check("nothing flies between the reader and the satellite", worstCamera > 2, worstCamera.toFixed(3));
+
+  /*
+   * The timetable. "Roughly every thirty seconds, at random" — so what is
+   * checked is the mean, that the gaps are actually varied rather than a
+   * metronome, and that the pool is deep enough that passes are not being
+   * silently dropped.
+   */
+  const passes = asteroidPasses(asteroidSeed("timetable"), 4000);
+  const gaps = passes.slice(1).map((pass, i) => pass.startAt - passes[i].startAt);
+  const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  const spread = Math.max(...gaps) - Math.min(...gaps);
+
+  check("about one every thirty seconds", Math.abs(mean - PASS_MEAN_S) < 3, mean.toFixed(2));
+  check("the gaps are not a metronome", spread > PASS_MEAN_S, spread.toFixed(1));
+
+  /*
+   * How many are ever in flight together, so the pool is sized from the
+   * timetable instead of guessed. Swept across cards, not measured on one:
+   * sized against a single seed the pool came out at four, and the twenty-ninth
+   * card wanted six. A pass with nowhere to go is silently not drawn, which is
+   * exactly the kind of thing nobody would ever notice was happening.
+   */
+  let peak = 0;
+  let busiest = "";
+  for (let card = 0; card < 60; card++) {
+    const slug = `peak-${card}`;
+    const timetable = asteroidPasses(asteroidSeed(slug), 2000);
+    // An event sweep rather than a scan over time: one rock arriving or
+    // leaving is the only moment the count can change, so there is nothing to
+    // learn from the instants in between.
+    const events = timetable
+      .flatMap((pass) => [
+        { at: pass.startAt, delta: 1 },
+        { at: pass.startAt + pass.duration, delta: -1 },
+      ])
+      .sort((a, b) => a.at - b.at || a.delta - b.delta);
+
+    let live = 0;
+    for (const event of events) {
+      live += event.delta;
+      if (live > peak) { peak = live; busiest = slug; }
+    }
+  }
+  check("the pool holds every pass that is due", peak <= POOL, `${peak} at once`);
+
+  console.log(
+    `  ${worstLine.toFixed(1)}-${MAX_MISS} units out, ${worstHull.toFixed(1)} clear of the hull, ` +
+    `${worstCamera.toFixed(1)} of the ${worstCameraAt} camera`,
+  );
+  console.log(
+    `  highest a rock reaches: z ${highest.toFixed(2)}; gaps mean ${mean.toFixed(0)}s, ` +
+    `busiest sky ${peak} at once (${busiest}), pool ${POOL}`,
+  );
+}
+
+console.log("27. The satellite's label never covers the comet (rev 6 §3.1):");
+{
+  /*
+   * The label on the satellite — the only way from the hub into the cube —
+   * appears when the reader hovers the satellite. To be hovered at all its box
+   * has to accept pointer events, and a box that accepts pointer events also
+   * *swallows clicks inside it*.
+   *
+   * The comet is the one thing in the scene that is clickable, and 「星をタップ
+   * してみてください」 is the hub's own invitation to tap it. It is drawn along a
+   * composition path rather than its true orbit, and that path passes close to
+   * the satellite at some aspect ratios — at tip-to-tip the two overlap
+   * outright on a tablet, and clear by eleven pixels on a phone. So the label
+   * is capped at `LABEL_SHARE` of the span, and this is the check that says
+   * what that cap is for.
+   *
+   * Swept over the comet's whole orbit, because where it is drawn depends on
+   * how far round it has got — a clearance that held only on the day the card
+   * was sent would fail silently, months later, on someone else's screen.
+   */
+  const views: [string, number, number][] = [
+    ["phone", 390, 844],
+    ["tall phone", 430, 932],
+    ["tablet", 820, 1180],
+    ["laptop", 1440, 900],
+    ["ultrawide", 2560, 1080],
+  ];
+
+  let worst = Infinity;
+  let worstAt = "";
+
+  for (const [name, width, height] of views) {
+    const pose = hubPose(width, height);
+    const camera = new THREE.PerspectiveCamera(FOV, width / height, 0.1, 120);
+    camera.position.set(...pose.position);
+    camera.lookAt(new THREE.Vector3(...pose.lookAt));
+    camera.updateMatrixWorld(true);
+
+    const label = hubLabel(width / height);
+    const half = (label.span * width) / 2;
+    const cx = label.centre[0] * width;
+    const cy = label.centre[1] * height;
+
+    for (let progress = 0; progress <= 1; progress += 0.002) {
+      const screen = new THREE.Vector3(...cometAt(progress, width, height)).project(camera);
+      const x = (screen.x * 0.5 + 0.5) * width;
+      const y = (-screen.y * 0.5 + 0.5) * height;
+      // Distance to the box's edge. Negative means the comet is inside it.
+      const gap = Math.max(Math.abs(x - cx) - half, Math.abs(y - cy) - half);
+      if (gap < worst) { worst = gap; worstAt = `${name}, progress ${progress.toFixed(2)}`; }
+    }
+  }
+
+  /*
+   * 48px is the touch target the rest of the card is built to (§23.1), so the
+   * comet needs at least that much room outside the label before the two can
+   * start competing for the same tap.
+   */
+  check("the comet is never inside the satellite's label", worst > 0, worst.toFixed(0));
+  check("and clears it by a whole touch target", worst >= 48, worst.toFixed(0));
+
+  console.log(
+    `  label ${LABEL_SHARE} of the span; closest the comet comes: ${worst.toFixed(0)}px (${worstAt})`,
   );
 }
 

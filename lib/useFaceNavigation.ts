@@ -132,3 +132,50 @@ export function usePrefersReducedMotion(): boolean {
 
   return reduced;
 }
+
+/**
+ * True once nothing has happened for `delayMs`, false again on the next
+ * thing that does (spec v0.2 rev 6).
+ *
+ * The orbit view has a control that is only discoverable by hovering the
+ * satellite, which is not a gesture a phone has — so on a phone the way into
+ * the cube was unreachable, and on a desktop it was reachable only by someone
+ * who already suspected it was there. Going quiet is the signal that someone
+ * has looked at everything obvious, so that is when the card offers it.
+ *
+ * Reset by anything a reader does, including the gestures the scene itself
+ * consumes: a wheel that turns the camera is still the reader being busy.
+ * Listeners are passive and on `window`, so none of this interferes with the
+ * navigation above.
+ */
+export function useIdle(delayMs: number): boolean {
+  const [idle, setIdle] = useState(false);
+
+  useEffect(() => {
+    let timer: number | undefined;
+
+    const wait = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setIdle(true), delayMs);
+    };
+
+    const stir = () => {
+      // Only a state change when there is one to make: these fire constantly.
+      setIdle((was) => (was ? false : was));
+      wait();
+    };
+
+    const events = ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"] as const;
+    for (const event of events) {
+      window.addEventListener(event, stir, { passive: true });
+    }
+    wait();
+
+    return () => {
+      window.clearTimeout(timer);
+      for (const event of events) window.removeEventListener(event, stir);
+    };
+  }, [delayMs]);
+
+  return idle;
+}

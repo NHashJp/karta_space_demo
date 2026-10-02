@@ -29,6 +29,7 @@ import {
   type CometVisit,
 } from "@/lib/cometVisit";
 import { lightSeed } from "@/lib/sceneLight";
+import { elapsedDays, skyFor } from "@/lib/skyAge";
 import { DEPLOY_MS, replayed } from "@/lib/timing";
 import { orbitRotation, progress as cometProgress } from "@/lib/cometOrbit";
 import {
@@ -160,6 +161,15 @@ export function CardExperience({
   const deployMs = replayed(DEPLOY_MS, deployments > 1);
 
   const seed = useMemo(() => lightSeed(card.slug), [card.slug]);
+
+  /*
+   * The sky, aged by how long ago this was sent (`lib/skyAge.ts`).
+   *
+   * `card.today` rather than the browser's clock, and the same civil date the
+   * comet's position and the return label were computed from on the server —
+   * so the three cannot disagree, and `?now=` moves all of them together.
+   */
+  const sky = useMemo(() => skyFor(card, card.today), [card]);
 
   // A warmer light on the day the comet comes back (§23.3), and the one cue
   // in the sound palette that is allowed to be bright (§12.2).
@@ -336,6 +346,7 @@ export function CardExperience({
           cameraLeg={activeMemory}
           seed={seed}
           returned={returned}
+          sky={sky}
           atRest={atRest}
           memories={card.memories}
           activeMemory={activeMemory}

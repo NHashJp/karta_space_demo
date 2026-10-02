@@ -252,6 +252,117 @@ Three placement rules fall out of the composition rather than out of taste:
   design, and four pills reading through a sheet that is itself offering two
   choices turns one question into six.
 
+### Three ways into the cube
+
+The label on the satellite — `中をのぞく`, or `手紙を読みかえす` when nothing is
+written inside — is the only route from the hub into the cube. It appears when
+the reader **hovers the satellite**, when they **tab to it**, or after **twenty
+seconds of stillness**.
+
+**Hover was written but never worked.** The rule was `.orbit-ui:hover`, and
+`.orbit-ui` is the full-screen overlay with `pointer-events: none` on it, so it
+could never match a hover on any screen — the label was unreachable with a
+pointer, and the twenty-second hint was in practice the only way in. Hovering
+now works because the label's own box takes pointer events and is the thing
+being hovered, which is also the better reading of it: it names the object
+under the cursor rather than appearing because the cursor is somewhere on the
+page.
+
+**The box is the satellite's body, not its span** — half of tip to tip
+(`hubLabel`, `LABEL_SHARE`). A box that accepts hover also swallows clicks
+inside it, and the comet is the one thing in the scene that *is* clickable. At
+full span the two overlap on a tablet. See
+[verification §27](./verification.md).
+
+**Hover is off while a panel or a sheet is up**, and the rule is written not to
+match rather than relying on the rule that hides the label — `body:has(...)` is
+weaker than a `:hover` and would simply lose.
+
+**Twenty seconds of stillness** (`ORBIT_IDLE_HINT_MS`, `useIdle`) is the third
+way, and the only one a phone has. It goes away again on the next movement,
+scroll or keystroke. Three things about it are deliberate:
+
+- **Twenty seconds, not five.** Early stillness is someone taking the sky in,
+  and interrupting that is worse than not helping. Stillness long enough to
+  mean *I cannot find what to do next* is the only stillness worth answering.
+- **Not while a panel is open**, because the panel is already asking for an
+  answer and this would be a second thing competing with it.
+- **It fades in over 1200ms rather than the 600ms hover uses.** Something the
+  reader asked for should arrive at once; something that arrives unbidden
+  should not appear to flick on.
+
+It is a hint, not a timeout: it points at a button that was always there, and
+nothing happens if it is ignored. The button is keyboard-reachable too — it was
+`tabIndex={-1}` on the assumption that the bar offered the same thing, and the
+bar offers the letter, which is a different place.
+
+## The sky ages with the letter
+
+A card is sent on one day and read on another, and often on several others —
+a week later, the following spring, a year on. Every one of those readings
+used to look identical, which quietly said that nothing had happened in
+between. The one thing the card knows for certain about the gap is how long it
+is, so that is what the background is made of.
+
+Fresh, the gas is close and dense and still warm from the planet it left.
+Later it has thinned, cooled towards the blue end, and more of the deep field
+shows through it. Nothing is added or taken away: it is the same sky, further
+out. Four numbers carry it, all decided in `lib/skyAge.ts` and nowhere else —
+how much gas there is, how much of the warm half of the palette survives, how
+bright the starfield is, and the two body colours.
+
+**Which date.** `writtenAt`, the sender's own statement of when this was sent,
+which is already printed on the landing screen — so the sky and that line
+cannot disagree. Without one it falls back to the comet's `leftOn`, the day
+you parted, which is the same instant by another name. A card with neither is
+simply a fresh sky forever.
+
+**A half-life, not a deadline.** Half the change happens in the first six
+months and the curve stops short of its ceiling, so there is no day on which
+the card becomes finished. 「またね」 is not a countdown to the sky going out.
+
+Three properties are checked rather than trusted: it is monotone, so coming
+back to a card never finds it fresher than it was; it never reaches the
+ceiling; and one day's step is a third of a per cent of the whole range, so
+two readings a day apart are the same picture while two a season apart are
+not. It is a fact about the letter rather than a state of the view, which is
+why it is the same sky on the landing screen as in the hub, and why `?now=`
+moves it along with the comet and the return label.
+
+## Rocks passing through
+
+Roughly every thirty seconds, some piece of debris crosses the deep field,
+tumbling, and is gone. There is nothing to press and nothing to miss. If a
+reader never notices one it has still done its job, because what it buys is
+the sense that the sky is not a backdrop.
+
+**Only in the hub.** The hub is the one screen a reader *sits* in rather than
+reads, which is both where a thirty-second rhythm has time to mean anything
+and the only place where something crossing the frame is not crossing a
+sentence. It is the rule the speed streaks already follow.
+
+**Poisson, not metronome.** The gap is drawn from an exponential distribution
+with a mean of thirty seconds, clamped at six and a hundred and fifty. A fixed
+interval would be a clock, and a clock in the corner of the sky is something a
+reader starts waiting for. In practice there is nothing in flight about half
+the time, one rock a third of it, and four or more for a quarter of a per
+cent.
+
+**They pass behind, and they never touch the satellite.** A rock crossing in
+front of the subject of the screen reads as a near miss, which is a drama this
+card is not telling; one crossing behind it reads as distance. The clearance
+is guaranteed by construction rather than by rejection sampling: each path is
+built *around* its own closest-approach point, placed at an exact distance in
+the plane perpendicular to the travel direction, so the miss distance is an
+input and not an outcome. Verify then measures the result against the
+satellite's real deployed hull — 2.1 units of clearance at the worst — and
+against the camera at five viewports, so neither margin can be quietly eaten
+by a satellite that grows or a composition that moves in closer.
+
+It is a tumbling rock rather than a streak on purpose. A streak is the
+returned day's flourish, which happens **once**, on a day that means
+something; the two should never be mistaken for each other.
+
 ## The comet moment, end to end
 
 What the card does after the six faces, once a comet exists:

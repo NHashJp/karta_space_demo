@@ -233,6 +233,31 @@ felt. On a phone in portrait:
 | Speed | streaks sweeping past the lens. The scene should not feel parked |
 | The planet | rotating, lit from one side, never covering the satellite |
 | Rotate the device | the composition re-solves; nothing falls off the edge |
+| Rocks | one drifts past every half-minute or so, well behind the satellite, tumbling slowly. Never in front of it, never near it |
+| Hover the satellite | `中をのぞく` fades in on it. Moving onto the button keeps it there; moving away hides it |
+| Tap the comet | still works. The label's box is near it, and must never take the tap |
+
+Sit in the hub for two or three minutes without touching anything. That is the
+only way to judge the asteroids: the thing being tested is a *rhythm*, and any
+single thirty-second window is as likely to be empty as not. What would be
+wrong is a rock crossing in front of the satellite, one arriving close enough
+to read as a near miss, or anything regular enough to be counted.
+
+### The sky's age
+
+The background is made from how long ago the card was sent, so the fastest way
+to see it is `?now=`. Open the same card three times:
+
+| | Should be |
+|---|---|
+| `?now=` the card's own `writtenAt` | dense, close gas with warmth in it — the card as sent |
+| a year later | noticeably thinner and bluer, more stars showing through |
+| five years later | thinner again, but only a little: the curve is asymptotic and the card never finishes |
+
+Two things to check rather than admire. Consecutive days must be
+indistinguishable — compare `?now=` on two adjacent dates and look for any
+visible step. And the sky must never look *fresher* as the date moves forward.
+
 
 ### The trail of memories
 
@@ -366,12 +391,14 @@ whether it is *one thing* — and that is the entire product.
 
 ## What is already covered, and need not be re-tested by hand
 
-`npm run verify` checks, among 21 sections: every face landing square-on, type
+`npm run verify` checks, among 26 sections: every face landing square-on, type
 size and line counts at five viewports, the hub composition at four viewports
 against revision 6 §3.1, the deployment's timing windows and self-clearance, a
 57-transition walk of the state machine, the gate's normalisation and
 precedence, the comet's seal and 32 ways of tampering with it, the email
-templates as strings, and the 8-point grid across every stylesheet. See
+templates as strings, that no passing rock can reach the satellite from any
+seed, that the sky only ever ages, and the 8-point grid across every
+stylesheet. See
 [verification](./verification.md).
 
 It does **not** check: that anything looks good, that any email is deliverable,

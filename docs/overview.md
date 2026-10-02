@@ -35,7 +35,8 @@ write is emailed straight to the sender and stored nowhere.
 4. **Inside the cube** — optional. One short line written on the inner wall.
 5. **Deployment** — the cube grows solar panels and becomes a satellite.
 6. **Orbit** — the hub. The satellite in the middle, a planet in the corner, a
-   trail of memories off to one side, a comet passing.
+   trail of memories off to one side, a comet passing, and a rock crossing the
+   deep field every half-minute or so.
 7. **The comet** — it leaves, and the card offers to put the receiver's words
    on it. They cannot be read until the date it comes back.
 8. **The crossroads** — where next: send a reply by rocket, walk the trail of
@@ -62,6 +63,11 @@ return to zero, so however showy the path, the face ends exactly facing you.
 **The comet's position is the countdown.** There is no number ticking down.
 The comet is far away for most of the wait and swings home at the end; where it
 is in the sky *is* how long is left.
+→ [The orbit](./orbit.md)
+
+**The sky is how long ago it was sent.** The gas thins and cools as the card
+ages, so a letter opened a year on is read against a sky further from home.
+Half the change happens in six months, and it never finishes.
 → [The orbit](./orbit.md)
 
 **A sealed message is a link, not a row.** The receiver's words are encrypted
@@ -111,6 +117,8 @@ nothing — it proves the arithmetic. A few examples:
 - a sealed comet refuses to open before its date, and a tampered link opens never
 - the satellite's parts all fade out together when it leaves
 - the reply rocket flies towards the comet, not towards the camera
+- the sky only ever ages, and never by enough to catch it in a day
+- no passing rock can come within two units of the satellite, from any seed
 
 → [Verification](./verification.md), and [Testing](./testing.md) for the parts
 a human has to look at.

@@ -6,6 +6,7 @@ import { trailSeed } from "@/lib/trailColour";
 import { orbitRotation } from "@/lib/cometOrbit";
 import { trailSeedFor } from "@/lib/trailCurve";
 import { Canvas } from "@react-three/fiber";
+import { Asteroids } from "./Asteroids";
 import { SpeedStreaks } from "./SpeedStreaks";
 import type { CardFace } from "@/types/card";
 import type { CameraPhase } from "@/lib/experienceState";
@@ -21,6 +22,8 @@ import { ReplyStar } from "./ReplyStar";
 import { RocketLaunch } from "./RocketLaunch";
 import { Trail } from "./Trail";
 import { SpaceEnvironment } from "./SpaceEnvironment";
+import { asteroidSeed } from "@/lib/asteroids";
+import type { Sky } from "@/lib/skyAge";
 import { FOV } from "./framing";
 
 /** The one comet, resolved to the numbers the scene needs. */
@@ -46,6 +49,8 @@ type Props = {
   /** This card's light seed, and whether its day is a warm one (§23.3). */
   seed: number;
   returned?: boolean;
+  /** The backdrop, aged by how long ago the letter was sent (`lib/skyAge.ts`). */
+  sky: Sky;
   /** The camera breathes only where nothing is being read (§23.2). */
   atRest: boolean;
   /** The memories that hang on the trail, newest first. */
@@ -95,6 +100,7 @@ export function CubeScene({
   cameraLeg,
   seed,
   returned,
+  sky,
   atRest,
   memories,
   activeMemory = 0,
@@ -157,6 +163,7 @@ export function CubeScene({
         seed={seed}
         returned={returned}
         skyTurning={cameraPhase === "orbit"}
+        sky={sky}
       />
       {/* A card without an orbit never pays for a planet it does not have. */}
       {deployed ? (
@@ -221,6 +228,18 @@ export function CubeScene({
 
       {/* Once, on the day, and never again while the page is open. */}
       {deployed && returned ? <MeteorShower reducedMotion={cube.reducedMotion} /> : null}
+
+      {/*
+        Debris, roughly every half minute, and only in the hub. The hub is the
+        one screen a reader *sits* in rather than reads, which is both where a
+        thirty-second rhythm has time to mean anything and the only place where
+        something crossing the frame is not crossing a sentence. The paths are
+        built to pass well behind the satellite and never near it (§3.2, and the
+        clearance check in verify).
+      */}
+      {cameraPhase === "orbit" ? (
+        <Asteroids seed={asteroidSeed(slug)} reducedMotion={cube.reducedMotion} />
+      ) : null}
 
       {/*
         Speed. Only in the two scenes that are actually moving: the hub, where

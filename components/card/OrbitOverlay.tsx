@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { SocialLinks } from "./SocialLinks";
 import { ChevronLeftIcon } from "./Icons";
-import { hubTargets } from "@/components/three/framing";
-import { ORBIT_TIP_MS } from "@/lib/timing";
+import { hubLabel } from "@/components/three/framing";
+import { ORBIT_IDLE_HINT_MS, ORBIT_TIP_MS } from "@/lib/timing";
+import { useIdle } from "@/lib/useFaceNavigation";
 import type { OrbitPanel } from "@/lib/experienceState";
 import type { ClientCard } from "@/lib/clientCard";
 
@@ -57,22 +58,31 @@ export function OrbitOverlay({
   /*
    * Where the satellite actually is on screen.
    *
-   * `hubTargets` is the composition the camera is *solved from* (rev 6 §3.1)
+   * `hubLabel` is built from the composition the camera is *solved from*
    * — the same fractions that decide where the body lands in the frame — so
    * taking the label's position from it means the two cannot drift apart. A
    * hand-picked percentage would have been right at one aspect ratio and
    * wrong at the other, which is how the label ended up floating in empty
    * space below the satellite on a phone.
    */
-  const [centre, setCentre] = useState<[number, number]>(() => hubTargets(1).centre);
+  const [label, setLabel] = useState(() => hubLabel(1));
   useEffect(() => {
-    const update = () => setCentre(hubTargets(window.innerWidth / window.innerHeight).centre);
+    const update = () => setLabel(hubLabel(window.innerWidth / window.innerHeight));
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+  const centre = label.centre;
 
   const busy = panel !== null;
+
+  /*
+   * Gone quiet, so the way into the cube is pointed out. A phone cannot
+   * hover, so on one this is the only way the label is ever offered — and not
+   * while a panel is open, where it would be a second thing asking for
+   * attention behind the one already asking.
+   */
+  const hinted = useIdle(ORBIT_IDLE_HINT_MS) && !busy;
 
   return (
     <div className="orbit-ui" data-panel={panel ?? "none"}>
@@ -100,6 +110,14 @@ export function OrbitOverlay({
         which is the whole point of it. It appears on hover, so it is an
         answer to someone looking rather than another label on the sky.
 
+        Which means the element has to *be* the satellite's area of the screen,
+        not just sit at its centre — so it is sized from the same `tip` the
+        camera is solved from, and both numbers come from `hubLabel`. It
+        used to be a shrink-to-fit box around the button with the hover rule
+        written against `.orbit-ui`, which has `pointer-events: none` and
+        therefore never matched: hovering could not reveal anything, on any
+        screen, and the twenty-second hint was the only way in.
+
         Where it leads depends on what the cube has in it. With a line written
         inside, looking into the satellite means the same thing 中をのぞく
         means on the closing screen, and says so in the same words — two names
@@ -108,15 +126,23 @@ export function OrbitOverlay({
       */}
       <div
         className="orbit-ui__reread"
+        data-hinted={hinted}
         style={{
           ["--sat-x" as string]: `${centre[0] * 100}%`,
           ["--sat-y" as string]: `${centre[1] * 100}%`,
+          // The body's area, not tip to tip: `hubLabel` explains why.
+          ["--sat-span" as string]: `${label.span * 100}%`,
         }}
       >
+        {/*
+          Reachable by keyboard. It is the only way into the cube from out
+          here, and it used to be `tabIndex={-1}` on the assumption that the
+          bar offered the same thing — the bar offers the letter, which is a
+          different place.
+        */}
         <button
           className="button button--quiet"
           onClick={hasSecret ? onEnterSatellite : onDock}
-          tabIndex={-1}
           lang="ja"
         >
           {hasSecret ? "中をのぞく" : "手紙を読みかえす"}

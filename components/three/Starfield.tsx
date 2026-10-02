@@ -35,10 +35,13 @@ function makeRandom(seed: number) {
 export function Starfield({
   reducedMotion,
   turning = false,
+  brightness = 1,
 }: {
   reducedMotion: boolean;
   /** The hub's slow turn about the planet's axis (rev 6 §3.2). */
   turning?: boolean;
+  /** More of the field shows through an older card's thinner gas (skyAge). */
+  brightness?: number;
 }) {
   const material = useRef<THREE.ShaderMaterial>(null);
   const field = useRef<THREE.Points>(null);
@@ -85,13 +88,14 @@ export function Starfield({
   }, []);
 
   const uniforms = useMemo(
-    () => ({ uTime: { value: 0 }, uPixelRatio: { value: 1 } }),
+    () => ({ uTime: { value: 0 }, uPixelRatio: { value: 1 }, uBrightness: { value: 1 } }),
     [],
   );
 
   useFrame(({ clock, camera }) => {
     if (material.current) {
       material.current.uniforms.uPixelRatio.value = dpr;
+      material.current.uniforms.uBrightness.value = brightness;
       if (!reducedMotion) material.current.uniforms.uTime.value = clock.elapsedTime;
     }
     // The sky is the far distance, and travels with the camera for the same

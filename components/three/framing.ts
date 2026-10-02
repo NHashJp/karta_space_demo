@@ -206,6 +206,31 @@ export function hubTargets(aspect: number): HubTargets {
 }
 
 /**
+ * How much of the width the satellite's label covers — the area you hover to
+ * be offered the way into the cube.
+ *
+ * Half of tip to tip, not all of it. The wings are most of the satellite's
+ * span and almost none of what anyone points at; what you aim for is the
+ * body, which is between a fifth and a third of the span depending on how the
+ * cube is turned. Half covers the body and the inner booms with room to spare.
+ *
+ * The *reason* it is capped is the comet. The label's box has to take pointer
+ * events to be hovered at all, which means it also swallows clicks inside it,
+ * and the comet — the one thing in the scene that is clickable, and the thing
+ * 「星をタップしてみてください」 is asking the reader to tap — is drawn along a
+ * composition path that passes close to the satellite at some aspect ratios.
+ * At the full span the two overlap outright on a tablet. Verify checks the
+ * clearance across five viewports and the comet's whole orbit.
+ */
+export const LABEL_SHARE = 0.5;
+
+/** Where the satellite's label sits, and how big it is, as viewport fractions. */
+export function hubLabel(aspect: number): { centre: [number, number]; span: number } {
+  const target = hubTargets(aspect);
+  return { centre: target.centre, span: target.tip * LABEL_SHARE };
+}
+
+/**
  * The half-angles as *tangents*, which is what projection arithmetic wants.
  * (The `halfAngles` further down returns radians, for a different job.)
  */

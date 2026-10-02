@@ -40,6 +40,15 @@ export const nebulaFragmentShader = /* glsl */ `
   uniform vec3 uFilamentCool;
   uniform vec3 uFilamentWarm;
   uniform float uIntensity;
+  /*
+   * How old the letter is (lib/skyAge.ts). Not a fade: uGas thins the cloud
+   * out, and uWarmth takes the warm half of the palette away, so an old card
+   * is the same sky seen from further out rather than a dimmer one. uIntensity
+   * is the closing screen's recede and is deliberately separate — one is where
+   * the reader is, the other is how long it has been.
+   */
+  uniform float uGas;
+  uniform float uWarmth;
 
   varying vec3 vDirection;
 
@@ -171,10 +180,15 @@ export const nebulaFragmentShader = /* glsl */ `
     float band = 1.0 - smoothstep(0.0, 0.85, abs(dir.y * 0.78 - dir.x * 0.34 - 0.12));
     clouds *= 0.55 + 0.45 * band;
 
+    // Thinned by age. Applied to the cloud itself rather than to the colour,
+    // so the voids open up and the deep field behind shows through them —
+    // which is what being further out looks like.
+    clouds *= uGas;
+
     vec3 color = mix(uVoid, uDeep, smoothstep(0.12, 0.88, base));
     color = mix(color, uNebula, clouds * 0.88);
     color = mix(color, uIon, pow(clouds, 3.0) * 0.48 * smoothstep(0.62, 0.30, temperature));
-    color = mix(color, uEmber, pow(clouds, 4.0) * 0.30 * smoothstep(0.48, 0.78, temperature));
+    color = mix(color, uEmber, pow(clouds, 4.0) * 0.30 * smoothstep(0.48, 0.78, temperature) * uWarmth);
 
     // Deepen the empty regions so the bright filaments feel further away.
     // The floor is not zero: the mockups' sky has colour in it everywhere, and
@@ -190,7 +204,7 @@ export const nebulaFragmentShader = /* glsl */ `
     float filament = ridged(dir * 3.4 + filamentFlow + warp * 0.9);
     filament = pow(smoothstep(0.52, 0.96, filament), 1.8);
     vec3 filamentColor = mix(uFilamentCool, uFilamentWarm,
-      smoothstep(0.35, 0.72, temperature));
+      smoothstep(0.35, 0.72, temperature) * uWarmth);
     color += filamentColor * filament * clouds * 0.46 * uIntensity;
 
     // ---- dark dust lanes: the depth, mostly -------------------------------
@@ -204,7 +218,7 @@ export const nebulaFragmentShader = /* glsl */ `
     float knotField = valueNoise(dir * 5.6 + 41.0);
     float knots = pow(smoothstep(0.86, 1.0, knotField) * clouds, 2.0);
     float halo = pow(smoothstep(0.62, 1.0, knotField) * clouds, 1.4) * 0.22;
-    color += mix(uIon, uEmber, step(0.5, temperature)) * (knots * 1.6 + halo) * uIntensity;
+    color += mix(uIon, uEmber, step(0.5, temperature) * uWarmth) * (knots * 1.6 + halo) * uIntensity;
 
     gl_FragColor = vec4(color, 1.0);
 

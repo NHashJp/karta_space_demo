@@ -12,6 +12,7 @@ import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import { daysBetween } from "@/lib/orbitClock";
 import { progress as cometProgress } from "@/lib/cometOrbit";
 import { lightSeed } from "@/lib/sceneLight";
+import { skyFor } from "@/lib/skyAge";
 import { usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import type { Opened } from "@/lib/cometSeal";
 
@@ -53,6 +54,14 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
             dimmed={false}
             seed={lightSeed(comet.slug)}
             returned={returned}
+            /*
+              Aged from the day this comet left, so the sender checking on it
+              sees the same thinning sky the receiver does. It is the one page
+              where the ageing is the point rather than the atmosphere: coming
+              back to it after a season, the gas has opened up and the comet
+              has moved, and those two things are saying the same thing.
+            */
+            sky={skyFor({ comet: { leftOn: comet.leftOn } }, today)}
           />
           <Planet
             seed={lightSeed(comet.slug)}

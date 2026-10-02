@@ -173,9 +173,12 @@ than listing each, here is what each group is *for*:
 | 22 | that looking into the satellite lands where 中をのぞく lands |
 | 23 | the closing line wrapping rather than shrinking to nothing |
 | 24 | both ways of sending going towards the comet |
+| 25 | the sky ageing in one direction, slowly, and never finishing |
+| 26 | that no passing rock can reach the satellite, or the camera |
+| 27 | that the satellite's label never covers the clickable comet |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
 
-Sections 20–24 are all **rev 6**, and they share a shape worth noticing: each
+Sections 20–27 are all **rev 6**, and they share a shape worth noticing: each
 one asserts something that is only visible in motion, by checking the number
 underneath it instead. A fade that leaves parts behind, a trail that wanders
 off, a route that ends in the wrong place, a line too small to read, a rocket
@@ -351,3 +354,77 @@ The check runs at both reference shapes, and asserts four things per shape:
 the reply recedes in z, it ends further from the camera than it started, it
 passes the comet rather than stopping short of it or sailing off, and its
 heading is within 0.9 of the comet's own.
+
+## 25. The sky ages with the letter
+
+The background is made out of how long ago the card was sent, which makes it
+the one part of the scene a reader can compare against their own memory of it.
+Three properties, each a thing someone would actually notice:
+
+| | Checked as |
+|---|---|
+| It only ever ages | every output, day by day over twenty years: gas and warmth never rise, stars never fall |
+| It never finishes | the curve stays strictly under its ceiling at twenty years |
+| It cannot be caught moving | one day's step is at most 0.35% of the whole journey |
+| It is worth doing at all | a season apart moves the gas by more than 0.1 — a negative control against a curve so gentle nobody could see it |
+
+Plus where the date comes from: `writtenAt` beats the comet's `leftOn`, a card
+with no date at all is a fresh sky rather than an error, and a card dated in
+the *future* — a post-dated letter, or a reader whose clock is wrong — reads as
+sent today rather than as a sky running backwards.
+
+## 26. Passing rocks never touch the satellite
+
+The one hard requirement of the asteroid field. A rock through the satellite is
+not a glitch a reader forgives: it is the object the whole card is about, being
+hit.
+
+The clearance is guaranteed by construction rather than by rejection sampling.
+Each path is built *around* its own closest-approach point, placed at an exact
+distance from the satellite in the plane perpendicular to the travel direction,
+so the miss distance is an input and not an outcome. The check's job is to
+confirm that the construction is honest and that the margin is really there, so
+it does four separate things over 16,000 paths from 40 cards:
+
+| | Result |
+|---|---|
+| The stated miss distance is the real one | recomputed independently from the line, agrees to 1e-9 |
+| Nothing comes closer than the floor | 4.5 units |
+| The **real deployed hull** is never touched | 2.1 units clear, after taking off the rock's own radius |
+| Nothing flies between the reader and the satellite | 7.8 units clear of the closest camera, at the widest of five viewports |
+
+Measuring against `satelliteHull()` rather than against the constant is the
+point of the third row: a satellite that grows cannot quietly eat the margin.
+
+The timetable is checked too — a mean gap of 30 s, gaps varied enough not to be
+a metronome, and a pool deep enough to hold every pass that is due. That last
+one earned its keep immediately. Sized against a single card's timetable the
+pool came out at four; swept across sixty, the twenty-ninth wanted six. A pass
+with nowhere to land is silently not drawn, which is exactly the kind of thing
+nobody would ever notice was happening.
+
+## 27. The satellite's label never covers the comet
+
+The label on the satellite is the only route from the hub into the cube, and it
+appears on hover. To be hovered its box has to accept pointer events — and a
+box that accepts pointer events also **swallows clicks inside it**.
+
+The comet is the one thing in the scene that is clickable, and the hub's own
+tip, 「星をタップしてみてください」, is an invitation to tap it. It is drawn along a
+composition path rather than its true orbit, and that path passes close to the
+satellite at some aspect ratios. Sized to the satellite's full tip-to-tip span,
+the label's box and the comet **overlap outright on a tablet**, and clear by
+eleven pixels on a phone.
+
+So the box is capped at `LABEL_SHARE` — half the span, which still covers the
+body and the inner booms, the part anyone actually points at. This check is
+what that cap is for: it sweeps the comet's whole orbit at five viewports and
+asserts it never enters the box, and clears it by at least one 48px touch
+target. The worst case is 90px, on a phone, early in the orbit.
+
+Sweeping the orbit is the point. Where the comet is drawn depends on how far
+round it has got, so a clearance that held on the day the card was sent would
+fail silently months later, on someone else's screen.
+
+With the cap removed the check fails 2 of 2 — the margin is real, not a rule
+that is true whatever the numbers are.

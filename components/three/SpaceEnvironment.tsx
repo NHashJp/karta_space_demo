@@ -9,6 +9,7 @@ import { NebulaBackdrop } from "./NebulaBackdrop";
 import { Starfield } from "./Starfield";
 import { WanderingLights } from "./WanderingLights";
 import { keyLight } from "@/lib/sceneLight";
+import { sky as freshSky, type Sky } from "@/lib/skyAge";
 
 type Props = {
   reducedMotion: boolean;
@@ -24,6 +25,16 @@ type Props = {
    * the motion can be felt is from behind it.
    */
   skyTurning?: boolean;
+  /**
+   * How long ago the letter was sent, resolved to a sky (`lib/skyAge.ts`).
+   *
+   * Everything downstream of this is a *fact about the card*, not a state of
+   * the view, so it is the same on the landing screen as it is in the hub: a
+   * reader who opens a two-year-old card is further from home from the first
+   * frame. Defaulted, so a scene with no card behind it — the comet page —
+   * simply gets the sky as sent.
+   */
+  sky?: Sky;
 };
 
 /**
@@ -36,13 +47,14 @@ export function SpaceEnvironment({
   seed,
   returned = false,
   skyTurning = false,
+  sky = freshSky(0),
 }: Props) {
   return (
     <>
       <color attach="background" args={["#05070c"]} />
 
-      <NebulaBackdrop reducedMotion={reducedMotion} dimmed={dimmed} />
-      <Starfield reducedMotion={reducedMotion} turning={skyTurning} />
+      <NebulaBackdrop reducedMotion={reducedMotion} dimmed={dimmed} sky={sky} />
+      <Starfield reducedMotion={reducedMotion} turning={skyTurning} brightness={sky.stars} />
       <BrightStars reducedMotion={reducedMotion} />
 
       {/* Ambient and a violet fill; the sun itself moves, below. */}

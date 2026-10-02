@@ -42,6 +42,18 @@ export const SIGNATURE_DRAW_MS = 1800;
 export const ORBIT_TIP_MS = 4000;
 
 /**
+ * How long the orbit view waits, with nothing happening, before it points out
+ * the way into the cube (rev 6).
+ *
+ * Long. The hub is somewhere to look at — the sky turns, the trail drifts, the
+ * comet creeps along its path — and a card that starts suggesting things after
+ * five seconds is a card that will not let you look at it. Twenty is about the
+ * point where stillness stops being someone taking it in and starts being
+ * someone who cannot find what to do next.
+ */
+export const ORBIT_IDLE_HINT_MS = 20000;
+
+/**
  * Reduced motion does not mean no feedback: a state still has to change
  * visibly, or a button press reads as broken. It means the change is a
  * crossfade rather than a journey (§18).

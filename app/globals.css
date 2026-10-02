@@ -1218,10 +1218,42 @@ body:has(.sheet-layer) .orbit-ui__reread {
   position: absolute;
   left: var(--sat-x, 47%);
   top: var(--sat-y, 50%);
+  /* The satellite's own area of the screen, so hovering *it* is what reveals
+     the label. `--sat-span` is tip to tip as a fraction of the width, from the
+     same `hubTargets` the camera is solved from; `aspect-ratio` turns that one
+     number into a square, since a percentage height would resolve against the
+     viewport's height instead and the box would stretch with the window. */
+  width: var(--sat-span, 36%);
+  aspect-ratio: 1;
   transform: translate(-50%, -50%);
-  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  /* Invisible means untouchable: it sits over the satellite, and a hidden
+     control that still swallows taps is worse than no control. */
+  pointer-events: none;
   opacity: 0;
-  transition: opacity 400ms ease;
+  transition: opacity 600ms ease;
+}
+
+/*
+ * Three ways it appears: the reader hovers the satellite, tabs to it, or has
+ * gone quiet for twenty seconds.
+ *
+ * The third is the one that matters. Hover is not a gesture a phone has, so
+ * on a phone this was unreachable, and on a desktop it was found only by
+ * someone who already suspected it was there — which is no way to offer the
+ * only route into the cube from out here. Stillness is the signal that
+ * someone has looked at everything obvious.
+ */
+.orbit-ui__reread[data-hinted="true"],
+.orbit-ui__reread:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The hint arrives, rather than appearing: it is an offer, not an alert. */
+.orbit-ui__reread[data-hinted="true"] {
+  transition: opacity 1200ms ease;
 }
 
 /*
@@ -1236,17 +1268,35 @@ body:has(.sheet-layer) .orbit-ui__reread {
   color: var(--starlight);
 }
 
-@media (hover: hover) and (min-width: 721px) {
-  .orbit-ui:hover .orbit-ui__reread,
-  .orbit-ui__reread:focus-within {
-    opacity: 1;
+/*
+ * Hover the satellite and the label is there.
+ *
+ * Only where there is a real pointer. The box has to take pointer events to
+ * be hovered at all, and on a touch screen that is all it would do — swallow
+ * taps over the middle of the scene in exchange for a hover that can never
+ * happen. Nothing in the scene is clickable under it (the comet, which is,
+ * passes top-right and well outside), so on a desktop it costs nothing.
+ *
+ * Hovering *into* the button keeps the box hovered, because the button is
+ * inside it — so the label cannot flicker out from under the cursor on its
+ * way to being pressed.
+ */
+@media (hover: hover) {
+  /*
+   * Guarded rather than out-specified. `body:has(.panel-layer)` hides this
+   * while something is being asked, but that selector is weaker than a
+   * `:hover` and would simply lose — so the hover rule is written not to
+   * match in the first place when a panel or a sheet is up. A sheet is the
+   * reason this cannot just use the component's own `busy`: the comet sheet
+   * is mounted beside the overlay, not inside it, so the overlay does not
+   * know it is there.
+   */
+  body:not(:has(.panel-layer)):not(:has(.sheet-layer)) .orbit-ui__reread {
+    pointer-events: auto;
   }
-}
 
-/* No hover to reveal it on a phone, and the bar already says it. */
-@media (max-width: 720px) {
-  .orbit-ui__reread {
-    display: none;
+  body:not(:has(.panel-layer)):not(:has(.sheet-layer)) .orbit-ui__reread:hover {
+    opacity: 1;
   }
 }
 

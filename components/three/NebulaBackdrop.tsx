@@ -1,18 +1,21 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { nebulaFragmentShader, nebulaVertexShader } from "./shaders/nebula";
+import { sky as freshSky, type Sky } from "@/lib/skyAge";
 
 /** Coloured dust on the inside of a sphere that encloses the whole scene. */
 type Props = {
   reducedMotion: boolean;
   /** Closing screen: the dust recedes so the drawn message stays legible. */
   dimmed: boolean;
+  /** How far from home the letter has got (lib/skyAge.ts). */
+  sky?: Sky;
 };
 
-export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
+export function NebulaBackdrop({ reducedMotion, dimmed, sky = freshSky(0) }: Props) {
   const material = useRef<THREE.ShaderMaterial>(null);
   const shell = useRef<THREE.Mesh>(null);
   const lowDetail = useThree((state) => state.size.width) < 700;
@@ -36,9 +39,28 @@ export function NebulaBackdrop({ reducedMotion, dimmed }: Props) {
       uFilamentCool: { value: new THREE.Color("#4fc3f0") },
       uFilamentWarm: { value: new THREE.Color("#b07fd6") },
       uIntensity: { value: 1.15 },
+      /*
+       * Age. Set from the card's own dates rather than animated, because it is
+       * a fact about the letter and not a state of the view — the sky a reader
+       * opens is simply the sky it is on the day they open it.
+       */
+      uGas: { value: 1 },
+      uWarmth: { value: 1 },
     }),
     [],
   );
+
+  /*
+   * The two body colours cool with age, in `lib/skyAge.ts` rather than here,
+   * so the whole of "what an old card looks like" is decided in one place and
+   * can be read off without a shader.
+   */
+  useEffect(() => {
+    uniforms.uDeep.value.set(sky.deep);
+    uniforms.uNebula.value.set(sky.nebula);
+    uniforms.uGas.value = sky.gas;
+    uniforms.uWarmth.value = sky.warmth;
+  }, [uniforms, sky]);
 
   useFrame(({ clock, camera }, delta) => {
     // The gas is the far distance, so its sphere travels with the camera. The
