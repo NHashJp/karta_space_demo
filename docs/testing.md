@@ -276,6 +276,15 @@ The two failures to look for: a white wedge across the frame (the camera inside
 the ribbon), and hops of wildly different lengths (spacing by curve parameter
 rather than by distance). Both have happened.
 
+**A full trail is worth building once.** The limit is 20 memories, and at the
+limit they sit 2.9 world units apart against a 2.4-unit panel — comfortable,
+but the tightest the card ever gets. Fill a card to 20 in the editor and walk
+the whole thing: no two photographs should ever be in frame edge to edge, the
+hops should still feel even, and the row of progress dots along the top should
+fit without being clipped at either end. The arithmetic is checked
+([verification §28](./verification.md)); what it cannot tell you is whether
+twenty memories still feels like a journey rather than a list.
+
 ### The comet
 
 The comet's **position is the countdown**. Far out and faint for most of the

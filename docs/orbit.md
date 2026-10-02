@@ -72,6 +72,24 @@ one point taking 20–40 seconds to become another colour. It should never be
 *caught* changing. Each card's trail has its own colours and its own bend, both
 seeded from the slug.
 
+### How many memories fit, and why that is a measurement
+
+Twenty (`MEMORY_MAX`), up from the spec's twelve.
+
+The number is not a taste. The curve's length is fixed and memories are spaced
+along it by distance travelled, so each one added brings all of them closer
+together: 5.2 world units apart at twelve, 2.9 at twenty, and 2.4 at
+twenty-four — which is the panel's own width, the point at which two adjacent
+photographs touch edge to edge. Twenty leaves a fifth of a panel of daylight
+between them, which is the least that still reads as separate moments rather
+than as a strip.
+
+A deliberate departure from §5.1's `1–12`, recorded rather than quietly made,
+and the one that makes it safe is [verification §28](./verification.md): the
+gap is measured against the panel at the limit, on the shortest trail the
+seeding can produce and on the tightest-spaced shapes a search can find. Raise
+it again without the trail being able to hold it and the build says so.
+
 ### The trail is staged, not placed
 
 `trailControlPoints` gives a curve that knows nothing about the screen: it

@@ -189,3 +189,35 @@ path segments, and a name from a phone can be anything at all.
 
 Over 350 KB the editor says so and saves anyway. It is their photograph, and
 the cost is a slower trail rather than a broken one.
+
+### Pictures follow the card when its slug changes
+
+A card's media is filed under its slug, and the slug is written into every
+media path — so the slug is not just a name, it is half of every picture's
+address. The slug field only ever rewrote the slug, which meant renaming a
+card, or starting one by copying the sample, left all of its photographs
+pointing at the old card's folder.
+
+The two kinds then failed **differently**, which is why it went unnoticed for
+so long:
+
+| | What happened | Visible? |
+|---|---|---|
+| Cube faces | still loaded — `/public` is served flat, and the file really was at that URL | no |
+| Memory photographs | 404 — they go through `/c/<slug>/media/`, which resolves inside that card's own folder and refuses anything outside it | **only as empty frames** |
+
+So the trail drew its frames with no photographs in them and said nothing,
+because a memory that cannot load must never block the journey (§9.4). The
+only trace was a warning in `npm run verify`'s local-card report.
+
+The media route is right and has not changed — one card's reader must not be
+able to walk into another card's private pictures. What was wrong is that a
+rename did not carry the pictures with it, and now a save does: it repoints
+every stray path at this card's own folder and copies the files across. It
+**copies, never moves**, because the card it came from may still be using them
+— which is exactly the case when someone starts a new card from the sample.
+
+It heals a card that is already broken as well as one being renamed now, which
+matters because nobody knows to go looking for a failure this quiet. The save
+hands back what it actually wrote, so the Memories tab shows the new paths
+rather than the ones it sent.

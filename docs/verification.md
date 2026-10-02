@@ -176,9 +176,11 @@ than listing each, here is what each group is *for*:
 | 25 | the sky ageing in one direction, slowly, and never finishing |
 | 26 | that no passing rock can reach the satellite, or the camera |
 | 27 | that the satellite's label never covers the clickable comet |
+| 28 | that a full trail still has room between its photographs |
+| 29 | that a card's pictures follow it when its slug changes |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
 
-Sections 20–27 are all **rev 6**, and they share a shape worth noticing: each
+Sections 20–28 are all **rev 6**, and they share a shape worth noticing: each
 one asserts something that is only visible in motion, by checking the number
 underneath it instead. A fade that leaves parts behind, a trail that wanders
 off, a route that ends in the wrong place, a line too small to read, a rocket
@@ -428,3 +430,71 @@ fail silently months later, on someone else's screen.
 
 With the cap removed the check fails 2 of 2 — the margin is real, not a rule
 that is true whatever the numbers are.
+
+## 28. A full trail still has room on it
+
+The trail's length is fixed — z = −4 to z = −70, whatever is on it — and
+memories are spaced along it by distance travelled. So every memory added
+brings all of them closer together, and `MEMORY_MAX` is not a preference but
+a measurement: the count at which two adjacent photographs would touch.
+
+| memories | gap | against the 2.4u panel |
+|---|---|---|
+| 12 | 5.17u | 2.15× — the old limit |
+| 20 | 2.87u | **1.20× — the limit now** |
+| 22 | 2.60u | 1.08× |
+| 24 | 2.38u | 0.99× — they touch |
+
+Two different claims, and only one of them can be proved:
+
+**The shortest trail is known, not hunted.** Every card's trail is a different
+shape, seeded from its slug, and the shortest is the one memories sit closest
+on. `straightestTrail` is the curve with no wander at all; wander only ever
+adds length, so no seed can beat it. The check confirms that against 800 real
+seeds, so the bound and the generator cannot drift apart unnoticed.
+
+**The tightest single gap has to be searched for.** This is the part that
+caught me out. It is *not* the same question as the shortest trail: spacing is
+even only to within a few per cent, so a longer trail with worse evenness can
+pinch tighter than the shortest one does. Worse, the answer depends on which
+slugs you try — two populations of a few thousand reported 1.19 and 1.24 panel
+widths, and a first attempt using 24 arbitrary seeds missed the tight cases
+altogether and reported a gap 4% wider than the real one. The floor is set at
+1.15, below both populations and far enough above 1.0 to fail long before
+anything overlaps.
+
+It also checks the progress dots, which are one row, centred, and do not wrap:
+20 of them is 232px against the 288px a 320px screen leaves. An overflowing
+row is clipped at both ends, so the reader silently loses the dots telling
+them where they are.
+
+Raising the limit without the trail being able to hold it fails the build:
+22 fails on daylight, 24 on overlap, 28 on the dots as well.
+
+## 29. A card's pictures follow it when the slug changes
+
+A card's media is filed under its slug, and the slug is written into every
+media path. So renaming a card — or starting one by copying the sample, which
+is how most real cards begin — left every photograph pointing at the old
+card's folder.
+
+The two kinds failed differently, and that is the whole reason this survived
+so long: a **cube face** still loaded, because `/public` is served flat and
+the file really was at that URL, while a **memory photograph** 404'd, because
+it goes through `/c/<slug>/media/` and that route resolves inside the card's
+own folder. The trail drew empty frames and reported nothing, by design —
+a memory that cannot load must never block the journey.
+
+The route is not the bug and has not changed; one card's reader must not be
+able to reach another card's private pictures. The check is on the rename
+carrying the files with it:
+
+- every stray path is repointed into this card's folder, faces and memories
+- nothing is left naming the old card
+- filenames survive — this moves pictures between folders, it does not rename
+- it is idempotent: a card already in order comes back untouched, by identity
+
+And the regression itself, rebuilt through the real `toClientCard`: the broken
+shape is the URL `/c/<slug>/media/private/cards/<other>/memory-01.png`, which
+the media route resolves under `private/cards/<slug>/` and cannot find. The
+check asserts that shape existed before and is gone after.

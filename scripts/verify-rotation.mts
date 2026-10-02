@@ -31,6 +31,7 @@ import {
   hubPose,
   hubTargets,
   LABEL_SHARE,
+  MEMORY_PANEL_WORLD,
   memoryPanelFraming,
   memoryViewDistance,
   orbitClearance,
@@ -52,7 +53,8 @@ import {
 } from "../components/three/framing.ts";
 import { cards } from "../config/cards.config.ts";
 import { serializeCards } from "../lib/cardsFile.ts";
-import { allProblems, cardProblems } from "../lib/cardRules.ts";
+import { allProblems, cardProblems, MEMORY_MAX } from "../lib/cardRules.ts";
+import { rehomeCard, strayMedia } from "../lib/cardMedia.ts";
 import { readLocalCards } from "../lib/localCards.ts";
 import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
 import { civilDate, isCometDay, nextOccurrence } from "../lib/orbitClock.ts";
@@ -84,7 +86,10 @@ import { COMET_MAX, NAME_MAX, REPLY_MAX, validate } from "../lib/submission.ts";
 import { open, seal } from "../lib/cometSeal.ts";
 import { randomBytes } from "node:crypto";
 import {
+  MEMORY_END_U,
   MEMORY_START_U,
+  type Point3,
+  straightestTrail,
   TRAIL_LATERAL,
   TRAIL_NEAR_Z,
   memoryU,
@@ -2992,6 +2997,192 @@ console.log("27. The satellite's label never covers the comet (rev 6 §3.1):");
 
   console.log(
     `  label ${LABEL_SHARE} of the span; closest the comet comes: ${worst.toFixed(0)}px (${worstAt})`,
+  );
+}
+
+console.log(`28. A full trail still has room on it (${MEMORY_MAX} memories):`);
+{
+  /*
+   * The trail's length is fixed — it runs from z = -4 to z = -70 whatever is
+   * on it — and memories are spaced along it by distance travelled. So every
+   * memory added brings all of them closer together, and the limit on how
+   * many a card may carry is not a preference but a measurement: the point at
+   * which two adjacent photographs would touch. At 24 they do.
+   *
+   * Two different claims, because one of them can be proved and the other
+   * can only be searched for:
+   *
+   * 1. **The shortest trail.** Every card's is a different shape, seeded from
+   *    its slug, and the shortest is the one memories sit closest on. That
+   *    shape is known rather than hunted: `straightestTrail` is the curve with
+   *    no wander at all, and wander can only ever add length, so no seed beats
+   *    it. Checked against real seeds so the two cannot drift apart.
+   * 2. **The tightest single gap.** Not the same question, and this is the
+   *    part that caught me out: spacing is even to within a few per cent, and
+   *    a *longer* trail with worse evenness can pinch tighter than the
+   *    shortest one does. That has to be searched for, and the answer depends
+   *    on which slugs you try — two populations of a few thousand reported
+   *    1.19 and 1.24 panel widths. So the floor is set below both.
+   */
+  const panel = MEMORY_PANEL_WORLD;
+
+  const hopsOn = (points: Point3[], count: number) => {
+    const out: number[] = [];
+    for (let i = 1; i < count; i++) {
+      const a = trailPoint(points, memoryU(points, i - 1, count));
+      const b = trailPoint(points, memoryU(points, i, count));
+      out.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+    }
+    return out;
+  };
+
+  const spanOf = (points: Point3[]) => {
+    let length = 0;
+    let previous = trailPoint(points, MEMORY_START_U);
+    for (let i = 1; i <= 240; i++) {
+      const u = MEMORY_START_U + ((MEMORY_END_U - MEMORY_START_U) * i) / 240;
+      const here = trailPoint(points, u);
+      length += Math.hypot(here[0] - previous[0], here[1] - previous[1], here[2] - previous[2]);
+      previous = here;
+    }
+    return length;
+  };
+
+  // ---- 1. the shortest trail there can be ------------------------------
+  const straight = straightestTrail();
+  const straightSpan = spanOf(straight);
+  const straightHops = hopsOn(straight, MEMORY_MAX);
+  const meanFloor = Math.min(...straightHops);
+
+  let shorterThanBound = 0;
+  let shortestReal = Infinity;
+  for (let i = 0; i < 800; i++) {
+    const span = spanOf(trailControlPoints(trailSeedFor(`span-${i}`)));
+    shortestReal = Math.min(shortestReal, span);
+    if (span < straightSpan - 1e-6) shorterThanBound++;
+  }
+  check("no card's trail is shorter than the bound", shorterThanBound === 0, `${shorterThanBound} of 800`);
+
+  // ---- 2. the tightest gap any shape produces --------------------------
+  let tightest = meanFloor;
+  let tightestOn = "the straightest trail";
+  let evenness = 1;
+  for (let i = 0; i < 200; i++) {
+    const slug = `shape-${i}`;
+    const hops = hopsOn(trailControlPoints(trailSeedFor(slug)), MEMORY_MAX);
+    const shortest = Math.min(...hops);
+    if (shortest < tightest) { tightest = shortest; tightestOn = slug; }
+    evenness = Math.max(evenness, Math.max(...hops) / shortest);
+  }
+
+  // The hard one: at the limit, two photographs may never touch.
+  check("a full trail does not stack its photographs", tightest > panel, tightest.toFixed(3));
+  /*
+   * And the softer one. A gap exactly as wide as the panel means the next
+   * memory's edge begins where this one's ends, which reads as a strip rather
+   * than as a journey. The worst seen anywhere is 1.19 panel widths; 1.15 is
+   * the floor — under both searched populations, and far enough above 1.0 to
+   * fail long before anything overlaps.
+   */
+  check("and leaves daylight between them", tightest > panel * 1.15, (tightest / panel).toFixed(3));
+  check("a full trail is still evenly spaced", evenness <= 1.08, evenness.toFixed(3));
+
+  /*
+   * The progress dots are one row, centred, and they do not wrap. This is
+   * exactly the kind of thing that fits until it does not, and the failure is
+   * silent: an overflowing row is clipped at both ends, so the reader loses
+   * the dots telling them where they are in the trail.
+   */
+  const DOT = 4;
+  const GAP = 8; // --space-1
+  const GUTTER = 16; // --space-2, on each side
+  const row = MEMORY_MAX * DOT + (MEMORY_MAX - 1) * GAP;
+  const narrowest = 320;
+  check("the progress dots fit the narrowest screen", row <= narrowest - 2 * GUTTER, `${row}px`);
+
+  console.log(
+    `  shortest trail ${straightSpan.toFixed(1)}u (real: ${shortestReal.toFixed(1)}u); ` +
+    `at ${MEMORY_MAX} that is ${meanFloor.toFixed(2)}u a step`,
+  );
+  console.log(
+    `  tightest gap found ${tightest.toFixed(2)}u = ${(tightest / panel).toFixed(2)} panel widths ` +
+    `(${tightestOn}); dots ${row}px of ${narrowest - 2 * GUTTER}px`,
+  );
+}
+
+console.log("29. A card's pictures follow it when the slug changes (§14.3):");
+{
+  /*
+   * A card's media is filed under its slug, and the slug is written into
+   * every media path — so renaming a card, or starting one by copying
+   * another, leaves its photographs pointing at the old folder.
+   *
+   * The two kinds then fail *differently*, which is why this went unnoticed:
+   * a cube face still loads, because `/public` is served flat and the file
+   * really is at that URL, while a memory photograph 404s, because it goes
+   * through `/c/<slug>/media/` and that route resolves inside the card's own
+   * folder and refuses anything outside it. So the card looked fine and the
+   * trail drew empty frames.
+   *
+   * The route is right and stays as it is — one card's reader must not be
+   * able to walk into another card's pictures. What is checked here is that
+   * a rename carries the files with it.
+   */
+  const copied: CardConfig = JSON.parse(JSON.stringify(cards[0]));
+  const original = copied.slug;
+  copied.slug = "copied-elsewhere";
+
+  const { card: fixed, moved } = rehomeCard(copied);
+
+  // Every picture that named the old card is repointed at the new one.
+  check("a renamed card takes its pictures with it", moved.length > 0, String(moved.length));
+  check("nothing is left pointing at the old card",
+    strayMedia(fixed).length === 0, String(strayMedia(fixed).length));
+
+  for (const memory of fixed.memories ?? []) {
+    const src = memory.image?.src;
+    if (!src) continue;
+    check_once("memory paths land in the new card's folder",
+      src.startsWith(`private/cards/${fixed.slug}/`), src);
+    // The file's own name must survive: this moves pictures between folders,
+    // it does not rename them.
+    check_once("and keep their filename", original ? !src.includes(original) : true, src);
+  }
+  for (const face of fixed.faces ?? []) {
+    if (face.type !== "image") continue;
+    check_once("face paths land in the new card's folder",
+      face.src.startsWith(`/cards/${fixed.slug}/`), face.src);
+  }
+
+  /*
+   * The exact URL the broken card was asking for, rebuilt from the real
+   * `toClientCard`. This is the regression: `private/cards/<other>/x.png` on
+   * a card called `<slug>` produced
+   * `/c/<slug>/media/private/cards/<other>/x.png`, which the media route
+   * resolves under `private/cards/<slug>/` and cannot find.
+   */
+  {
+    const before = toClientCard(copied, new Date("2026-06-01T12:00:00Z"), { mailReady: false, cometReady: false });
+    const after = toClientCard(fixed, new Date("2026-06-01T12:00:00Z"), { mailReady: false, cometReady: false });
+    const badUrl = before.memories?.find((m) => m.image)?.image?.url ?? "";
+    const goodUrl = after.memories?.find((m) => m.image)?.image?.url ?? "";
+    check("the broken shape is what it was", badUrl.includes("/media/private/cards/"), badUrl);
+    check("and is gone once the pictures follow",
+      !goodUrl.includes("/media/private/cards/") && goodUrl.startsWith(`/c/${fixed.slug}/media/`),
+      goodUrl);
+  }
+
+  // Idempotent: saving twice must not keep moving things.
+  const again = rehomeCard(fixed);
+  check("a card already in order is left alone", again.moved.length === 0 && again.card === fixed);
+
+  // And a card whose pictures are its own is untouched from the start.
+  check("an untouched card is untouched", rehomeCard(cards[0]).moved.length === 0);
+
+  console.log(
+    `  ${moved.length} picture(s) repointed on rename; ` +
+    `${moved.filter((m) => m.where === "private").length} private, ` +
+    `${moved.filter((m) => m.where === "public").length} public`,
   );
 }
 

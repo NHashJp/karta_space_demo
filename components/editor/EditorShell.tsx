@@ -80,12 +80,27 @@ export function EditorShell({
     const payload = (await response.json().catch(() => ({}))) as {
       cards?: number;
       problems?: string[];
+      /** Present only when a save had to repoint pictures at this card. */
+      healed?: CardConfig[];
+      carried?: number;
+      moved?: number;
     };
     setSaving(false);
 
     if (response.ok) {
+      /*
+       * A save carries a card's pictures with it when the slug has moved on
+       * without them, and hands back what it actually wrote. Adopting it
+       * matters: otherwise the Memories tab goes on showing the old path and
+       * it looks as though nothing was fixed.
+       */
+      if (payload.healed) setCards(payload.healed);
       setDirty(false);
-      setStatus(`Saved ${payload.cards} card(s)`);
+      setStatus(
+        payload.moved
+          ? `Saved ${payload.cards} card(s) · ${payload.carried} picture(s) moved to this card`
+          : `Saved ${payload.cards} card(s)`,
+      );
       setReloadKey((key) => key + 1);
       router.refresh();
       return;

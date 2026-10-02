@@ -7,7 +7,13 @@
  * that cannot be turned off in one tap is sound that should not have been
  * started, and a card is something you might open on a train.
  */
-export function SoundToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+export function SoundToggle({
+  on,
+  onToggle,
+}: {
+  on: boolean;
+  onToggle: () => void;
+}) {
   return (
     <button
       className="sound-toggle"
@@ -52,7 +58,7 @@ export function SoundToggle({ on, onToggle }: { on: boolean; onToggle: () => voi
           />
         )}
       </svg>
-      <span className="sound-toggle__label">音</span>
+      <span className="sound-toggle__label"></span>
     </button>
   );
 }

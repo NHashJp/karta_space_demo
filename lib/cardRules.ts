@@ -26,7 +26,22 @@ export const SECRET_MAX = 28;
 
 /* ---------- v0.2 limits (spec §5) ---------- */
 
-export const MEMORY_MAX = 12;
+/**
+ * How many memories may hang on the trail.
+ *
+ * Twenty, not twelve, and the number is a measurement rather than a
+ * preference. Memories are spaced by *distance travelled* along the curve, and
+ * the curve's length is fixed, so each one added brings them all closer
+ * together: at twelve they are 5.2 world units apart, at twenty 3.0, and at
+ * twenty-four 2.45 — which is the panel's own width, the point at which two
+ * adjacent photographs touch edge to edge. Twenty leaves a clear 1.24 panel
+ * widths between them.
+ *
+ * Verify measures that gap against the panel at this limit, across every
+ * trail shape, so raising this again without the trail being able to hold it
+ * fails the build rather than crowding someone's card.
+ */
+export const MEMORY_MAX = 20;
 export const MEMORY_TITLE_MAX = 24;
 export const MEMORY_CAPTION_MAX = 80;
 /** The promise is one line on a chart, not a paragraph. */

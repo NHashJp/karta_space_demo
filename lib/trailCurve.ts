@@ -37,6 +37,36 @@ export function trailSeedFor(slug: string): number {
  * lateral wander that grows with distance so the near end stays a clean line
  * out of the satellite and the far end is free to drift.
  */
+/**
+ * The shortest trail the seeding can produce.
+ *
+ * Every card's trail is a different shape, and they are not all the same
+ * length — which matters, because memories are spaced along the curve by
+ * distance travelled, so the shortest trail is the one on which a full card's
+ * memories sit closest together. That trail is the bound on how many a card
+ * may carry (`MEMORY_MAX`).
+ *
+ * It is this one: every lateral draw at its midpoint, so the curve does not
+ * wander at all. Wander can only ever add length — it displaces the
+ * intermediate points off the line and pushes the far endpoint further out —
+ * so no seed can produce anything shorter. That makes the limit provable
+ * rather than sampled, which matters: searching thousands of slugs found
+ * different "worst cases" depending on how the slugs were named, and every
+ * one of them was looser than this.
+ *
+ * Mirrors `trailControlPoints` below with `seededUnit` replaced by 0.5.
+ * Verify checks it really is shorter than any real seed's, so the two cannot
+ * drift apart unnoticed.
+ */
+export function straightestTrail(): Point3[] {
+  const points: Point3[] = [];
+  for (let i = 0; i < TRAIL_POINTS; i++) {
+    const t = i / (TRAIL_POINTS - 1);
+    points.push([0, 1.1 * t, TRAIL_NEAR_Z + (TRAIL_FAR_Z - TRAIL_NEAR_Z) * t * t]);
+  }
+  return points;
+}
+
 export function trailControlPoints(seed: number): Point3[] {
   const points: Point3[] = [];
   for (let i = 0; i < TRAIL_POINTS; i++) {

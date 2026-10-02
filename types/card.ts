@@ -139,7 +139,7 @@ export type CardConfig = {
   signature?: string;
   /** Default true; false removes sound entirely for this card. */
   sound?: boolean;
-  /** 1-12, shown newest first however they are ordered here. */
+  /** 1-20 (`MEMORY_MAX`), shown newest first however they are ordered here. */
   memories?: Memory[];
   /** Replaces the revision-4 `satellite` and `comet` fields (§5.1). */
   comet?: PromiseComet;
