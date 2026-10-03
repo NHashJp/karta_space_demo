@@ -7,6 +7,7 @@ import { orbitRotation } from "@/lib/cometOrbit";
 import { trailSeedFor } from "@/lib/trailCurve";
 import { Canvas } from "@react-three/fiber";
 import { Asteroids } from "./Asteroids";
+import { ShootingStars } from "./ShootingStars";
 import { SpeedStreaks } from "./SpeedStreaks";
 import type { CardFace } from "@/types/card";
 import type { CameraPhase } from "@/lib/experienceState";
@@ -23,6 +24,7 @@ import { RocketLaunch } from "./RocketLaunch";
 import { Trail } from "./Trail";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { asteroidSeed } from "@/lib/asteroids";
+import { shootingStarSeed } from "@/lib/shootingStars";
 import type { Sky } from "@/lib/skyAge";
 import { FOV } from "./framing";
 
@@ -239,6 +241,30 @@ export function CubeScene({
       */}
       {cameraPhase === "orbit" ? (
         <Asteroids seed={asteroidSeed(slug)} reducedMotion={cube.reducedMotion} />
+      ) : null}
+
+      {/*
+        Shooting stars, wherever the sky is the thing being looked at.
+        Broader than the asteroids, which are objects passing the satellite
+        and only belong in the hub: these are far-off sky, so they suit the
+        landing screen and the trail as well.
+
+        Not over a letter, though — `near` is a face being read and `inside`
+        is the line written in the cube, and a streak across either is a
+        sentence nobody finishes. Not on the closing screen either, which is
+        what `dimmed` excludes: the farewell is drawn stroke by stroke there,
+        and that is the one moment the sky should hold completely still.
+
+        On a returned day the field waits, so the meteor shower — five slow
+        warm streaks, once, and the whole point of the day — is not muddled
+        by an ordinary one crossing it.
+      */}
+      {cameraPhase !== "near" && cameraPhase !== "inside" && !dimmed ? (
+        <ShootingStars
+          seed={shootingStarSeed(slug)}
+          reducedMotion={cube.reducedMotion}
+          showering={Boolean(deployed && returned)}
+        />
       ) : null}
 
       {/*
