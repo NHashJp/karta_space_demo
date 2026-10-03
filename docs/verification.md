@@ -178,6 +178,7 @@ than listing each, here is what each group is *for*:
 | 27 | that the satellite's label never covers the clickable comet |
 | 28 | that a full trail still has room between its photographs |
 | 29 | that a card's pictures follow it when its slug changes |
+| 30 | that every shooting star actually crosses the frame |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
 
 Sections 20–28 are all **rev 6**, and they share a shape worth noticing: each
@@ -498,3 +499,27 @@ And the regression itself, rebuilt through the real `toClientCard`: the broken
 shape is the URL `/c/<slug>/media/private/cards/<other>/memory-01.png`, which
 the media route resolves under `private/cards/<slug>/` and cannot find. The
 check asserts that shape existed before and is gone after.
+
+## 30. Shooting stars cross the frame, on every screen
+
+A shooting star is a thing you see, so the only property that really matters
+is that it is seen. Their paths are in half-height units rather than world
+coordinates precisely so that this is checkable: 7,200 paths, across six
+screen shapes from a 0.46 phone to a 2.37 ultrawide, and every one of them
+crosses the visible frame.
+
+Also checked:
+
+- **None of them begins on frame.** One that blinks into existence inside the
+  picture reads as a glitch rather than as something passing through.
+- **They are over in about a second** — 0.9 to 1.7 s.
+- **A star begins and ends invisible**, and is brightest in flight. Not
+  bit-exact zero: the fall-off divides 0.45 by 0.45 and lands a floating-point
+  hair under one, leaving 1e-32 of alpha. The assertion is "invisible", which
+  is the honest claim.
+- **The gaps are Poisson, not a metronome** — mean 14 s, and never all equal.
+- **The quiet outlasts the meteor shower.** The shower's own duration is read
+  out of `MeteorShower.tsx` rather than copied, so lengthening the shower past
+  the hold fails the build instead of quietly letting an ordinary streak cross
+  the one day that was supposed to be special. With the hold cut to 3 s the
+  check fails, so the margin is real.

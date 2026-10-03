@@ -234,6 +234,7 @@ felt. On a phone in portrait:
 | The planet | rotating, lit from one side, never covering the satellite |
 | Rotate the device | the composition re-solves; nothing falls off the edge |
 | Rocks | one drifts past every half-minute or so, well behind the satellite, tumbling slowly. Never in front of it, never near it |
+| Shooting stars | one every ~14 s, crossing the upper sky in about a second: bright head, tail tapering to nothing. Also on the landing screen and the trail — but never over a face, never inside the cube, never on the closing screen |
 | Hover the satellite | `中をのぞく` fades in on it. Moving onto the button keeps it there; moving away hides it |
 | Tap the comet | still works. The label's box is near it, and must never take the tap |
 

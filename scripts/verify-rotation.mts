@@ -55,6 +55,22 @@ import { cards } from "../config/cards.config.ts";
 import { serializeCards } from "../lib/cardsFile.ts";
 import { allProblems, cardProblems, MEMORY_MAX } from "../lib/cardRules.ts";
 import { rehomeCard, strayMedia } from "../lib/cardMedia.ts";
+import {
+  MEAN_GAP_S,
+  POOL as STAR_POOL,
+  QUIET_AFTER_S,
+  brightness,
+  crossesFrame,
+  shootingStar,
+  shootingStarSeed,
+  shootingStars,
+} from "../lib/shootingStars.ts";
+/** The meteor shower's own length, read from the component that plays it. */
+const SHOWER_S = Number(
+  /const DURATION_S = ([\d.]+)/.exec(
+    readFileSync("components/three/MeteorShower.tsx", "utf8"),
+  )?.[1],
+);
 import { readLocalCards } from "../lib/localCards.ts";
 import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
 import { civilDate, isCometDay, nextOccurrence } from "../lib/orbitClock.ts";
@@ -3183,6 +3199,114 @@ console.log("29. A card's pictures follow it when the slug changes (§14.3):");
     `  ${moved.length} picture(s) repointed on rename; ` +
     `${moved.filter((m) => m.where === "private").length} private, ` +
     `${moved.filter((m) => m.where === "public").length} public`,
+  );
+}
+
+console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
+{
+  /*
+   * A shooting star is a thing you *see*, so the only property that really
+   * matters is that it crosses the visible frame — and the frame is a very
+   * different shape on a phone than on an ultrawide. That is why the paths
+   * are expressed in half-height units rather than world coordinates: a path
+   * tuned on a laptop, placed in world space, misses a portrait screen
+   * entirely, because the visible width at that distance is a third as wide.
+   *
+   * So the check is the thing the design exists for: every star, at every
+   * shape of screen, is actually seen.
+   */
+  const shapes: [string, number][] = [
+    ["phone", 390 / 844],
+    ["tablet", 820 / 1180],
+    ["laptop", 1440 / 900],
+    ["desktop", 1920 / 1080],
+    ["ultrawide", 2560 / 1080],
+    ["square", 1],
+  ];
+
+  let missed = 0;
+  let tested = 0;
+  let startedOnFrame = 0;
+  let shortest = Infinity;
+  let longest = 0;
+
+  for (const [, aspect] of shapes) {
+    for (let card = 0; card < 20; card++) {
+      const seed = shootingStarSeed(`sky-${card}`);
+      for (let index = 0; index < 60; index++) {
+        const star = shootingStar(seed, index, aspect);
+        tested++;
+        if (!crossesFrame(star, aspect)) missed++;
+        // It must arrive from outside: one that blinks into existence inside
+        // the frame reads as a glitch rather than as something passing.
+        if (Math.abs(star.from[0]) <= aspect && Math.abs(star.from[1]) <= 1) startedOnFrame++;
+        shortest = Math.min(shortest, star.duration);
+        longest = Math.max(longest, star.duration);
+      }
+    }
+  }
+
+  check("every shooting star crosses the frame", missed === 0, `${missed} of ${tested}`);
+  check("and none of them begins on it", startedOnFrame === 0, String(startedOnFrame));
+  check("they are over in about a second", shortest >= 0.8 && longest <= 2,
+    `${shortest.toFixed(2)}-${longest.toFixed(2)}s`);
+
+  /*
+   * Brightness: in fast, out slow, and nothing at either end. A streak that
+   * is still lit when it stops is a line being switched off.
+   */
+  // Invisible, not bit-exact zero: the fall-off divides 0.45 by 0.45 and
+  // lands a floating-point hair under 1, which leaves 1e-32 of alpha.
+  check("a star begins and ends invisible",
+    brightness(0) < 1e-6 && brightness(1) < 1e-6,
+    `${brightness(0).toExponential(1)} / ${brightness(1).toExponential(1)}`);
+  check("and is brightest in flight", brightness(0.3) > 0.9, brightness(0.3).toFixed(2));
+
+  /*
+   * The timetable, and the one thing that must not happen: the returned
+   * day's meteor shower is five slow streaks shown **once**, and it stops
+   * meaning anything if an ordinary shooting star crosses it. The field is
+   * held quiet while the shower plays, so nothing can start before it ends.
+   */
+  const schedule = shootingStars(shootingStarSeed("timetable"), 3000, 1.8);
+  const gaps = schedule.slice(1).map((star, i) => star.startAt - schedule[i].startAt);
+  const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  check("about one every fourteen seconds", Math.abs(mean - MEAN_GAP_S) < 2, mean.toFixed(2));
+  check("the gaps are not a metronome",
+    Math.max(...gaps) - Math.min(...gaps) > MEAN_GAP_S, (Math.max(...gaps) - Math.min(...gaps)).toFixed(1));
+
+  /*
+   * The hold is applied by the component from the moment it sees the shower,
+   * not baked into the timetable — an earlier version offset the schedule
+   * instead, which reads the same in a test and protects nothing, because
+   * the shower plays when the satellite reaches orbit and that can be
+   * minutes after the card was opened. What can be checked here is the one
+   * number that matters: the hold outlasts the shower.
+   */
+  check("the quiet outlasts the meteor shower", QUIET_AFTER_S > SHOWER_S,
+    `${QUIET_AFTER_S}s vs ${SHOWER_S}s`);
+
+  let peak = 0;
+  const events = schedule
+    .flatMap((star) => [
+      { at: star.startAt, delta: 1 },
+      { at: star.startAt + star.duration, delta: -1 },
+    ])
+    .sort((a, b) => a.at - b.at || a.delta - b.delta);
+  let live = 0;
+  for (const event of events) {
+    live += event.delta;
+    peak = Math.max(peak, live);
+  }
+  check("the pool holds every star that is due", peak <= STAR_POOL, `${peak} at once`);
+
+  console.log(
+    `  ${tested} paths across ${shapes.length} screen shapes, all of them seen; ` +
+    `${shortest.toFixed(1)}-${longest.toFixed(1)}s each`,
+  );
+  console.log(
+    `  gaps mean ${mean.toFixed(0)}s, ${peak} at once (pool ${STAR_POOL}); ` +
+    `sky holds ${QUIET_AFTER_S}s for the ${SHOWER_S}s shower`,
   );
 }
 

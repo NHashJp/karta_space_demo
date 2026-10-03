@@ -162,6 +162,76 @@ a disc. Additive blending, no depth write.
 
 Generation is seeded, so the sky is identical on every load.
 
+## Shooting stars
+
+The classic thing: a bright head with a tail tapering behind it, crossing a
+corner of the frame in about a second, every fourteen seconds or so. It asks
+for nothing and means nothing, and that is the point — the hub is otherwise
+full of objects that *mean* something (the comet is a countdown, the trail is
+a memory, the satellite is the letter), and a sky made only of meaningful
+objects stops reading as a sky.
+
+### It must not become the meteor shower
+
+`MeteorShower` already exists and is a different thing: five slow warm streaks,
+**once**, on the day something comes back. Its own note says why — "once is
+the whole design; a shower that repeated would become weather, and the day
+would stop being a day." Ambient shooting stars would take that away by making
+the rare thing ordinary, so they are kept apart deliberately:
+
+| | Shooting star | Meteor shower |
+|---|---|---|
+| when | every ~14 s, always | once, on the day |
+| how many | one | five together |
+| speed | fast, ~1.2 s | slow, 4.2 s |
+| colour | white, faintly cool | warm `#ffe9c9` |
+
+and the sky **holds still for five seconds** while the shower plays, so an
+ordinary one never crosses it.
+
+That hold was wrong the first time and is worth recording. It was built as an
+offset on the *timetable* — hold the first star back by five seconds — which
+reads correctly and protects nothing, because the shower plays when the
+satellite reaches orbit and that can be minutes after the card was opened. By
+then the delay is long over. It is now measured from the moment the component
+sees the shower, which is the moment that actually matters.
+
+### The path is in frame units, not world units
+
+A shooting star is a thing you *see*, not a thing that is somewhere. What
+matters is that it crosses the frame — and the frame is a very different shape
+on a phone than on an ultrawide. In world coordinates, a path tuned on a
+laptop misses a portrait screen altogether, because the visible width at that
+distance is a third as wide.
+
+So a path is defined in **half-heights**: y of ±1 is the top and bottom of the
+frame, x of ±`aspect` the sides. Angles are true in those units, so a 30°
+diagonal is a 30° diagonal everywhere, and the component converts to world
+space through the camera's own frustum at the star's depth. It also makes
+"does it actually cross the frame" something `npm run verify` can answer for
+7,200 paths across six screen shapes, rather than something you find out on
+someone else's phone.
+
+They enter from off-frame — through the top, mostly, or the upper part of a
+side — and are aimed back across the middle rather than straight out of the
+nearest edge. The lower third is left alone: that is where the planet rises
+and every control sits.
+
+### One quad, and why that is enough
+
+Everything happens in **camera space**. The star is positioned relative to the
+camera and travels in the camera's own x–y plane, which buys two things at
+once: it keeps its place in the frame as the camera drifts, the way something
+forty units away should, and a plane lying in that same x–y plane is already
+facing the lens. No billboarding, no per-frame `lookAt` — just a roll about
+the view axis to point it along the flight.
+
+The shader does the rest. The gaussian across the streak is scaled by how far
+along it you are, so the tail narrows to nothing instead of ending in a blunt
+edge; a high power of the lengthwise coordinate keeps the white core to the
+last few per cent; and the alpha sums a broad term and a sharp one, which is
+what gives the little flare at the head that the eye reads as speed.
+
 ## Wandering lights
 
 Three, which is a deliberate ceiling — more became distracting rather than
