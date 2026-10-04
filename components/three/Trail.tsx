@@ -39,6 +39,13 @@ const WIDTH_FAR = 0.03;
  */
 const NEAR_FADE = 2.6;
 
+/**
+ * How fast the sway eases in and out, as a damping rate. About a second to
+ * settle — slower than the camera's move back, so the ribbon is still
+ * relaxing as the hub arrives rather than finishing with a flourish.
+ */
+const SWAY_RAMP = 2.4;
+
 type Props = {
   /** The card's curve seed. The ribbon stages the curve itself (§4.5). */
   curveSeed: number;
@@ -71,6 +78,17 @@ export function Trail({
   const glints = useRef<THREE.Points>(null);
   /** True while the trail is drifting, so the last frame can be put back. */
   const swaying = useRef(false);
+  /**
+   * How much of the sway is currently applied.
+   *
+   * Ramped, not switched. `sway` is a prop that goes 0 → 1 the instant the
+   * camera phase leaves the trail — which is the instant the reader asks to
+   * go back, while the camera is still down on the curve. Applying it
+   * directly snapped the whole ribbon into its wandering shape in one frame,
+   * right in front of them. It eases in over about a second instead, under
+   * the camera's own move back to the hub.
+   */
+  const drifting = useRef(sway);
   const points = useStagedTrail(curveSeed);
 
   const geometry = useMemo(() => buildRibbon(points), [points]);
@@ -118,7 +136,7 @@ export function Trail({
     [intensity],
   );
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime;
 
     if (material.current) {
@@ -148,7 +166,12 @@ export function Trail({
      * drift is an offset from the card's own curve and cannot accumulate into
      * a trail that has quietly left the scene.
      */
-    const drift = reducedMotion ? 0 : sway;
+    const target = reducedMotion ? 0 : sway;
+    drifting.current = THREE.MathUtils.damp(drifting.current, target, SWAY_RAMP, delta);
+    // Land exactly on still, or the ribbon never stops being rewritten.
+    if (target === 0 && drifting.current < 0.002) drifting.current = 0;
+    const drift = drifting.current;
+
     if (drift > 0 || swaying.current) {
       swaying.current = drift > 0;
 

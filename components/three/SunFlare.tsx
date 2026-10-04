@@ -129,15 +129,25 @@ const flareFragment = /* glsl */ `
   }
 `;
 
-type Props = { reducedMotion: boolean };
+type Props = {
+  reducedMotion: boolean;
+  /**
+   * In the hub, where the sun is staged (§3). Faded rather than unmounted:
+   * the camera phase flips to `orbit` the moment the reader asks to come
+   * back from the trail, so mounting on it made the sun snap into existence
+   * while the camera was still down on the curve.
+   */
+  shown: boolean;
+};
 
-export function SunFlare({ reducedMotion }: Props) {
+export function SunFlare({ reducedMotion, shown }: Props) {
   const { d, visibility } = useDawn();
   const size = useThree((state) => state.size);
 
   const core = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Mesh>(null);
   const flare = useRef<THREE.Mesh>(null);
+  const fade = useRef(shown ? 1 : 0);
 
   const coreUniforms = useMemo(
     () => ({
@@ -183,13 +193,18 @@ export function SunFlare({ reducedMotion }: Props) {
     };
   }, [size.width, size.height, d.sunElevation]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     const t = reducedMotion ? 0 : clock.elapsedTime;
     const [x, y, z] = placement.sun;
 
+    fade.current = THREE.MathUtils.damp(fade.current, shown ? 1 : 0, 3.4, delta);
+    const lit = fade.current;
+
     for (const mesh of [core.current, halo.current, flare.current]) {
       mesh?.position.set(x, y, z);
+      if (mesh) mesh.visible = lit > 0.004;
     }
+    if (lit <= 0.004) return;
 
     /*
      * One intensity for the whole sun (§6): it climbs with the dawn and with
@@ -201,7 +216,7 @@ export function SunFlare({ reducedMotion }: Props) {
      * be the shape of it. They are proportions of the one number now: the
      * core at 0.9, the halo at 0.35, exactly as the reference has them.
      */
-    const intensity = (0.25 + 0.75 * visibility) * (0.55 + 0.45 * d.p);
+    const intensity = (0.25 + 0.75 * visibility) * (0.55 + 0.45 * d.p) * lit;
     coreUniforms.uIntensity.value = 0.9 * intensity;
     haloUniforms.uIntensity.value = 0.35 * intensity;
 

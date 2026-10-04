@@ -2,8 +2,8 @@ import {
   ORB_MIX,
   PERI_MIN,
   SAT_CLEARANCE,
+  depthBucket,
   isVisible,
-  layerOf,
   makeOrbiters,
   offTrail,
   orbiterSeed,
@@ -13,7 +13,12 @@ import {
   type Orbiter,
   type OrbiterType,
 } from "../lib/orbiters.ts";
-import { orbitFrame } from "../components/three/framing.ts";
+import {
+  hubPose,
+  orbitFrame,
+  orbiterDepths,
+  satelliteHull,
+} from "../components/three/framing.ts";
 import { trailSeedFor } from "../lib/trailCurve.ts";
 
 /**
@@ -276,11 +281,84 @@ for (const where of ["desktop", "phone"] as const) {
   }
   check("position depends only on t", worst === 0);
 
-  // And the three depth layers are all actually used, or the planet never
-  // occludes anything and the whole reading of §8.4 is lost.
-  const layers = new Set<string>();
-  for (const o of set) for (let t = 0; t <= 1200; t += 5) layers.add(layerOf(screenPos(o, t, frame)));
-  check("all three depth layers occur", layers.size === 3, [...layers].join("/"));
+  /*
+   * Both sides of the planet are actually used, or the planet never occludes
+   * anything and the whole reading of §8.4 is lost.
+   */
+  const buckets = new Set<string>();
+  for (const o of set) {
+    for (let t = 0; t <= 1200; t += 5) buckets.add(depthBucket(screenPos(o, t, frame), frame));
+  }
+  check(
+    "things pass both behind and in front of the planet",
+    buckets.has("behindPlanet") && buckets.has("beforePlanet"),
+    [...buckets].join("/"),
+  );
+}
+
+/* ---- nothing ever crosses the satellite --------------------------------- */
+
+{
+  /*
+   * The one rule about depth that is not about the planet: an orbiter is
+   * never put in front of the satellite.
+   *
+   * §8.4 used to allow it — the closest part of the closest orbits passed
+   * across it — and it read as a small thing stuck to the glass rather than
+   * as a near one, because nothing else in the picture supports that scale.
+   * So anywhere near the satellite, an orbiter goes behind it.
+   *
+   * Checked over two hours per seed, at both viewports, because the orbits
+   * are slow enough that a card could easily look innocent for the first
+   * minute and not for the tenth.
+   */
+  for (const where of ["desktop", "phone"] as const) {
+    const frame = frames[where];
+    const { a, b, kSat } = frame.satellite;
+    let crossings = 0;
+    let closest = Infinity;
+
+    for (const seed of SEEDS.slice(0, 12)) {
+      for (const o of makeOrbiters(seed, frame)) {
+        for (let t = 0; t <= 7200; t += 10) {
+          const p = screenPos(o, t, frame);
+          // Generous: the hull reaches a panel's height either side of the
+          // line through the wing tips.
+          const near = segmentDistance([p.x, p.y], a, b) < kSat * 3;
+          if (!near) continue;
+          closest = Math.min(closest, segmentDistance([p.x, p.y], a, b) / kSat);
+          if (depthBucket(p, frame) !== "behindSatellite") crossings++;
+        }
+      }
+    }
+
+    check(
+      `${where}: nothing is ever put in front of the satellite`,
+      crossings === 0,
+      `${crossings} crossings, closest approach ${closest.toFixed(2)} half-edges`,
+    );
+
+    /*
+     * And the depth that bucket resolves to really is behind the whole hull.
+     *
+     * The bucket is only a *name*; this is the number it stands for, and it
+     * is the half of the rule that can silently stop being true — the
+     * satellite's scale and the camera's distance are both solved from the
+     * composition, so a change to either moves the hull without touching
+     * anything in this file.
+     */
+    const sizes = SIZES[where];
+    const camera = hubPose(sizes.width, sizes.height).position;
+    const depths = orbiterDepths(sizes.width, sizes.height);
+    const nearest = camera[2] - Math.max(...satelliteHull().map(([, , z]) => z));
+    const furthest = camera[2] - Math.min(...satelliteHull().map(([, , z]) => z));
+
+    check(
+      `${where}: and the depth it uses is past the whole hull`,
+      depths.behindSatellite > furthest,
+      `${depths.behindSatellite.toFixed(2)} vs hull ${nearest.toFixed(2)}-${furthest.toFixed(2)}`,
+    );
+  }
 }
 
 /* ---- a set can be switched off on its own ------------------------------- */

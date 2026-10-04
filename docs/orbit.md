@@ -360,10 +360,27 @@ Each card's set is seeded from its slug, so two cards are visibly different
 skies and one card is the same sky every time.
 
 Depth does one job and only one. Each object is placed on the hub camera's ray
-through its pixel and pushed along that ray to one of three depths — so the
-depth never changes *where* it appears, only *what covers it*: behind the
-planet on one leg, in front of it on the other, and across the satellite only
-on the nearest orbits. No sorting code, no render-order tricks.
+through its pixel and pushed along that ray to a depth — so the depth never
+changes *where* it appears or how big it is, only *what covers it*. No sorting
+code, no render-order tricks.
+
+**Nothing passes in front of the satellite.** §8.4 allowed it, for the closest
+part of the closest orbits, and it was wrong: a cubesat eleven pixels across
+drifting over a satellite that spans a third of the frame does not read as
+"nearer", it reads as a small thing stuck to the glass, because nothing else
+in the picture supports that scale. The satellite is the letter and it stays
+in front of its own company.
+
+What is left is the planet, and there the three-depth idea earns its keep in
+an unexpected way. The planet is staged much closer to the lens than the
+satellite is — on a desktop it occupies depths 0.5 to 4.9 and the satellite
+5.2 to 7.7 — so **no single depth is both "in front of the planet" and
+"behind the satellite"**. They never overlap on screen, so the depth is simply
+chosen for where the object actually is: over the planet's disc it goes in
+front of or behind the planet, which is what gives the orbits their reading;
+anywhere else it goes behind the satellite. Switching between the two is
+invisible, because depth moves an orbiter neither on screen nor in apparent
+size.
 
 Twenty-nine objects are drawn in **three meshes**, rebuilt on the CPU each
 frame — about nine hundred vertices, which is nothing — rather than in three
@@ -384,6 +401,43 @@ this is a portrait decision, made looking at the two side by side at phone
 size. The kept-as-built check (§31 in the verify suite) caught the change,
 which is exactly what it is for — the right response was to decide it rather
 than to discover it later.
+
+### Coming back from the trail is one move
+
+The return from a memory to the hub is the longest camera move in the product
+— up to three seconds — and the only one that changes kind half way through:
+it walks back along the trail's curve, then pulls out to the orbit pose. Four
+separate things made it read as a lurch rather than a journey.
+
+**It stopped in the middle.** Each half had its own ease-in-out, so the camera
+decelerated to a complete standstill at 72% of the way home and then
+accelerated out of it. (The branch also ignored the eased parameter the rig
+had already computed, so the move had no overall easing either.) The two
+motions overlap now: the walk runs the full length of the move and the
+pull-out blends in over the tail with a smoothstep — zero slope at both ends,
+so the second motion arrives without a corner and the first never has to stop
+for it.
+
+**It kicked as it crossed the curve.** The trail is a uniform Catmull-Rom over
+control points that are not evenly spaced — its depth progression is
+quadratic, so at the far end one step of `u` is nearly ten times the length of
+one at the near end. Walking `u` at a constant rate therefore surges and slows.
+`memoryU` already spaced the memories by distance for exactly this reason;
+`evenU` now does the same for the journey between them. It changes nothing
+about what any `u` *means*, so the memories and the ribbon are where they
+were — only the pacing in between.
+
+**Three things appeared out of nowhere.** The camera phase becomes `orbit` the
+*moment* the reader asks to come back, not when they arrive — so anything
+mounted on that phase popped into existence while the camera was still down on
+the curve. The trail's sway snapped from nothing to full in one frame, and the
+sun and the signal pulses blinked on. The sway ramps over about a second now,
+and the sun and the pulses fade like the orbiting things already did.
+
+The shape of the move lives in `retracePose` in `framing.ts` rather than inside
+the rig, so the verify suite can sample it: §32 walks the path at 400 steps and
+asserts the camera never stalls and never kicks. Reverting either fix fails it
+— the two-ease version scores 0% on the stall check at both viewports.
 
 ### The bar is one row
 

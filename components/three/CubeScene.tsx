@@ -242,8 +242,14 @@ export function CubeScene({
         The sun, coming up behind the planet. In the hub only: §3 gives the
         chart and the close-up the sky colours and the haze but no flare,
         because a flare belongs to one framing and those are other framings.
+
+        Faded rather than unmounted, like the orbiting things. The camera
+        phase becomes `orbit` the *moment* the reader asks to come back from
+        the trail, and the move back takes up to three seconds — so anything
+        mounted on the phase appears in one frame while the camera is still
+        down on the curve.
       */}
-      {deployed && inHub ? <SunFlare reducedMotion={cube.reducedMotion} /> : null}
+      {deployed ? <SunFlare reducedMotion={cube.reducedMotion} shown={inHub} /> : null}
 
       {/*
         Company (r7 §8). Mounted for the whole of the deployed scene and
@@ -449,10 +455,11 @@ export function CubeScene({
         satellite's mast, and the mast is the satellite's business — this only
         needs to know where it ended up.
       */}
-      {deployed && inHub ? (
+      {deployed ? (
         <SignalPulses
           cometProgress={comet?.progress}
           warm={Boolean(launched || comet?.aboard)}
+          shown={inHub}
           reducedMotion={cube.reducedMotion}
         />
       ) : null}

@@ -30,6 +30,7 @@ import {
   hubPlanet,
   hubPlanetScreen,
   hubProject,
+  retracePose,
   trailScreen,
   hubLabel,
   hubPose,
@@ -189,6 +190,7 @@ import {
   FACE_ORIENTATIONS,
   ROTATION_PRESETS,
   REDUCED_MOTION_PRESET,
+  easeInOutQuint,
   orientationAt,
 } from "../components/three/rotationPresets.ts";
 
@@ -3637,6 +3639,91 @@ console.log("31. Kept exactly as built (spec v0.2 rev 7.1 §15):");
   }
 
   console.log(`  satellite and contrail pinned across ${Object.keys(SNAPSHOT).length} framings`);
+}
+
+console.log("32. Coming back from the trail is one move (rev 6 §9.3):");
+{
+  /*
+   * The return from a memory to the hub is the longest camera move in the
+   * product — up to three seconds — and the only one that changes *kind*
+   * half way through: it walks back along the trail's curve, then pulls out
+   * to the orbit pose. That is exactly the move most likely to read as two
+   * moves stuck together, and for a long time it did: each half had its own
+   * ease-in-out, so the camera came to a complete stop at the join and set
+   * off again.
+   *
+   * A screenshot cannot show that and neither can a typecheck. What can is
+   * the path itself: sample it, differentiate it twice, and assert that the
+   * camera never stalls and never jerks.
+   */
+  const SIZES: [number, number][] = [[390, 844], [1440, 810]];
+  const MEMORIES = 5;
+
+  for (const [w, h] of SIZES) {
+    const label = `${w}x${h}`;
+    const seed = trailSeedFor("retrace-sample");
+    const trail = stagedTrail(seed, w, h);
+    const distance = memoryViewDistance(w, h);
+    const hub = hubPose(w, h);
+
+    // From the furthest memory, which is the longest version of the move.
+    const fromU = memoryU(trail, MEMORIES - 1, MEMORIES);
+
+    /*
+     * Sampled evenly in `t` — the *shape* of the move, with its timing left
+     * out. The rig eases `t` before handing it over, so the ends are supposed
+     * to be slow; what has to be true of the shape is that nothing in the
+     * middle of it stops or corners.
+     */
+    const STEPS = 400;
+    const at = (i: number) =>
+      retracePose(trail, fromU, hub, distance, i / STEPS).position;
+
+    const steps: number[] = [];
+    for (let i = 1; i <= STEPS; i++) {
+      const a = at(i - 1);
+      const b = at(i);
+      steps.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+    }
+
+    const fastest = Math.max(...steps);
+    const from = Math.floor(STEPS * 0.08);
+    const until = Math.ceil(STEPS * 0.92);
+    let slowest = Infinity;
+    let worstJerk = 0;
+    for (let i = from; i < until; i++) {
+      slowest = Math.min(slowest, steps[i]);
+      if (i > from) worstJerk = Math.max(worstJerk, Math.abs(steps[i] - steps[i - 1]) / fastest);
+    }
+
+    /*
+     * No stall. With the two-ease version this was 0% — the camera stopped
+     * dead twice, once at the end of each leg's own ease.
+     */
+    check(`${label}: the camera never stalls on the way back`,
+      slowest > fastest * 0.1,
+      `slowest ${((slowest / fastest) * 100).toFixed(0)}% of fastest`);
+
+    /*
+     * And no corner. This is the check that pacing by arc length is actually
+     * happening: stepping `u` at a constant rate instead puts a 10% kick in
+     * as the camera crosses a control point, because the curve's control
+     * points are not evenly spaced.
+     */
+    check(`${label}: and never kicks as it crosses the curve`, worstJerk < 0.05,
+      `${(worstJerk * 100).toFixed(1)}% of a step`);
+
+    // It still ends exactly on the hub pose, or the hand-over itself snaps.
+    const landed = retracePose(trail, fromU, hub, distance, 1).position;
+    const miss = Math.hypot(
+      landed[0] - hub.position[0],
+      landed[1] - hub.position[1],
+      landed[2] - hub.position[2],
+    );
+    check(`${label}: and lands exactly on the orbit pose`, miss < 1e-9, miss.toExponential(1));
+  }
+
+  console.log(`  retrace sampled at 400 steps across ${SIZES.length} framings`);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

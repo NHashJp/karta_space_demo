@@ -6,7 +6,7 @@ import {
   displayedProgress,
 } from "../../lib/cometOrbit.ts";
 import { BUS_HALF, DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
-import { trailControlPoints, trailPoint, trailTangent } from "../../lib/trailCurve.ts";
+import { evenU, trailControlPoints, trailPoint, trailTangent } from "../../lib/trailCurve.ts";
 import { SAT_SCALE, displayDirection } from "../../lib/deployment.ts";
 
 export const FOV = 45;
@@ -623,6 +623,62 @@ export function stagedTrail(seed: number, width: number, height: number): Vec3[]
 export const orbitPose = hubPose;
 
 /* ---------------------------------------------------------------------------
+ * Coming back from the trail (rev 6 §9.3)
+ * ------------------------------------------------------------------------- */
+
+/** Where in a retrace the pull-out to the orbit pose begins to blend in. */
+export const RETRACE_SHARE = 0.72;
+
+/**
+ * The camera's pose part-way back from a memory to the hub.
+ *
+ * `t` is already eased by the caller: this is the *shape* of the move, not
+ * its timing.
+ *
+ * The walk back along the curve and the pull-out to the orbit pose
+ * **overlap**, and that is the whole of what makes this read as one move.
+ * It used to be two: walk the curve for the first 72% of the time, then
+ * dolly out for the last 28%, each with its own ease-in-out. Two eases butted
+ * together means the camera decelerates to a complete stop three quarters of
+ * the way home and then accelerates out of it — a hitch, at exactly the
+ * moment the reader is being handed back to the hub.
+ *
+ * Here the walk runs the full length of the move and the pull-out is blended
+ * in over the tail with a smoothstep: zero slope at both ends, so the second
+ * motion arrives without a corner and the first never has to stop for it.
+ *
+ * Pure, and exported, so the verify suite can sample the path and assert the
+ * camera never stalls in the middle of it — which is not a thing a screenshot
+ * can show.
+ */
+export function retracePose(
+  points: Vec3[],
+  fromU: number,
+  to: Pose,
+  distance: number,
+  t: number,
+): Pose {
+  // Paced by arc length, so the walk home is steady rather than surging as
+  // it crosses the curve's control points (`evenU`).
+  const along = trailPose(points, evenU(points, fromU, 0, t), distance);
+  const out = smoothstepBetween(RETRACE_SHARE, 1, t);
+  if (out <= 0) return along;
+  return {
+    position: mixVec(along.position, to.position, out),
+    lookAt: mixVec(along.lookAt, to.lookAt, out),
+  };
+}
+
+function smoothstepBetween(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function mixVec(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/* ---------------------------------------------------------------------------
  * The hub in screen pixels (rev 7.1 §4, §8.3)
  * ------------------------------------------------------------------------- */
 
@@ -887,6 +943,40 @@ export const CAPTION_KEEP_OUT = {
   portrait: { x: 0.5, y: 0.2 },
   landscape: { x: 0.66, y: 0.25 },
 };
+
+/**
+ * Where the orbiting things sit in depth (§8.4, and `depthBucket`).
+ *
+ * Distances in front of the hub camera, one per bucket. Here rather than in
+ * the renderer because the one number that matters is a *relationship* — the
+ * behind-satellite depth has to be past the back of the satellite's hull, and
+ * the hull's reach is a fact about the composition. Left as a constant in the
+ * component it would quietly stop being true the first time the satellite's
+ * scale or the camera's distance moved.
+ */
+export function orbiterDepths(
+  width: number,
+  height: number,
+): { behindPlanet: number; beforePlanet: number; behindSatellite: number } {
+  const camera = hubPose(width, height).position;
+  const planetCentre = camera[2] - hubPlanet(width, height)[2];
+  const hull = satelliteHull();
+  const back = Math.min(...hull.map(([, , z]) => z));
+
+  return {
+    // The planet's own depth, so its disc hides whatever is over it.
+    behindPlanet: planetCentre,
+    // Just in front of the planet's nearest point.
+    beforePlanet: Math.max(0.3, planetCentre - PLANET_RADIUS - 0.4),
+    /*
+     * Past the **back** of the hull, not just past its near face. The hull is
+     * a long thin thing on a diagonal, so an orbiter tucked between its front
+     * and back would be hidden in some places and not others as it drifted —
+     * which reads as flickering rather than as depth.
+     */
+    behindSatellite: camera[2] - back + 0.4,
+  };
+}
 
 /* -------------------------------------------------------- the orbit frame - */
 

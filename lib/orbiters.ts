@@ -360,23 +360,61 @@ export function offTrail(p: [number, number], frame: OrbitFrameLike): boolean {
  * Depth (§8.4)
  * ------------------------------------------------------------------------- */
 
-export type OrbiterLayer = "far" | "near" | "nearest";
+export type OrbiterLayer = "far" | "near";
 
 /**
- * Which of three layers an orbiter is in this frame.
+ * Which side of the planet an orbiter is on this frame.
  *
- * The point of the layers is a single reading: *things pass behind the planet
- * on one side and in front of it on the other*. On the far leg the planet's
- * own depth hides them. On the near leg they are in front of the planet but
- * behind the satellite, which is the letter and stays the subject. Only the
- * closest part of the closest orbits crosses the satellite at all.
+ * §8.4 had a third layer — "nearest", for the closest part of the closest
+ * orbits, which passed *in front of the satellite*. It is gone. A cubesat
+ * eleven pixels across drifting over a satellite that spans a third of the
+ * frame does not read as "nearer"; it reads as a small thing stuck to the
+ * glass, because nothing else in the picture supports the scale. The
+ * satellite is the letter and it stays in front of its own company.
  */
 export function layerOf(p: OrbiterPoint): OrbiterLayer {
-  if (p.z < 0) return "far";
-  return p.z < 0.6 * p.apo ? "near" : "nearest";
+  return p.z < 0 ? "far" : "near";
 }
 
-/** Near-leg things read larger, far-leg things smaller (§8.4, §8.5). */
+/**
+ * Where an orbiter is placed **in depth**, which decides only what covers it.
+ *
+ * Three buckets, and the reason there are three rather than two is a quirk of
+ * this composition: the planet is staged much closer to the lens than the
+ * satellite is (on a desktop it occupies depths 0.5 to 4.9, the satellite 5.2
+ * to 7.7). They never overlap on screen — §17 checks that — but it does mean
+ * no single depth is both "in front of the planet" and "behind the
+ * satellite". So the depth is chosen for where the object actually is:
+ *
+ * - over the planet's disc, it goes in front of or behind the **planet**,
+ *   which is what gives §8.4 its reading — things pass behind the world on
+ *   one leg of the orbit and in front of it on the other;
+ * - anywhere else, it goes behind the **satellite**, so it can never cross
+ *   it whatever its orbit is doing.
+ *
+ * Switching between the two is invisible: an orbiter is placed on the hub
+ * camera's ray through its pixel and sized from its depth, so changing the
+ * depth moves it neither on screen nor in apparent size. Only the occlusion
+ * changes, which is the whole point.
+ */
+export type OrbiterDepth = "behindPlanet" | "beforePlanet" | "behindSatellite";
+
+/** How far past the planet's limb its depth still governs, in planet radii. */
+const PLANET_REACH = 1.04;
+
+export function depthBucket(p: OrbiterPoint, frame: OrbitFrameLike): OrbiterDepth {
+  const fromPlanet = Math.hypot(p.x - frame.planet.cx, p.y - frame.planet.cy);
+  if (fromPlanet > frame.planet.r * PLANET_REACH) return "behindSatellite";
+  return p.z < 0 ? "behindPlanet" : "beforePlanet";
+}
+
+/**
+ * Near-leg things read a little larger, far-leg things smaller (§8.4, §8.5).
+ *
+ * Kept, and kept small. It is the only remaining cue that these are on orbits
+ * of their own rather than pinned to the sky, now that nothing crosses the
+ * satellite — and at 35% it is a hint rather than a claim about scale.
+ */
 export function depthScale(p: OrbiterPoint): number {
   return 1 + 0.35 * (p.z / p.apo);
 }

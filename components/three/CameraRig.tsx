@@ -13,6 +13,7 @@ import {
   ZOOM_REDUCED_MS,
   cameraDistance,
   orbitPose,
+  retracePose,
   trailPose,
   type Pose,
 } from "./framing";
@@ -207,7 +208,7 @@ export function CameraRig({
     if (running.current) {
       const raw = Math.min((performance.now() - startedAt.current) / duration.current, 1);
       const t = easeInOutQuint(raw);
-      apply(camera, poseAt(raw, t), bank(banking.current, raw));
+      apply(camera, poseAt(t), bank(banking.current, raw));
 
       if (raw >= 1) {
         // Land exactly on the pose, square-on, with the bank returned to zero:
@@ -248,8 +249,8 @@ export function CameraRig({
 
   return null;
 
-  /** Where the camera is at `raw` (un-eased) / `t` (eased) through this move. */
-  function poseAt(raw: number, t: number): Pose {
+  /** Where the camera is at `t`, already eased, through this move. */
+  function poseAt(t: number): Pose {
     const distance = memoryViewDistance(size.width, size.height);
 
     // Along the trail: interpolate the curve parameter, not the two endpoints.
@@ -258,18 +259,16 @@ export function CameraRig({
     }
 
     /*
-     * Leaving it: retrace the way back. The camera walks the curve down to its
-     * near end — the same road, in reverse — and only then pulls out to the
-     * orbit pose. Cutting straight across would throw away the one thing the
-     * reader has just learned about the shape of this card's trail.
+     * Leaving it: retrace the way back. The camera walks the curve down to
+     * its near end — the same road, in reverse — and pulls out to the orbit
+     * pose as it goes. Cutting straight across would throw away the one thing
+     * the reader has just learned about the shape of this card's trail.
+     *
+     * The shape of the move lives in `retracePose`, so the verify suite can
+     * sample it; what is decided here is only how long it takes.
      */
     if (mode.current === "retrace") {
-      if (raw < RETRACE_SHARE) {
-        const local = easeInOutQuint(raw / RETRACE_SHARE);
-        return poseOnTrail(trail, fromU.current * (1 - local), distance);
-      }
-      const local = easeInOutQuint((raw - RETRACE_SHARE) / (1 - RETRACE_SHARE));
-      return lerpPose(poseOnTrail(trail, 0, distance), to.current, local);
+      return retracePose(trail, fromU.current, to.current, distance, t);
     }
 
     return lerpPose(from.current, to.current, t);
@@ -285,8 +284,6 @@ export const PROPEL_NUDGE_PX = { landscape: 6, portrait: 4 };
 /** Which way it nudges: up and to the right, along (1, −0.26). */
 export const PROPEL_HEADING: [number, number] = [1, -0.26];
 
-/** How much of a retrace is spent on the trail before pulling out. */
-const RETRACE_SHARE = 0.72;
 /** Each memory rewound costs this much — far less than the drift out did. */
 const RETRACE_PER_MEMORY_MS = 320;
 

@@ -4,19 +4,16 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  PLANET_RADIUS,
-  hubPlanet,
-  hubPose,
   hubSunScreen,
   hubUnproject,
   orbitFrame,
-  satelliteHull,
+  orbiterDepths,
   worldPerPixel,
   type OrbitFrame,
 } from "./framing";
 import {
+  depthBucket,
   depthScale,
-  layerOf,
   litLevel,
   makeOrbiters,
   pixelScale,
@@ -114,18 +111,11 @@ export function Orbiters({
     [set],
   );
 
-  /** Where the three layers sit, in depth from the hub camera (§8.4). */
-  const depths = useMemo(() => {
-    const camera = hubPose(size.width, size.height).position;
-    const planetCentre = camera[2] - hubPlanet(size.width, size.height)[2];
-    // How far the satellite's hull reaches towards the lens.
-    const reach = Math.max(...satelliteHull().map(([, , z]) => z));
-    return {
-      far: planetCentre,
-      near: planetCentre - PLANET_RADIUS - 0.4,
-      nearest: Math.max(1.2, camera[2] - reach - 0.6),
-    };
-  }, [size.width, size.height]);
+  /** Where the three depth buckets sit (§8.4; solved in `orbiterDepths`). */
+  const depths = useMemo(
+    () => orbiterDepths(size.width, size.height),
+    [size.width, size.height],
+  );
 
   /*
    * The clock. Seconds since the orbit view first opened in this visit, kept
@@ -217,8 +207,7 @@ export function Orbiters({
       // it is the cheapest cull there is and it never shows.
       if (p.x < -80 || p.y < -80 || p.x > frame.width + 80 || p.y > frame.height + 80) return;
 
-      const layer = layerOf(p);
-      const depth = layer === "far" ? depths.far : layer === "near" ? depths.near : depths.nearest;
+      const depth = depths[depthBucket(p, frame)];
       const origin = hubUnproject(p.x, p.y, depth, size.width, size.height);
       // Screen pixels per local unit, and then world units per local unit at
       // whatever depth this object landed at.

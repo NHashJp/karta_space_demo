@@ -61,13 +61,16 @@ type Props = {
   cometProgress?: number;
   /** A reply is up, or words are aboard: every other comet pulse is warm. */
   warm: boolean;
+  /** In the hub. Faded rather than unmounted, for the same reason the sun is. */
+  shown: boolean;
   reducedMotion: boolean;
 };
 
-export function SignalPulses({ cometProgress, warm, reducedMotion }: Props) {
+export function SignalPulses({ cometProgress, warm, shown, reducedMotion }: Props) {
   const size = useThree((state) => state.size);
 
   const line = useRef<THREE.LineSegments>(null);
+  const fade = useRef(shown ? 1 : 0);
 
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
@@ -169,12 +172,14 @@ export function SignalPulses({ cometProgress, warm, reducedMotion }: Props) {
     return Math.max(1.2, camera[2] - reach - 0.4);
   }, [size.width, size.height]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     const mesh = line.current;
     if (!mesh) return;
 
+    fade.current = THREE.MathUtils.damp(fade.current, shown ? 1 : 0, 3.4, delta);
+
     // Off entirely with reduced motion (§9): a pulse *is* the motion.
-    if (reducedMotion) {
+    if (reducedMotion || fade.current <= 0.004) {
       mesh.visible = false;
       return;
     }
@@ -199,7 +204,16 @@ export function SignalPulses({ cometProgress, warm, reducedMotion }: Props) {
     // Every other comet pulse carries the receiver's words (§9, principle 11).
     material.uniforms.uColor.value.set(toComet && warm && half % 4 === 1 ? WARM : COOL);
 
-    writeArcs(geometry, places.mast, target, u, depth, size.width, size.height);
+    writeArcs(
+      geometry,
+      places.mast,
+      target,
+      u,
+      depth,
+      size.width,
+      size.height,
+      fade.current,
+    );
   });
 
   return (
@@ -231,6 +245,7 @@ function writeArcs(
   depth: number,
   width: number,
   height: number,
+  fade: number,
 ) {
   const position = geometry.getAttribute("position") as THREE.BufferAttribute;
   const alpha = geometry.getAttribute("alpha") as THREE.BufferAttribute;
@@ -244,7 +259,7 @@ function writeArcs(
     const radius = Math.max(1, local * distance * REACH);
     // Swells and fades over its own travel, so a wavefront arrives rather
     // than stopping: §9's 0.32 · sin(πp).
-    const a = local <= 0 ? 0 : 0.32 * Math.sin(Math.PI * local);
+    const a = local <= 0 ? 0 : 0.32 * Math.sin(Math.PI * local) * fade;
 
     for (let s = 0; s < SEGMENTS; s++) {
       for (const end of [s, s + 1]) {

@@ -181,6 +181,7 @@ than listing each, here is what each group is *for*:
 | 30 | that every shooting star actually crosses the frame |
 | 9, 9b | the dawn curve, and the light it produces (rev 7.1) |
 | 31 | the two things rev 7.1 promises not to move: the satellite and the contrail |
+| 32 | that coming back from the trail is one continuous move |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
 | `verify-orbiters` | the company in orbit, over two simulated hours (rev 7.1) |
 
@@ -584,10 +585,20 @@ is still populated ten minutes later.
 - **Every craft is in clear view at t = 0**, so the sky is never empty on
   arrival, and rocks are *not* checked that way, because their uniform phase is
   what keeps minute ten looking like second one.
-- **All three depth layers occur** over twenty minutes. Without that the
+- **Both sides of the planet occur** over twenty minutes. Without that the
   planet would never occlude anything and §8.4's whole reading — things
   passing behind the world on one side and in front of it on the other —
   would be gone while every other check still passed.
+- **Nothing is ever put in front of the satellite**, over two hours per seed
+  at both viewports. The check reports the closest approach as well as the
+  count, and it is 0.00 half-edges — orbiters really do drift right across
+  the satellite's span, so the rule is doing work rather than being
+  vacuously true. Paired with it: the depth that rule resolves to is past the
+  **whole** hull, not just its near face, because the hull is a long thin
+  thing on a diagonal and an orbiter tucked between its front and back would
+  flicker rather than read as depth. That second half is the one that can
+  silently stop being true — the satellite's scale and the camera's distance
+  are both solved from the composition.
 - **The same seed gives the same set, and forty seeds give forty sets.**
 
 One number in §15 is deliberately not taken literally. The speed limit of
@@ -633,3 +644,32 @@ pixels across the three landscape framings. (Moving `HUB_SATELLITE` itself does
 so the satellite's screen position is invariant under it. What the snapshot
 pins is the composition as rendered, which is what the document is talking
 about.)
+
+
+## 32. Coming back from the trail is one move
+
+The longest camera move in the product, and the only one that changes kind
+half way through: it walks back along the trail's curve and then pulls out to
+the orbit pose. That is exactly the move most likely to read as two moves
+stuck together, and for a long time it was one — each half had its own
+ease-in-out, so the camera stopped dead at the join and set off again.
+
+Neither a screenshot nor a typecheck can show that. The path can: §32 samples
+`retracePose` at 400 steps, differentiates it twice, and asserts two things
+about the interior.
+
+- **It never stalls** — the slowest step is more than a tenth of the fastest.
+  The two-ease version scores 0% here, at both viewports, because the camera
+  genuinely reaches zero velocity twice.
+- **It never kicks** — no step differs from the one before it by more than 5%
+  of the fastest. This is the check that the walk is paced by *arc length*:
+  stepping the curve parameter at a constant rate instead puts a 10% jolt in
+  as the camera crosses a control point, because the control points are not
+  evenly spaced.
+
+Both were confirmed against the old implementation rather than assumed:
+restoring it fails the stall check at 0% and the kick check at 14.4% on a
+phone and 7.9% on a desktop.
+
+The check is only possible because the *shape* of the move was moved out of
+`CameraRig` into `framing.ts`. What stayed in the rig is how long it takes.

@@ -139,7 +139,22 @@ export function trailTangent(points: Point3[], u: number): Point3 {
  */
 const SAMPLES = 256;
 
+/**
+ * Cached against the points array itself.
+ *
+ * `useStagedTrail` memoises the curve per seed and viewport, so in practice
+ * this is built once and read from for the life of the view. It used to be
+ * rebuilt on every call — 256 curve evaluations — which was fine when the
+ * only callers were placing memories once, and is not now that the camera
+ * asks for it every frame while it travels. A weak key means a trail that
+ * goes out of scope takes its table with it.
+ */
+const arcTables = new WeakMap<Point3[], number[]>();
+
 function arcTable(points: Point3[]): number[] {
+  const cached = arcTables.get(points);
+  if (cached) return cached;
+
   const table = [0];
   let previous = trailPoint(points, 0);
   let total = 0;
@@ -151,6 +166,7 @@ function arcTable(points: Point3[]): number[] {
     previous = at;
   }
 
+  arcTables.set(points, table);
   return table;
 }
 
@@ -191,6 +207,27 @@ export function memoryU(points: Point3[], index: number, count: number): number 
   const from = arcFractionAt(points, MEMORY_START_U);
   const to = arcFractionAt(points, MEMORY_END_U);
   return uAtArc(points, from + ((to - from) * index) / (count - 1));
+}
+
+/**
+ * The `u` that is fraction `f` of the **distance** from `from` to `to`.
+ *
+ * The trail is a uniform Catmull-Rom over control points that are not evenly
+ * spaced — its depth progression is quadratic, so at the far end one step of
+ * `u` is nearly ten times the length of one at the near end. Anything that
+ * *travels* the curve by stepping `u` at a constant rate therefore surges and
+ * slows, with a kick as it crosses each control point. `memoryU` already
+ * spaces the memories by distance for exactly this reason; this does the same
+ * for the journey between them.
+ *
+ * It does not change what any `u` means. `evenU(points, a, b, 0)` is `a` and
+ * `evenU(points, a, b, 1)` is `b`, exactly — only the pacing in between
+ * changes, so a move still starts and ends precisely where it did.
+ */
+export function evenU(points: Point3[], from: number, to: number, f: number): number {
+  const a = arcFractionAt(points, from);
+  const b = arcFractionAt(points, to);
+  return uAtArc(points, a + (b - a) * Math.min(Math.max(f, 0), 1));
 }
 
 /** The inverse of `uAtArc`: how much of the curve's length is behind `u`. */
