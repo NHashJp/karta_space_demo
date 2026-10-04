@@ -585,20 +585,17 @@ is still populated ten minutes later.
 - **Every craft is in clear view at t = 0**, so the sky is never empty on
   arrival, and rocks are *not* checked that way, because their uniform phase is
   what keeps minute ten looking like second one.
-- **Both sides of the planet occur** over twenty minutes. Without that the
-  planet would never occlude anything and §8.4's whole reading — things
-  passing behind the world on one side and in front of it on the other —
-  would be gone while every other check still passed.
-- **Nothing is ever put in front of the satellite**, over two hours per seed
-  at both viewports. The check reports the closest approach as well as the
-  count, and it is 0.00 half-edges — orbiters really do drift right across
-  the satellite's span, so the rule is doing work rather than being
-  vacuously true. Paired with it: the depth that rule resolves to is past the
-  **whole** hull, not just its near face, because the hull is a long thin
-  thing on a diagonal and an orbiter tucked between its front and back would
-  flicker rather than read as depth. That second half is the one that can
-  silently stop being true — the satellite's scale and the camera's distance
-  are both solved from the composition.
+- **Things still pass behind the planet.** It is the only occluder left out
+  in the sky, so if nothing ever goes behind it the orbits have stopped
+  reading as orbits.
+- **Nothing is ever drawn in front of the planet or the satellite.** What is
+  checked is the *relationship* — one depth, past the far side of both hulls —
+  because the depth and both hulls are all solved from the composition, so a
+  change to the satellite's scale or to how the planet is staged per aspect
+  ratio would move them without touching anything in the orbiter files. Paired
+  with it, a check that the rule is doing work rather than being vacuously
+  true: over two hours per seed, objects land over the satellite about 37,000
+  times and over the planet about 12,000.
 - **The same seed gives the same set, and forty seeds give forty sets.**
 
 One number in §15 is deliberately not taken literally. The speed limit of

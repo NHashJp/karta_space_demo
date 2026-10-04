@@ -7,12 +7,11 @@ import {
   hubSunScreen,
   hubUnproject,
   orbitFrame,
-  orbiterDepths,
+  orbiterDepth,
   worldPerPixel,
   type OrbitFrame,
 } from "./framing";
 import {
-  depthBucket,
   depthScale,
   litLevel,
   makeOrbiters,
@@ -111,11 +110,14 @@ export function Orbiters({
     [set],
   );
 
-  /** Where the three depth buckets sit (§8.4; solved in `orbiterDepths`). */
-  const depths = useMemo(
-    () => orbiterDepths(size.width, size.height),
-    [size.width, size.height],
-  );
+  /**
+   * How far back everything is drawn (§8.4; solved in `orbiterDepth`).
+   *
+   * One depth for all of them: behind the satellite, which in this
+   * composition is behind the planet as well. Nothing orbiting ever crosses
+   * either of them.
+   */
+  const depth = useMemo(() => orbiterDepth(size.width, size.height), [size.width, size.height]);
 
   /*
    * The clock. Seconds since the orbit view first opened in this visit, kept
@@ -207,7 +209,6 @@ export function Orbiters({
       // it is the cheapest cull there is and it never shows.
       if (p.x < -80 || p.y < -80 || p.x > frame.width + 80 || p.y > frame.height + 80) return;
 
-      const depth = depths[depthBucket(p, frame)];
       const origin = hubUnproject(p.x, p.y, depth, size.width, size.height);
       // Screen pixels per local unit, and then world units per local unit at
       // whatever depth this object landed at.

@@ -328,9 +328,9 @@ scene is composed backwards from the screen* — applied to shading.
 
 ### Company, on real orbits
 
-`lib/orbiters.ts` puts twenty-six small things around あなたの星: tiny
-satellites blinking, a station catching the sun, tumbling rocks and a far
-moonlet. Three decisions carry the effect.
+`lib/orbiters.ts` puts thirty small things around あなたの星: tiny satellites
+blinking, a station catching the sun, tumbling rocks and a far moonlet. Three
+decisions carry the effect.
 
 §8.1 also lists a **paper set** — a paper crane and two paper planes — and it
 is not in the build. r7 calls it "the playful one" and makes it switchable
@@ -364,25 +364,38 @@ through its pixel and pushed along that ray to a depth — so the depth never
 changes *where* it appears or how big it is, only *what covers it*. No sorting
 code, no render-order tricks.
 
-**Nothing passes in front of the satellite.** §8.4 allowed it, for the closest
-part of the closest orbits, and it was wrong: a cubesat eleven pixels across
-drifting over a satellite that spans a third of the frame does not read as
-"nearer", it reads as a small thing stuck to the glass, because nothing else
-in the picture supports that scale. The satellite is the letter and it stays
-in front of its own company.
+**Nothing passes in front of the planet or the satellite.** §8.4 allowed both:
+the near leg of each orbit crossed in front of the planet, and the closest
+orbits crossed the satellite as well. Both fail for the same reason. A cubesat
+eleven pixels across, or a rock of five, drifting over a planet that fills a
+corner of the frame or a satellite that spans a third of it does not read as
+*nearer* — it reads as a small thing stuck to the glass, because nothing else
+in the picture supports that scale. The foreground is the letter and the world
+it circles; the company is always beyond them.
 
-What is left is the planet, and there the three-depth idea earns its keep in
-an unexpected way. The planet is staged much closer to the lens than the
-satellite is — on a desktop it occupies depths 0.5 to 4.9 and the satellite
-5.2 to 7.7 — so **no single depth is both "in front of the planet" and
-"behind the satellite"**. They never overlap on screen, so the depth is simply
-chosen for where the object actually is: over the planet's disc it goes in
-front of or behind the planet, which is what gives the orbits their reading;
-anywhere else it goes behind the satellite. Switching between the two is
-invisible, because depth moves an orbiter neither on screen nor in apparent
-size.
+What replaces it is better anyway. Things now pass behind the planet's limb
+and out the other side, which is what moons do, and the planet is the one
+occluder left out in the sky — so it is the thing that makes the orbits read
+as orbits rather than as a flat field of drifting specks.
 
-Twenty-nine objects are drawn in **three meshes**, rebuilt on the CPU each
+It costs **one** depth rather than three, and that falls out of the
+composition rather than being arranged. The planet is staged much closer to
+the lens than the satellite is — on a desktop it occupies depths 0.5 to 4.9
+and the satellite 5.2 to 7.7 — so a single depth past the back of the
+satellite's hull is past the planet as well, and the depth buffer does the
+rest. Past the *back* of the hull, not its near face: the hull is a long thin
+thing on a diagonal, and an orbiter tucked between its front and back would
+be hidden in some places and not others as it drifted, which reads as
+flickering rather than as depth.
+
+It also costs objects. Hiding everything over the planet's disc rather than
+half of it thinned the visible sky from a median of eleven to nine, under the
+density §15 measures for — so the mix gained a cubesat and three rocks to make
+it back up. What that check is really protecting is how full the sky looks,
+not how many things are in it, so the right answer to taking visibility away
+was to put objects back.
+
+All thirty are drawn in **three meshes**, rebuilt on the CPU each
 frame — about nine hundred vertices, which is nothing — rather than in three
 hundred little ones, which would cost more draw calls than the rest of the
 scene put together.

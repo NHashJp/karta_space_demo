@@ -945,37 +945,32 @@ export const CAPTION_KEEP_OUT = {
 };
 
 /**
- * Where the orbiting things sit in depth (§8.4, and `depthBucket`).
+ * How far in front of the hub camera the orbiting things are drawn (§8.4).
  *
- * Distances in front of the hub camera, one per bucket. Here rather than in
- * the renderer because the one number that matters is a *relationship* — the
- * behind-satellite depth has to be past the back of the satellite's hull, and
- * the hull's reach is a fact about the composition. Left as a constant in the
- * component it would quietly stop being true the first time the satellite's
- * scale or the camera's distance moved.
+ * One depth for all of them, past the **back** of the satellite's hull.
+ *
+ * Past the back rather than the near face because the hull is a long thin
+ * thing on a diagonal: an orbiter tucked between its front and back would be
+ * hidden in some places and not others as it drifted, which reads as
+ * flickering rather than as depth.
+ *
+ * And one depth rather than three because of a quirk of this composition that
+ * does all the work for free. The planet is staged much closer to the lens
+ * than the satellite is — on a desktop it occupies depths 0.5 to 4.9 and the
+ * satellite 5.2 to 7.7 — so anything behind the satellite is behind the
+ * planet too. Both of the things that must never be crossed are handled by
+ * the depth buffer, with no sorting and no per-object decision.
+ *
+ * It lives here rather than in the renderer because what matters is a
+ * *relationship*: this has to clear both hulls, and both of them are solved
+ * from the composition. Left as a constant beside the draw call it would
+ * quietly stop being true the first time the satellite's scale or the
+ * camera's distance moved. `verify-orbiters` checks it.
  */
-export function orbiterDepths(
-  width: number,
-  height: number,
-): { behindPlanet: number; beforePlanet: number; behindSatellite: number } {
+export function orbiterDepth(width: number, height: number): number {
   const camera = hubPose(width, height).position;
-  const planetCentre = camera[2] - hubPlanet(width, height)[2];
-  const hull = satelliteHull();
-  const back = Math.min(...hull.map(([, , z]) => z));
-
-  return {
-    // The planet's own depth, so its disc hides whatever is over it.
-    behindPlanet: planetCentre,
-    // Just in front of the planet's nearest point.
-    beforePlanet: Math.max(0.3, planetCentre - PLANET_RADIUS - 0.4),
-    /*
-     * Past the **back** of the hull, not just past its near face. The hull is
-     * a long thin thing on a diagonal, so an orbiter tucked between its front
-     * and back would be hidden in some places and not others as it drifted —
-     * which reads as flickering rather than as depth.
-     */
-    behindSatellite: camera[2] - back + 0.4,
-  };
+  const back = Math.min(...satelliteHull().map(([, , z]) => z));
+  return camera[2] - back + 0.4;
 }
 
 /* -------------------------------------------------------- the orbit frame - */

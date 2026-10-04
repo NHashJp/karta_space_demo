@@ -2,7 +2,6 @@ import {
   ORB_MIX,
   PERI_MIN,
   SAT_CLEARANCE,
-  depthBucket,
   isVisible,
   makeOrbiters,
   offTrail,
@@ -14,9 +13,11 @@ import {
   type OrbiterType,
 } from "../lib/orbiters.ts";
 import {
+  PLANET_RADIUS,
+  hubPlanet,
   hubPose,
   orbitFrame,
-  orbiterDepths,
+  orbiterDepth,
   satelliteHull,
 } from "../components/three/framing.ts";
 import { trailSeedFor } from "../lib/trailCurve.ts";
@@ -70,8 +71,9 @@ check("40 seeds give 40 different sets", signatures.size === 40, `${signatures.s
 
 /* ---- counts ------------------------------------------------------------- */
 
-/** §8.1's counts, less the paper set (see ORB_MIX for why it is not here). */
-const EXPECTED: Record<keyof typeof SIZES, number> = { desktop: 26, phone: 19 };
+/** The mix's own counts: §8.1's, less the paper set and plus the make-up
+ *  for what the planet now hides. `ORB_MIX` explains both. */
+const EXPECTED: Record<keyof typeof SIZES, number> = { desktop: 30, phone: 22 };
 
 for (const where of ["desktop", "phone"] as const) {
   const frame = frames[where];
@@ -282,81 +284,89 @@ for (const where of ["desktop", "phone"] as const) {
   check("position depends only on t", worst === 0);
 
   /*
-   * Both sides of the planet are actually used, or the planet never occludes
-   * anything and the whole reading of §8.4 is lost.
+   * The planet still hides things. It is the only occluder left out in the
+   * sky, so if nothing ever passes behind it the orbits have stopped reading
+   * as orbits and become a flat field of drifting specks.
    */
-  const buckets = new Set<string>();
+  let everHidden = 0;
   for (const o of set) {
-    for (let t = 0; t <= 1200; t += 5) buckets.add(depthBucket(screenPos(o, t, frame), frame));
+    for (let t = 0; t <= 1200; t += 5) {
+      const p = screenPos(o, t, frame);
+      const onScreen =
+        p.x > 0 && p.x < frame.width && p.y > 0 && p.y < frame.height * 0.82;
+      if (onScreen && !isVisible(p, frame)) everHidden++;
+    }
   }
-  check(
-    "things pass both behind and in front of the planet",
-    buckets.has("behindPlanet") && buckets.has("beforePlanet"),
-    [...buckets].join("/"),
-  );
+  check("things still pass behind the planet", everHidden > 0, `${everHidden} samples`);
 }
 
-/* ---- nothing ever crosses the satellite --------------------------------- */
+/* ---- nothing crosses the planet or the satellite ------------------------ */
 
 {
   /*
-   * The one rule about depth that is not about the planet: an orbiter is
-   * never put in front of the satellite.
+   * The one rule about depth, and it is now a single number: everything
+   * orbiting is drawn behind **both** the planet and the satellite.
    *
-   * §8.4 used to allow it — the closest part of the closest orbits passed
-   * across it — and it read as a small thing stuck to the glass rather than
-   * as a near one, because nothing else in the picture supports that scale.
-   * So anywhere near the satellite, an orbiter goes behind it.
+   * §8.4 used to put the near leg in front of the planet and the closest
+   * orbits across the satellite. Both read as a small thing stuck to the
+   * glass rather than as a near one, because nothing else in the picture
+   * supports that scale. The foreground is the letter and the world it
+   * circles; the company is always beyond them.
    *
-   * Checked over two hours per seed, at both viewports, because the orbits
-   * are slow enough that a card could easily look innocent for the first
-   * minute and not for the tenth.
+   * What is checked here is the *relationship*, because the depth is derived
+   * and so are both of the hulls it has to clear. A change to the satellite's
+   * scale, or to how the planet is staged per aspect ratio, would move them
+   * without touching anything in this file.
+   */
+  for (const where of ["desktop", "phone"] as const) {
+    const sizes = SIZES[where];
+    const camera = hubPose(sizes.width, sizes.height).position;
+    const depth = orbiterDepth(sizes.width, sizes.height);
+
+    const hullNear = camera[2] - Math.max(...satelliteHull().map(([, , z]) => z));
+    const hullFar = camera[2] - Math.min(...satelliteHull().map(([, , z]) => z));
+    const planetCentre = camera[2] - hubPlanet(sizes.width, sizes.height)[2];
+    const planetFar = planetCentre + PLANET_RADIUS;
+
+    check(
+      `${where}: drawn behind the whole satellite`,
+      depth > hullFar,
+      `${depth.toFixed(2)} vs hull ${hullNear.toFixed(2)}-${hullFar.toFixed(2)}`,
+    );
+    check(
+      `${where}: and behind the whole planet`,
+      depth > planetFar,
+      `${depth.toFixed(2)} vs planet ${(planetCentre - PLANET_RADIUS).toFixed(2)}-${planetFar.toFixed(2)}`,
+    );
+  }
+
+  /*
+   * And they really do go over both, often — or the rule above is true for
+   * the uninteresting reason that nothing ever gets near them.
    */
   for (const where of ["desktop", "phone"] as const) {
     const frame = frames[where];
     const { a, b, kSat } = frame.satellite;
-    let crossings = 0;
-    let closest = Infinity;
+    let overSatellite = 0;
+    let overPlanet = 0;
 
     for (const seed of SEEDS.slice(0, 12)) {
       for (const o of makeOrbiters(seed, frame)) {
         for (let t = 0; t <= 7200; t += 10) {
           const p = screenPos(o, t, frame);
-          // Generous: the hull reaches a panel's height either side of the
-          // line through the wing tips.
-          const near = segmentDistance([p.x, p.y], a, b) < kSat * 3;
-          if (!near) continue;
-          closest = Math.min(closest, segmentDistance([p.x, p.y], a, b) / kSat);
-          if (depthBucket(p, frame) !== "behindSatellite") crossings++;
+          if (p.x < 0 || p.x > frame.width || p.y < 0 || p.y > frame.height) continue;
+          if (segmentDistance([p.x, p.y], a, b) < kSat * 3) overSatellite++;
+          if (Math.hypot(p.x - frame.planet.cx, p.y - frame.planet.cy) < frame.planet.r) {
+            overPlanet++;
+          }
         }
       }
     }
 
     check(
-      `${where}: nothing is ever put in front of the satellite`,
-      crossings === 0,
-      `${crossings} crossings, closest approach ${closest.toFixed(2)} half-edges`,
-    );
-
-    /*
-     * And the depth that bucket resolves to really is behind the whole hull.
-     *
-     * The bucket is only a *name*; this is the number it stands for, and it
-     * is the half of the rule that can silently stop being true — the
-     * satellite's scale and the camera's distance are both solved from the
-     * composition, so a change to either moves the hull without touching
-     * anything in this file.
-     */
-    const sizes = SIZES[where];
-    const camera = hubPose(sizes.width, sizes.height).position;
-    const depths = orbiterDepths(sizes.width, sizes.height);
-    const nearest = camera[2] - Math.max(...satelliteHull().map(([, , z]) => z));
-    const furthest = camera[2] - Math.min(...satelliteHull().map(([, , z]) => z));
-
-    check(
-      `${where}: and the depth it uses is past the whole hull`,
-      depths.behindSatellite > furthest,
-      `${depths.behindSatellite.toFixed(2)} vs hull ${nearest.toFixed(2)}-${furthest.toFixed(2)}`,
+      `${where}: and the rule is doing work`,
+      overSatellite > 0 && overPlanet > 0,
+      `${overSatellite} over the satellite, ${overPlanet} over the planet`,
     );
   }
 }
@@ -367,7 +377,7 @@ for (const where of ["desktop", "phone"] as const) {
   const plain = makeOrbiters(SEEDS[0], frames.desktop, { rocks: false });
   check(
     "a set switches off without disturbing the others",
-    plain.every((o: Orbiter) => o.set !== "rocks") && plain.length === 8,
+    plain.every((o: Orbiter) => o.set !== "rocks") && plain.length === 9,
     `${plain.length} left`,
   );
 }

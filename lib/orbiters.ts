@@ -59,8 +59,15 @@ export const TRAIL_CLEARANCE = 0.06;
  * company, which is the one thing R30 is trying not to be.
  *
  * Dropped rather than merely switched off, so there is no dead shape code
- * waiting to be switched back on by accident. §8.1's counts drop with it:
- * 26 on a desktop and 19 on a phone, not 29 and 21.
+ * waiting to be switched back on by accident.
+ *
+ * The counts are not §8.1's either, for a second reason. Nothing passes in
+ * front of the planet any more, so everything over its disc is hidden rather
+ * than half of it — which thinned the *visible* sky from a median of eleven
+ * objects to nine, below the density §15 measures for. The cubesats and the
+ * rocks make that back up. What §15 is really protecting is how full the sky
+ * looks, not how many things are in it, so the right response to taking
+ * visibility away was to put objects back.
  */
 export const ORB_MIX: Record<
   OrbiterType,
@@ -74,9 +81,9 @@ export const ORB_MIX: Record<
     hero: boolean;
   }
 > = {
-  cubesat: { set: "craft", n: [6, 5], d: [1.3, 2.0], hero: true },
+  cubesat: { set: "craft", n: [7, 6], d: [1.3, 2.0], hero: true },
   station: { set: "craft", n: [1, 1], d: [1.4, 1.8], hero: true },
-  rock: { set: "rocks", n: [18, 12], d: [1.25, 2.7], hero: false },
+  rock: { set: "rocks", n: [21, 14], d: [1.25, 2.7], hero: false },
   moonlet: { set: "moon", n: [1, 1], d: [1.95, 2.5], hero: true },
 };
 
@@ -226,14 +233,18 @@ export function screenPos(o: Orbiter, t: number, frame: OrbitFrameLike): Orbiter
 /**
  * Visible, for placement and for verify (§8.3 step 4).
  *
- * Two ways to be invisible: off the edges of the frame, or on the far leg of
- * the orbit with the planet's disc in the way. The second is the one that
- * matters — it is how the sky keeps changing without anything appearing from
- * nowhere.
+ * Two ways to be invisible: off the edges of the frame, or with the planet's
+ * disc in the way. The second is the one that matters — it is how the sky
+ * keeps changing without anything appearing from nowhere.
+ *
+ * It no longer depends on which leg of the orbit the object is on. Nothing
+ * passes in front of the planet now, so anything over its disc is hidden
+ * whichever side of it the object is on.
  */
 export function isVisible(p: OrbiterPoint, frame: OrbitFrameLike): boolean {
-  const behind = p.z < 0 && Math.hypot(p.x - frame.planet.cx, p.y - frame.planet.cy) < frame.planet.r;
-  if (behind) return false;
+  const behindPlanet =
+    Math.hypot(p.x - frame.planet.cx, p.y - frame.planet.cy) < frame.planet.r;
+  if (behindPlanet) return false;
   return (
     p.x > frame.width * 0.03 &&
     p.x < frame.width * 0.97 &&
@@ -360,53 +371,29 @@ export function offTrail(p: [number, number], frame: OrbitFrameLike): boolean {
  * Depth (§8.4)
  * ------------------------------------------------------------------------- */
 
-export type OrbiterLayer = "far" | "near";
-
 /**
- * Which side of the planet an orbiter is on this frame.
+ * Nothing orbiting is ever drawn in front of the planet or the satellite.
  *
- * §8.4 had a third layer — "nearest", for the closest part of the closest
- * orbits, which passed *in front of the satellite*. It is gone. A cubesat
- * eleven pixels across drifting over a satellite that spans a third of the
- * frame does not read as "nearer"; it reads as a small thing stuck to the
- * glass, because nothing else in the picture supports the scale. The
- * satellite is the letter and it stays in front of its own company.
+ * §8.4 had three depth layers, and two of them put small things in front of
+ * big ones: the far leg behind the planet, the near leg in front of it, and
+ * the closest orbits across the satellite as well. Both readings fail for the
+ * same reason. A cubesat eleven pixels across, or a rock of five, drifting
+ * over a planet that fills a corner of the frame or a satellite that spans a
+ * third of it does not read as *nearer*. It reads as a small thing stuck to
+ * the glass, because nothing else in the picture supports that scale.
+ *
+ * So the foreground is the letter and the world it circles, always, and the
+ * company is always beyond them. Objects pass behind the planet's limb and
+ * out the other side, which is what moons do and is a far better reading than
+ * the one it replaces.
+ *
+ * There is now **one** depth for all of it, and that falls out of the
+ * composition rather than being arranged: the planet is staged much closer to
+ * the lens than the satellite is — on a desktop it occupies depths 0.5 to 4.9
+ * and the satellite 5.2 to 7.7 — so a single depth past the back of the
+ * satellite's hull is past the planet as well. `orbiterDepth` in
+ * `framing.ts` solves it, and the verify suite checks the relationship holds.
  */
-export function layerOf(p: OrbiterPoint): OrbiterLayer {
-  return p.z < 0 ? "far" : "near";
-}
-
-/**
- * Where an orbiter is placed **in depth**, which decides only what covers it.
- *
- * Three buckets, and the reason there are three rather than two is a quirk of
- * this composition: the planet is staged much closer to the lens than the
- * satellite is (on a desktop it occupies depths 0.5 to 4.9, the satellite 5.2
- * to 7.7). They never overlap on screen — §17 checks that — but it does mean
- * no single depth is both "in front of the planet" and "behind the
- * satellite". So the depth is chosen for where the object actually is:
- *
- * - over the planet's disc, it goes in front of or behind the **planet**,
- *   which is what gives §8.4 its reading — things pass behind the world on
- *   one leg of the orbit and in front of it on the other;
- * - anywhere else, it goes behind the **satellite**, so it can never cross
- *   it whatever its orbit is doing.
- *
- * Switching between the two is invisible: an orbiter is placed on the hub
- * camera's ray through its pixel and sized from its depth, so changing the
- * depth moves it neither on screen nor in apparent size. Only the occlusion
- * changes, which is the whole point.
- */
-export type OrbiterDepth = "behindPlanet" | "beforePlanet" | "behindSatellite";
-
-/** How far past the planet's limb its depth still governs, in planet radii. */
-const PLANET_REACH = 1.04;
-
-export function depthBucket(p: OrbiterPoint, frame: OrbitFrameLike): OrbiterDepth {
-  const fromPlanet = Math.hypot(p.x - frame.planet.cx, p.y - frame.planet.cy);
-  if (fromPlanet > frame.planet.r * PLANET_REACH) return "behindSatellite";
-  return p.z < 0 ? "behindPlanet" : "beforePlanet";
-}
 
 /**
  * Near-leg things read a little larger, far-leg things smaller (§8.4, §8.5).
