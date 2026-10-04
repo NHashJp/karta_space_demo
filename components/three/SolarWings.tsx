@@ -6,6 +6,7 @@ import { Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { panelCellsFragmentShader, panelCellsVertexShader } from "./shaders/panelCells";
 import { keyLight } from "@/lib/sceneLight";
+import { useDawn } from "./DawnProvider";
 import { DEPLOY_MS } from "@/lib/timing";
 import {
   BOOM_L,
@@ -84,22 +85,58 @@ export function SolarWings({ progress, fade, seed, returned, reducedMotion }: Pr
       uSun: { value: new THREE.Vector3(0, 0, 1) },
       uSunColor: { value: new THREE.Color("#fff4e6") },
       uOpacity: { value: 1 },
+      uTime: { value: 0 },
+      uDawn: { value: 0.2 },
     }),
     [],
   );
+
+  /*
+   * One uniform set per panel, so the sweep can arrive at each in turn (§5).
+   *
+   * The six share every holder in `uniforms` — the spread copies the
+   * references, not the values — so the sun, the dawn, the clock and the fade
+   * are still written once a frame in one place. Only `uIndex` differs.
+   *
+   * The index is the panel's position **across the satellite**, left to right,
+   * rather than the order the wings happen to be built in: the flash should
+   * run along the arrays the way light actually sweeps across a thing, and the
+   * outer panel of the left wing is the leftmost of the six, not the third.
+   */
+  const panelUniforms = useMemo(
+    () =>
+      ([0, 1] as const).map((wing) =>
+        PANEL_INDICES.map((k) => ({
+          ...uniforms,
+          uIndex: { value: wing === 0 ? 2 - k : 3 + k },
+        })),
+      ),
+    [uniforms],
+  );
+
+  const { d, active, toSun } = useDawn();
 
   useFrame(({ clock }) => {
     // `progress` is the deploy t itself, 0 docked to 1 deployed.
     const t = progress.current;
     const boom = boomAt(t);
-    const sun = keyLight(clock.elapsedTime, seed, returned, { reducedMotion });
+    const sun = keyLight(clock.elapsedTime, seed, active ? d : undefined, {
+      reducedMotion,
+      returned,
+      toSun,
+    });
 
     const shown = fade.current;
     if (group.current) group.current.visible = boom > 0.0001 && shown > 0.002;
     if (material.current) {
-      material.current.uniforms.uSun.value.set(...sun.dir);
-      material.current.uniforms.uSunColor.value.set(sun.color);
-      material.current.uniforms.uOpacity.value = shown;
+      const u = material.current.uniforms;
+      u.uSun.value.set(...sun.dir);
+      u.uSunColor.value.set(sun.color);
+      u.uOpacity.value = shown;
+      // Every panel shares these holders, so writing them once is enough.
+      // Reduced motion stills the sweep (§15) by freezing its clock.
+      u.uTime.value = reducedMotion ? 0 : clock.elapsedTime;
+      u.uDawn.value = active ? d.p : 0.2;
     }
 
     ([0, 1] as WingIndex[]).forEach((index) => {
@@ -170,7 +207,7 @@ export function SolarWings({ progress, fade, seed, returned, reducedMotion }: Pr
                   */}
                   <shaderMaterial
                     ref={index === 1 && k === 0 ? material : undefined}
-                    uniforms={uniforms}
+                    uniforms={panelUniforms[index][k]}
                     vertexShader={panelCellsVertexShader}
                     fragmentShader={panelCellsFragmentShader}
                     transparent

@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { SpaceEnvironment } from "@/components/three/SpaceEnvironment";
+import { DawnProvider } from "@/components/three/DawnProvider";
 import { Planet } from "@/components/three/Planet";
 import { Comet } from "@/components/three/Comet";
 import { CometOrbitMini } from "@/components/card/CometOrbitMini";
 import { AmbientOverlay } from "@/components/card/AmbientOverlay";
-import { FOV, orbitPose } from "@/components/three/framing";
+import { FOV, PLANET_CENTRE, orbitPose } from "@/components/three/framing";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import { daysBetween } from "@/lib/orbitClock";
 import { progress as cometProgress } from "@/lib/cometOrbit";
@@ -49,6 +50,13 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
           gl={{ antialias: true, alpha: false }}
           camera={{ fov: FOV, position: orbitPose(1200, 800).position, near: 0.1, far: 120 }}
         >
+          {/*
+            The same dawn the card has (rev 7.1 §3): the sender checking on
+            their comet sees the same sunrise over the same planet, at the same
+            point in the same wait. It is the whole reason this page is a sky
+            rather than a status line.
+          */}
+          <DawnProvider f={progress} status={returned ? "returned" : "away"} active>
           <SpaceEnvironment
             reducedMotion={reducedMotion}
             dimmed={false}
@@ -63,11 +71,18 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
             */
             sky={skyFor({ comet: { leftOn: comet.leftOn } }, today)}
           />
-          <Planet
-            seed={lightSeed(comet.slug)}
-            returned={returned}
-            reducedMotion={reducedMotion}
-          />
+          {/*
+            `Planet` draws at its parent's origin and the caller places it
+            (r7 §14 step 0). The card's hub stages it per aspect ratio; this
+            page has one fixed framing, so it gets the world constant.
+          */}
+          <group position={PLANET_CENTRE}>
+            <Planet
+              seed={lightSeed(comet.slug)}
+              returned={returned}
+              reducedMotion={reducedMotion}
+            />
+          </group>
           <Comet
             progress={progress}
             slug={comet.slug}
@@ -76,6 +91,7 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
             reducedMotion={reducedMotion}
             showOrbit
           />
+          </DawnProvider>
         </Canvas>
       </div>
 

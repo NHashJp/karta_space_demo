@@ -16,8 +16,27 @@
  *    because you are looking through more of them.
  * 3. **Clouds**, stretched along longitude and turning faster than the
  *    surface, so the two layers separate.
- * 4. **Night-side lights.** Sparse warm specks on land where the sun has set.
+ * 4. **Night-side lights.** Warm specks on land where the sun has set.
  *    Small, and the difference between a planet and an inhabited one.
+ *
+ * Revision 7.1 §6 turns the planet round. The face towards the camera is now
+ * its **night side**, with the sun just behind the limb — so the surface this
+ * shader spent most of its effort on is in shadow, and what the reader
+ * actually sees is three things it barely had:
+ *
+ * - a **sunlit crescent** at the limb, which widens as the reunion nears,
+ *   because the sun is physically climbing (`Dawn.sunElevation`). Nothing
+ *   special draws it: point the key light at the limb and the N·L term that
+ *   was already here produces it;
+ * - **city lights**, no longer sparse. Forty-odd clusters in the outer fifth
+ *   of the visible disc, flickering, fading out where it is already day. They
+ *   are the single strongest reason the scene stops reading as "a cold, empty
+ *   sky": somebody lives down there, and it is the person the letter is for;
+ * - a trace of **aurora** along the limb (drawn in the air shell, not here).
+ *
+ * The night base is r7's three-stop radial — #04070e inside to #0d1a30 at the
+ * limb — mixed under the albedo rather than replacing it, so the coastlines
+ * are still faintly there to put the cities on.
  */
 
 export const planetVertexShader = /* glsl */ `
@@ -37,6 +56,16 @@ export const planetFragmentShader = /* glsl */ `
   uniform vec3 uSun;
   uniform vec3 uSunColor;
   uniform float uNight;
+  /** The dawn, 0.2 (blue hour) to 1 (the day) — rev 7.1 §3. */
+  uniform float uDawn;
+  /** Seconds, for the city flicker. Frozen under reduced motion. */
+  uniform float uTime;
+  /**
+   * Where the sun is on the disc, in planet radii from its centre, screen
+   * axes with y up. Just over 1.0 out: on the limb, or a little above it
+   * once the dawn has lifted it (§4, Dawn.sunElevation).
+   */
+  uniform vec2 uSunPos;
 
   varying vec3 vNormal;
   varying vec3 vPosition;
@@ -76,6 +105,25 @@ export const planetFragmentShader = /* glsl */ `
       amplitude *= 0.5;
     }
     return value;
+  }
+
+  /*
+   * The colours §6 gives are hex, which is sRGB; this shader's output goes
+   * through colorspace_fragment, which encodes linear to sRGB. So r7's stops
+   * have to be decoded on the way in or they come back out about ten times
+   * too bright — which is the difference between a night side and a pale
+   * daylit ball, and is exactly how the first attempt at this went wrong.
+   *
+   * 2.2 rather than the exact piecewise curve: these are all deep colours
+   * where the two agree closely, and a number anyone can check by eye against
+   * the document is worth more here than the last per cent.
+   *
+   * The surface palette above predates r7 and is deliberately left alone — it
+   * was tuned in this same convention, and correcting it would change the
+   * planet's daylight, which r7 does not ask for.
+   */
+  vec3 srgb(vec3 c) {
+    return pow(c, vec3(2.2));
   }
 
   vec3 spin(vec3 p, float angle) {
@@ -126,34 +174,141 @@ export const planetFragmentShader = /* glsl */ `
      */
     albedo = mix(albedo, vec3(0.80, 0.85, 0.91), cloud * 0.36);
 
-    // ---- lighting --------------------------------------------------------
-    float ndl = dot(normal, uSun);
-    // Wrapped Lambert: the terminator becomes the scattered band an atmosphere
-    // makes, rather than the hard edge of a billiard ball.
-    float wrap = 0.2;
-    float diffuse = clamp((ndl + wrap) / (1.0 + wrap), 0.0, 1.0);
-
-    // Limb darkening: more atmosphere to look through at the edge.
+    // ---- the night side the camera is looking at (rev 7.1 §6) ------------
+    /*
+     * Everything below is in the **disc's own screen space**, and that is a
+     * deliberate departure from how a planet is normally shaded.
+     *
+     * The usual way — N·L against a sun direction — cannot draw this picture.
+     * The sun sits *on the visible limb*, a little over one radius from the
+     * centre, and the arc of this planet the composition actually shows is
+     * the same arc the sun is on. Any hemisphere lighting therefore lights
+     * the whole of what you can see, which is a daylit ball: the exact image
+     * r7 replaces. §6 does not describe hemisphere lighting. It describes a
+     * radial wash from a point on the limb, and that is what this is.
+     *
+     * For a unit sphere the surface point and its normal are the same vector,
+     * so normal.xy is already where the fragment lands on the disc, in
+     * planet radii, and radius is how far out it is.
+     */
     float facing = max(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0);
-    float limb = 0.4 + 0.6 * pow(facing, 0.55);
+    float radius = sqrt(max(0.0, 1.0 - facing * facing));
+    vec2 disc = normal.xy;
 
-    vec3 color = albedo * uSunColor * diffuse * limb;
+    /*
+     * The night radial: #04070e inside, #08111f, #0d1a30 at the limb — and
+     * the *stops* matter as much as the colours.
+     *
+     * §6 gives it as a canvas gradient from 0.6R to R, so the inner three
+     * fifths of the disc are flat #04070e and the whole transition happens in
+     * the outer two fifths. Spreading it across the full radius instead — an
+     * easy thing to do, and what this did at first — lifts the middle of the
+     * disc by a factor of three, and the planet stops being a dark shape with
+     * a bright edge and becomes a grey ball. The drama in this composition is
+     * entirely contrast: black, then one brilliant line.
+     */
+    vec3 nightDeep = srgb(vec3(0.016, 0.027, 0.055));
+    vec3 nightMid  = srgb(vec3(0.031, 0.067, 0.122));
+    vec3 nightEdge = srgb(vec3(0.051, 0.102, 0.188));
+    vec3 night = mix(nightDeep, nightMid, smoothstep(0.60, 0.96, radius));
+    night = mix(night, nightEdge, smoothstep(0.96, 1.0, radius));
 
-    // Ocean specular, following the same sun as everything else.
-    vec3 halfway = normalize(uSun + vec3(0.0, 0.0, 1.0));
-    float specular = pow(max(dot(normal, halfway), 0.0), 120.0);
-    color += uSunColor * specular * (1.0 - isLand) * 0.55 * step(0.0, ndl);
+    /*
+     * The land is still there under it, and *barely*. It is here so the
+     * coastlines have somewhere to put cities, not so that anyone can see
+     * them: at any weight where the continents read, the night side reads as
+     * lit, which is the one thing it must not do.
+     */
+    vec3 color = night + albedo * 0.012 * (1.0 - cloud * 0.4);
 
-    // ---- night side ------------------------------------------------------
-    // Sparse warm specks on land, fading across the terminator rather than
-    // switching on at it. The receiver's planet is inhabited.
-    float darkness = smoothstep(-0.05, -0.32, ndl);
-    float cityField = valueNoise(surfacePoint * 9.0);
-    float cities = pow(smoothstep(0.80, 0.97, cityField), 2.0) * isLand;
-    color += vec3(1.0, 0.812, 0.541) * cities * darkness * uNight * (1.0 - cloud * 0.7);
+    /*
+     * The sunlit crescent: a wash from the sun, clipped to the disc, whose
+     * radius is R · (0.18 + 0.5p). It widens as the day nears, which is the
+     * countdown written on the planet itself.
+     *
+     * **Composited, not added.** §6 gives it as an rgba gradient painted over
+     * the disc, and the difference is the whole look: adding it lifts the
+     * entire visible arc towards grey, because the sun sits on the limb and
+     * the arc the composition shows is the arc the sun is on — so almost all
+     * of the planet you can see is inside the wash. Mixing towards the wash
+     * colour instead leaves the night side at the night colour and only the
+     * sliver near the sunrise lit, which is the dramatic, high-contrast
+     * reading the mockup has and the one the whole scene is composed for.
+     *
+     * Piecewise linear between the three stops, because a canvas gradient is
+     * linear and a smoothstep here visibly widens the bright part.
+     */
+    float toSun = length(disc - uSunPos);
+    float reach = 0.18 + 0.5 * uDawn;
+    float u = clamp(toSun / max(reach, 1e-4), 0.0, 1.0);
 
-    // A trace of ambient, so the night side is a dark shape and not a hole.
-    color += albedo * 0.035;
+    vec3 washWarm = srgb(vec3(1.0, 0.839, 0.627));   // #ffd6a0
+    vec3 washCool = srgb(vec3(0.353, 0.588, 0.824)); // #5a96d2
+    vec3 washDeep = srgb(vec3(0.078, 0.157, 0.314)); // #142850, the last stop
+
+    float washA = u < 0.3
+      ? mix(0.35 + 0.4 * uDawn, 0.05 + 0.22 * uDawn, u / 0.3)
+      // Squared on the way out, so the scattered blue falls off the way air
+      // does and the night side stays night rather than going grey.
+      : mix(0.05 + 0.22 * uDawn, 0.0, pow((u - 0.3) / 0.7, 0.6));
+    vec3 washColour = u < 0.3
+      ? mix(washWarm, washCool, u / 0.3)
+      : mix(washCool, washDeep, (u - 0.3) / 0.7);
+
+    // The ground shows through the lit part, which is what stops the crescent
+    // reading as a painted highlight rather than as morning on a world.
+    color = mix(color, washColour + albedo * 0.22 * (1.0 - u), washA);
+
+    // A specular skim where the sunrise crosses ocean.
+    color += washWarm * pow(1.0 - u, 6.0) * (1.0 - isLand) * 0.30 * uSunColor;
+
+    // ---- city lights (r7 §6: prominent now) -------------------------------
+    /*
+     * Clustered rather than scattered: a coarse field decides where a cluster
+     * is at all and a fine one puts the lights inside it, which is what makes
+     * them read as towns instead of as noise. They ride the surface rotation,
+     * because they are on the ground.
+     */
+    /*
+     * Two scales: a coarse field says where a cluster is at all, and a much
+     * finer one puts the individual lights inside it. The fine one has to be
+     * *fine* — at the scale this started out, every "light" was fifteen
+     * pixels across and the coast read as a row of orange clouds. These are
+     * towns seen from orbit; they are points.
+     */
+    float cluster = pow(smoothstep(0.50, 0.78, valueNoise(surfacePoint * 14.0)), 1.4);
+    float grain = valueNoise(surfacePoint * 120.0);
+    float cities = pow(smoothstep(0.66, 0.97, grain), 1.6) * cluster * isLand;
+
+    /*
+     * In the outer third of the disc, which is the part of this planet the
+     * composition actually shows — and on a phone that matters twice over,
+     * because the planet is relatively much bigger there and the frame cuts
+     * deeper into it. §6 says "the outer 18%"; reaching a little further in
+     * is what keeps the night side inhabited rather than empty on a phone.
+     */
+    float outer = smoothstep(0.62, 0.84, radius) * (1.0 - smoothstep(0.988, 1.0, radius));
+    cities *= outer;
+
+    // Out where it is already day there is nothing to see: they fade inside
+    // (0.12 + 0.25p) · R of the sun.
+    float day = 1.0 - smoothstep(0.02, 0.12 + 0.25 * uDawn, toSun);
+    cities *= 1.0 - day;
+
+    // Each cluster on its own phase, so the coast twinkles: +/-35%.
+    float flicker = 1.0 + 0.35 * sin(uTime * 1.7 + grain * 40.0 + cluster * 9.0);
+
+    vec3 cityCore = srgb(vec3(1.0, 0.839, 0.588));  // #ffd696
+    vec3 cityGlow = srgb(vec3(1.0, 0.769, 0.471));  // #ffc478
+    color += cityCore * cities * flicker * uNight * 2.2 * (1.0 - cloud * 0.7);
+    /*
+     * A dim haze over a cluster, so a town is a smudge of light with points
+     * in it rather than a pinprick that aliases away at phone size. Keyed to
+     * a *second* threshold on the same coarse field, so it only appears where
+     * the lights are dense — not as a wash over every landmass.
+     */
+    float lit = pow(smoothstep(0.60, 0.86, valueNoise(surfacePoint * 14.0)), 2.0);
+    color += cityGlow * lit * isLand * outer * (1.0 - day) * uNight * 0.12;
 
     gl_FragColor = vec4(color, 1.0);
 

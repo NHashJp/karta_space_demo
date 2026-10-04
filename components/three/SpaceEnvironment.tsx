@@ -6,9 +6,10 @@ import * as THREE from "three";
 import { BrightStars } from "./BrightStars";
 import { DustMotes } from "./DustMotes";
 import { NebulaBackdrop } from "./NebulaBackdrop";
-import { Starfield } from "./Starfield";
+import { Starfield, TANABATA, TanabataStars } from "./Starfield";
 import { WanderingLights } from "./WanderingLights";
 import { keyLight } from "@/lib/sceneLight";
+import { useDawn } from "./DawnProvider";
 import { sky as freshSky, type Sky } from "@/lib/skyAge";
 
 type Props = {
@@ -56,6 +57,8 @@ export function SpaceEnvironment({
       <NebulaBackdrop reducedMotion={reducedMotion} dimmed={dimmed} sky={sky} />
       <Starfield reducedMotion={reducedMotion} turning={skyTurning} brightness={sky.stars} />
       <BrightStars reducedMotion={reducedMotion} />
+      {/* Optional, and off by default — see TANABATA for why (r7 §4, R29). */}
+      {TANABATA ? <TanabataStars reducedMotion={reducedMotion} /> : null}
 
       {/* Ambient and a violet fill; the sun itself moves, below. */}
       {/*
@@ -92,15 +95,43 @@ function KeyLight({
   reducedMotion: boolean;
 }) {
   const light = useRef<THREE.DirectionalLight>(null);
+  const fill = useRef<THREE.DirectionalLight>(null);
+  const { d, active, toSun } = useDawn();
 
   useFrame(({ clock }) => {
     const target = light.current;
     if (!target) return;
-    const sun = keyLight(clock.elapsedTime, seed, returned, { reducedMotion });
+    const sun = keyLight(clock.elapsedTime, seed, active ? d : undefined, {
+      reducedMotion,
+      returned,
+      toSun,
+    });
     target.position.set(sun.dir[0] * DISTANCE, sun.dir[1] * DISTANCE, sun.dir[2] * DISTANCE);
     target.intensity = 1.35 * sun.intensity;
     target.color.set(sun.color);
+
+    /*
+     * The fill (rev 7.1 §5). Low and cool, from the other side, so the face
+     * turned away from a low sun is a dark *shape* rather than a hole. It is
+     * only mounted in the orbit scene: before the card is deployed the light
+     * is r5's, and r5's scenes are supposed to look exactly as they did.
+     */
+    const bounce = fill.current;
+    if (bounce) {
+      bounce.position.set(
+        sun.fill.dir[0] * DISTANCE,
+        sun.fill.dir[1] * DISTANCE,
+        sun.fill.dir[2] * DISTANCE,
+      );
+      bounce.intensity = active ? 1.35 * sun.fill.intensity : 0;
+      bounce.color.set(sun.fill.color);
+    }
   });
 
-  return <directionalLight ref={light} intensity={1.35} color="#fff4e6" />;
+  return (
+    <>
+      <directionalLight ref={light} intensity={1.35} color="#fff4e6" />
+      <directionalLight ref={fill} intensity={0} color="#6f86c4" />
+    </>
+  );
 }

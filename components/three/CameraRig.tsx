@@ -42,6 +42,17 @@ type Props = {
    */
   breathing?: boolean;
   reducedMotion: boolean;
+  /**
+   * Propel (rev 7.1 §11): the short arrival beat on reaching orbit. A counter
+   * rather than a flag, because what starts it is an *arrival* — the same
+   * boolean going true a second time is not an event React can see.
+   */
+  propel?: number;
+  /**
+   * How far through the beat we are, 0 → 1 → 0, written here and read by the
+   * sky's haze and the satellite's thruster. A ref: it changes every frame.
+   */
+  flare?: React.RefObject<number>;
   onArrive: () => void;
 };
 
@@ -64,6 +75,8 @@ export function CameraRig({
   seed = 0,
   breathing = false,
   reducedMotion,
+  propel = 0,
+  flare,
   onArrive,
 }: Props) {
   const { camera, size } = useThree();
@@ -116,6 +129,19 @@ export function CameraRig({
   arrive.current = onArrive;
 
   const previousPose = useRef(pose);
+
+  /*
+   * Propel (§11). A 6% ease-out from 1.06x, 2.4 seconds long, once per
+   * arrival in orbit. Revision 7.0 wanted star streaks and a brightening
+   * wake with it; 7.1 cut both, and what is left is deliberately almost
+   * nothing — the point is to mark *arriving somewhere*, and a scene that
+   * shouts about it stops being a place you have arrived at.
+   */
+  const propelAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (propel <= 0) return;
+    propelAt.current = performance.now();
+  }, [propel]);
 
   useEffect(() => {
     // First paint: sit at the target rather than drifting toward it.
@@ -194,12 +220,30 @@ export function CameraRig({
       return;
     }
 
+    /*
+     * Propel. Reduced motion gets the end state and nothing else (§11), so
+     * the beat simply never starts.
+     */
+    let zoom = 1;
+    if (propelAt.current !== null && !reducedMotion) {
+      const raw = Math.min((performance.now() - propelAt.current) / PROPEL_MS, 1);
+      const eased = 1 - Math.pow(1 - raw, 3);
+      zoom = 1 + (PROPEL_ZOOM - 1) * (1 - eased);
+      if (flare) flare.current = Math.sin(Math.PI * raw) * PROPEL_FLARE;
+      if (raw >= 1) {
+        propelAt.current = null;
+        if (flare) flare.current = 0;
+      }
+    }
+
     // At rest, the scene breathes. Under a percent of the distance over 26
     // seconds: never noticed on its own, and the difference between a place
     // and a photograph of one.
-    if (!breathing) return;
-    const breath = cameraBreath(clock.elapsedTime, seed, { reducedMotion });
-    apply(camera, scalePose(to.current, breath.distance), breath.roll);
+    if (!breathing && zoom === 1) return;
+    const breath = breathing
+      ? cameraBreath(clock.elapsedTime, seed, { reducedMotion })
+      : { distance: 1, roll: 0 };
+    apply(camera, scalePose(to.current, breath.distance * zoom), breath.roll);
   });
 
   return null;
@@ -231,6 +275,15 @@ export function CameraRig({
     return lerpPose(from.current, to.current, t);
   }
 }
+
+/** Propel (§11, §17): 2.4 s, from 1.06x, with the sun's flare up by 0.35. */
+export const PROPEL_MS = 2400;
+export const PROPEL_ZOOM = 1.06;
+export const PROPEL_FLARE = 0.35;
+/** The nudge, in CSS pixels: 6 on desktop, 4 in portrait. */
+export const PROPEL_NUDGE_PX = { landscape: 6, portrait: 4 };
+/** Which way it nudges: up and to the right, along (1, −0.26). */
+export const PROPEL_HEADING: [number, number] = [1, -0.26];
 
 /** How much of a retrace is spent on the trail before pulling out. */
 const RETRACE_SHARE = 0.72;

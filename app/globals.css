@@ -1118,15 +1118,75 @@ body {
 }
 
 /*
- * The hint sits near the top (rev 6 §3.1): the satellite now fills the middle
- * of the frame, so a centred line would land on top of it.
+ * The promise, in the top-right corner (rev 7.1 §4, §10).
+ *
+ * The most important sentence in the card, given a permanent place instead of
+ * the twenty-second chip it had in revision 5. Right-aligned into the corner,
+ * because that is the one part of the frame the composition keeps empty: the
+ * satellite is centre-left, the planet is bottom-right, the contrail is top-
+ * left, and the orbiting things are placed to stay out from under this
+ * (`CAPTION_KEEP_OUT` in framing.ts, which is the same box).
+ *
+ * It takes no pointer events. Everything in the orbit view is tappable and
+ * this is the one thing that is not, so it must not swallow a tap aimed at
+ * the sky behind it.
+ */
+.orbit-caption {
+  position: absolute;
+  top: max(80px, calc(env(safe-area-inset-top) + var(--space-3)));
+  right: var(--space-3);
+  max-width: min(320px, 46vw);
+  text-align: right;
+  pointer-events: none;
+}
+
+.orbit-caption__promise {
+  font-size: 0.875rem;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--starlight);
+}
+
+.orbit-caption__when {
+  margin-top: var(--space-half);
+  font-size: 0.75rem;
+  line-height: 20px;
+  color: var(--lunar);
+}
+
+/* Warm, because what is aboard belongs to the receiver (principle 11). */
+.orbit-caption__aboard {
+  margin-top: var(--space-half);
+  font-size: 0.75rem;
+  line-height: 20px;
+  color: var(--warm);
+}
+
+/* On the day the top line is the news, so it is the warm one. */
+.orbit-caption[data-day="true"] .orbit-caption__promise {
+  color: var(--warm);
+}
+
+@media (max-width: 599px) {
+  .orbit-caption {
+    top: max(72px, calc(env(safe-area-inset-top) + var(--space-2)));
+    right: var(--space-2);
+    max-width: 56vw;
+  }
+}
+
+/*
+ * The hint sits under the promise caption (rev 7.1 §13), right-aligned with
+ * it. It used to be centred near the top, where r7's caption now is — two
+ * lines of chrome stacked on the same pixels is how a reader ends up reading
+ * neither.
  */
 .orbit-ui__tip {
   position: absolute;
-  top: max(var(--space-8), env(safe-area-inset-top));
-  left: 0;
-  right: 0;
-  text-align: center;
+  top: 160px;
+  right: var(--space-3);
+  max-width: min(320px, 46vw);
+  text-align: right;
   font-size: 0.82rem;
   line-height: 20px;
   letter-spacing: 0.08em;
@@ -1135,7 +1195,42 @@ body {
   transition: opacity 800ms ease;
 }
 
+@media (max-width: 599px) {
+  .orbit-ui__tip {
+    top: 144px;
+    right: var(--space-2);
+    max-width: 56vw;
+  }
+}
+
 .orbit-ui__tip[data-visible="true"] {
+  opacity: 1;
+}
+
+/*
+ * The overtaking toast (rev 7.1 §13). Just above the bottom bar, where the
+ * reader's eye already is after watching the reply fly, rather than at the
+ * top of the screen over the promise.
+ */
+.orbit-toast {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 136px;
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 400ms ease;
+  pointer-events: none;
+}
+
+@media (max-width: 599px) {
+  .orbit-toast {
+    bottom: 216px;
+  }
+}
+
+.orbit-toast[data-visible="true"] {
   opacity: 1;
 }
 
@@ -1161,13 +1256,31 @@ body {
  * Capped narrower than the screen so four pills fall onto two rows of two on
  * a phone, as the mockups have them, instead of one scrolling line.
  */
+/*
+ * One centred row, as the reference mockup has it.
+ *
+ * The cap is what makes the bar wrap, and it only belongs on a phone. On a
+ * phone four pills do not fit across 390 px, and capping the row narrower
+ * than the screen is what makes them break at the *same* place on every
+ * handset instead of at whatever width the labels happen to reach. On
+ * anything wider they fit on one line, and one line is the composition: the
+ * bar is a single quiet strip under the scene rather than a two-storey block
+ * of chrome sitting in the bottom of the frame.
+ */
 .orbit-bar__row {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-1);
-  max-width: 358px;
+  align-items: center;
+  gap: var(--space-2);
   pointer-events: auto;
+}
+
+@media (max-width: 599px) {
+  .orbit-bar__row {
+    gap: var(--space-1);
+    max-width: 358px;
+  }
 }
 
 /*
@@ -1177,8 +1290,10 @@ body {
  */
 body:has(.panel-layer) .orbit-bar,
 body:has(.sheet-layer) .orbit-bar,
-body:has(.panel-layer) .orbit-ui__aboard,
-body:has(.sheet-layer) .orbit-ui__aboard,
+body:has(.panel-layer) .orbit-caption,
+body:has(.sheet-layer) .orbit-caption,
+body:has(.panel-layer) .orbit-toast,
+body:has(.sheet-layer) .orbit-toast,
 body:has(.panel-layer) .orbit-ui__tip,
 body:has(.sheet-layer) .orbit-ui__tip,
 body:has(.panel-layer) .orbit-ui__reread,
@@ -1187,7 +1302,8 @@ body:has(.sheet-layer) .orbit-ui__reread {
   pointer-events: none;
 }
 
-.orbit-bar {
+.orbit-bar,
+.orbit-caption {
   transition: opacity 240ms ease;
 }
 
@@ -1197,7 +1313,29 @@ body:has(.sheet-layer) .orbit-ui__reread {
   font-size: 0.82rem;
 }
 
-/* `‹ 手紙に戻る` — the way back carries the only chevron in the bar. */
+/*
+ * Done, not disabled (rev 7.1 §13).
+ *
+ * The reply pill after a reply has been sent. It keeps a warm border and warm
+ * text and takes a check — an interface saying "you did this", not "you may
+ * not". It is `aria-disabled`, so it stays focusable and still announces
+ * itself; what a tap does is take the eye to the star the reply became.
+ */
+.orbit-bar .button--done,
+.orbit-bar .button--done:hover {
+  border-color: rgba(243, 201, 139, 0.55);
+  color: var(--warm);
+  cursor: default;
+}
+
+.orbit-bar__done-cue {
+  width: 14px;
+  height: 14px;
+  margin-right: calc(-1 * var(--space-half));
+  color: var(--warm);
+}
+
+/* `‹ 手紙を読みかえす` — the way back carries the only chevron in the bar. */
 .orbit-bar__back-cue {
   width: 14px;
   height: 14px;
@@ -2704,45 +2842,7 @@ body:has(.sheet-layer) .orbit-ui__reread {
 }
 
 /*
- * Where their words got to, in the hub — a warm chip above the bar (M14b).
- * It is the one thing the sky cannot say on its own: the comet carrying them
- * is a speck, and this is lit the colour of what is aboard it.
+ * r7 §13 removes the words-aboard chip: line 3 of the promise caption says
+ * the same thing, permanently, instead of for twenty seconds on arrival.
+ * `.orbit-ui__dot` goes with it — nothing else used it.
  */
-.orbit-ui__aboard {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 192px;
-  display: flex;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 800ms ease;
-}
-
-.orbit-ui__aboard[data-visible="true"] {
-  opacity: 1;
-}
-
-.orbit-ui__aboard span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  height: 32px;
-  padding: 0 var(--space-2);
-  border: 1px solid rgba(243, 230, 207, 0.4);
-  border-radius: var(--radius-pill);
-  background: rgba(5, 7, 12, 0.55);
-  backdrop-filter: blur(8px);
-  color: var(--warm);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-}
-
-.orbit-ui__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--warm);
-  box-shadow: 0 0 8px rgba(243, 215, 164, 0.9);
-}

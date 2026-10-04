@@ -8,9 +8,17 @@
  * a room — and what a card needs is for the reader to forget they are looking
  * at a screen, not to be told that something was clicked.
  *
- * Everything is quiet on purpose. The master is −24 dB, the ambient bed is
- * nearly subsonic, and each cue is a single soft tone. If the sound is ever
- * *noticed* as sound, it is too loud.
+ * Everything is quiet on purpose. The master is −26 dB, and each cue is a
+ * single soft tone. If the sound is ever *noticed* as sound, it is too loud.
+ *
+ * Revision 7.1 §12 changes what quiet *sounds like*. The ambient bed was two
+ * sines a bare fifth apart at 55 and 82.4 Hz — hollow, and intentionally so:
+ * it was written for "lonely space". That is precisely the reading r7 exists
+ * to get rid of, and a scene whose light says morning over a drone that says
+ * abandoned does not read as either. So the bed is an open major add9 chord
+ * now, with a sparse music-box arpeggio over it, and its low-pass **opens
+ * with the dawn** — 600 Hz at blue hour, 1400 Hz on the day. The countdown is
+ * in the sound as well as in the light.
  *
  * The engine is a singleton, fails silently if the browser will not give it an
  * AudioContext, and is driven entirely from `CardExperience` watching state
@@ -24,12 +32,31 @@ export type Cue =
   | "memory"
   | "launch"
   | "release"
-  | "returned";
+  | "returned"
+  /** The arrival beat: a rising shimmer under Propel (r7 §11, §12). */
+  | "dawn"
+  /** The reply passing the comet: three bell tones, falling slightly. */
+  | "bloom";
 
 const STORAGE_KEY = "ks_sound";
 
-/** Master gain, in linear terms: about −24 dB. */
-const MASTER = 0.063;
+/** Master gain, in linear terms: about −26 dB (r7 §12). */
+const MASTER = 0.05;
+
+/**
+ * The ambient chord: C3 · G3 · E4 · D5 — a major add9 (r7 §12).
+ *
+ * Open rather than close voiced, and with the ninth two octaves above the
+ * root, which is what keeps it from sounding like a chord being *played*. The
+ * ear hears a space with a tonality rather than an instrument.
+ */
+const AMBIENT_CHORD = [130.81, 196.0, 329.63, 587.33];
+
+/** The low-pass opens as the dawn rises: 600 Hz at p = 0.2, 1400 Hz at p = 1. */
+const AMBIENT_CUTOFF = { closed: 600, open: 1400 };
+
+/** The arpeggio: one note every 3-7 seconds, at random, with a long tail. */
+const ARPEGGIO_GAP = { min: 3, max: 7 };
 
 /** A pentatonic scale, so any two cues that overlap still agree. */
 const SCALE = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25]; // C D E G A C'
@@ -38,6 +65,10 @@ type Engine = {
   context: AudioContext;
   master: GainNode;
   ambient: GainNode | null;
+  /** The bed's low-pass, so the dawn can open it (r7 §12). */
+  tone: BiquadFilterNode | null;
+  /** The next music-box note, so it can be cancelled on stop. */
+  arpeggio: ReturnType<typeof setTimeout> | null;
 };
 
 let engine: Engine | null = null;
@@ -74,7 +105,7 @@ function ensure(): Engine | null {
     const master = context.createGain();
     master.gain.value = enabled ? MASTER : 0;
     master.connect(context.destination);
-    engine = { context, master, ambient: null };
+    engine = { context, master, ambient: null, tone: null, arpeggio: null };
     return engine;
   } catch {
     // No audio is a perfectly good outcome. Never let it break the card.
@@ -96,26 +127,47 @@ export function start() {
 
   const bed = e.context.createGain();
   bed.gain.value = 0;
-  bed.connect(e.master);
 
-  // Two sines a fifth apart, slightly detuned against each other. The beating
-  // between them is what stops a drone sounding like a test tone.
-  for (const [frequency, detune] of [
-    [55, -4],
-    [82.4, 5],
-  ]) {
+  /*
+   * One filter over the whole bed, which the dawn opens (§12). Everything
+   * else about the sound is fixed; this is the single parameter that tracks
+   * the countdown, and it is the right one — a sound opening up is what
+   * anyone would reach for to mean "morning", without being able to say why.
+   */
+  const tone = e.context.createBiquadFilter();
+  tone.type = "lowpass";
+  tone.frequency.value = AMBIENT_CUTOFF.closed;
+  tone.Q.value = 0.6;
+  bed.connect(tone).connect(e.master);
+  e.tone = tone;
+
+  /*
+   * The chord. Each voice slowly detuned against a fixed pitch, so the four
+   * of them drift in and out of phase with one another — the same trick the
+   * old bare fifth used, and the reason this is a place rather than a patch.
+   */
+  for (const [i, frequency] of AMBIENT_CHORD.entries()) {
     const oscillator = e.context.createOscillator();
     oscillator.type = "sine";
     oscillator.frequency.value = frequency;
-    oscillator.detune.value = detune;
     const gain = e.context.createGain();
-    gain.gain.value = 0.5;
+    // The upper voices quieter, or the ninth sits on top of everything.
+    gain.gain.value = 0.42 / (1 + i * 0.55);
     oscillator.connect(gain).connect(bed);
+
+    // A few cents of slow drift, each voice on its own period.
+    const drift = e.context.createOscillator();
+    drift.frequency.value = 0.02 + i * 0.007;
+    const driftGain = e.context.createGain();
+    driftGain.gain.value = 4 + i * 1.5;
+    drift.connect(driftGain).connect(oscillator.detune);
+    drift.start();
+
     oscillator.start();
   }
 
-  // Low-passed noise, with the cutoff breathing on a 20-second cycle. This is
-  // the layer that reads as "space" rather than as "a tone".
+  // Low-passed noise under it all: the layer that reads as "space" rather
+  // than as "a tone". Quieter than it was, because the chord now carries it.
   const noise = e.context.createBufferSource();
   const seconds = 4;
   const buffer = e.context.createBuffer(1, e.context.sampleRate * seconds, e.context.sampleRate);
@@ -124,21 +176,21 @@ export function start() {
   noise.buffer = buffer;
   noise.loop = true;
 
-  const filter = e.context.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 400;
-  filter.Q.value = 0.7;
+  const hiss = e.context.createBiquadFilter();
+  hiss.type = "lowpass";
+  hiss.frequency.value = 400;
+  hiss.Q.value = 0.7;
 
   const lfo = e.context.createOscillator();
   lfo.frequency.value = 0.05;
   const lfoGain = e.context.createGain();
   lfoGain.gain.value = 180;
-  lfo.connect(lfoGain).connect(filter.frequency);
+  lfo.connect(lfoGain).connect(hiss.frequency);
   lfo.start();
 
   const noiseGain = e.context.createGain();
-  noiseGain.gain.value = 0.35;
-  noise.connect(filter).connect(noiseGain).connect(bed);
+  noiseGain.gain.value = 0.22;
+  noise.connect(hiss).connect(noiseGain).connect(bed);
   noise.start();
 
   // Eight seconds to fade up. Anything faster and the reader hears sound
@@ -146,6 +198,44 @@ export function start() {
   bed.gain.setValueAtTime(0, e.context.currentTime);
   bed.gain.linearRampToValueAtTime(1, e.context.currentTime + 8);
   e.ambient = bed;
+
+  scheduleArpeggio(e);
+}
+
+/**
+ * The music box (§12): one pentatonic note every three to seven seconds, at
+ * random, with a long tail.
+ *
+ * Random rather than a loop, and that is the whole point. A repeating figure
+ * becomes a piece of music the second time round, and the reader starts
+ * listening to it instead of reading. An interval you cannot predict never
+ * resolves into a phrase, so it stays weather.
+ */
+function scheduleArpeggio(e: Engine) {
+  const gap = ARPEGGIO_GAP.min + Math.random() * (ARPEGGIO_GAP.max - ARPEGGIO_GAP.min);
+  e.arpeggio = setTimeout(() => {
+    if (engine !== e) return;
+    if (enabled) {
+      const note = SCALE[Math.floor(Math.random() * SCALE.length)] * 2;
+      glass(e, note, e.context.currentTime, 3.4, 0.045);
+    }
+    scheduleArpeggio(e);
+  }, gap * 1000);
+}
+
+/**
+ * The bed opens with the dawn (§12).
+ *
+ * Called from the scene rather than computed here, because the dawn is a
+ * fact about the card's dates and this module knows nothing about cards.
+ */
+export function setDawn(p: number) {
+  const e = engine;
+  if (!e?.tone) return;
+  const open = Math.min(1, Math.max(0, (p - 0.2) / 0.8));
+  const target = AMBIENT_CUTOFF.closed + (AMBIENT_CUTOFF.open - AMBIENT_CUTOFF.closed) * open;
+  // Ramped over a second: a filter that jumps is a filter you can hear.
+  e.tone.frequency.setTargetAtTime(target, e.context.currentTime, 1);
 }
 
 export function setEnabled(value: boolean) {
@@ -169,6 +259,7 @@ export function resume() {
 
 export function stop() {
   try {
+    if (engine?.arpeggio) clearTimeout(engine.arpeggio);
     void engine?.context.close();
   } catch {
     /* ignore */
@@ -264,6 +355,27 @@ export function cue(name: Cue, index = 0, speed = 1) {
       oscillator.stop(now + 3.1);
       break;
     }
+
+    case "dawn": {
+      /*
+       * Propel's shimmer (§12): filtered noise sweeping up, with one bell
+       * over it. It is the sound of arriving somewhere, and it lasts 1.6
+       * seconds because the beat it sits under lasts 2.4.
+       */
+      const noise = filteredNoise(e, now, 1.6);
+      noise.frequency.setValueAtTime(600, now);
+      noise.frequency.exponentialRampToValueAtTime(3200, now + 1.4);
+      glass(e, SCALE[3] * 2, now + 0.12, 1.8, 0.09);
+      break;
+    }
+
+    case "bloom":
+      // Three bell tones, falling slightly: the reply going past. Soft, and
+      // over in a second — "joyful, not loud" is a volume as well as a shape.
+      for (const [i, frequency] of [SCALE[5], SCALE[4], SCALE[2]].entries()) {
+        glass(e, frequency * 2, now + i * 0.09, 1.1, 0.085);
+      }
+      break;
 
     case "returned":
       // The one bright moment in the whole palette, and it happens once.

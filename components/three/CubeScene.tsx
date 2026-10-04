@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useCallback, useMemo, useRef, useState } from "react";
 import type { ClientMemory } from "@/lib/clientCard";
 import { trailSeed } from "@/lib/trailColour";
 import { orbitRotation } from "@/lib/cometOrbit";
@@ -14,6 +14,12 @@ import type { CameraPhase } from "@/lib/experienceState";
 import { CameraRig } from "./CameraRig";
 import { MessageCube } from "./MessageCube";
 import { OrbitScene, SatelliteCarrier } from "./OrbitScene";
+import { DawnProvider } from "./DawnProvider";
+import { DawnSky } from "./DawnSky";
+import { SunFlare } from "./SunFlare";
+import { Orbiters } from "./Orbiters";
+import { SignalPulses } from "./SignalPulses";
+import { Bloom, type BloomRequest } from "./Bloom";
 import { Comet, type CometTone } from "./Comet";
 import { MemoryPanel } from "./MemoryPanel";
 import { CapsuleBoarding } from "./CapsuleBoarding";
@@ -26,12 +32,16 @@ import { SpaceEnvironment } from "./SpaceEnvironment";
 import { asteroidSeed } from "@/lib/asteroids";
 import { shootingStarSeed } from "@/lib/shootingStars";
 import type { Sky } from "@/lib/skyAge";
+import type { CometStatus } from "@/lib/cometOrbit";
+import { orbiterSeed } from "@/lib/orbiters";
 import { FOV } from "./framing";
 
 /** The one comet, resolved to the numbers the scene needs. */
 export type SceneComet = {
   /** Today's progress along its orbit, 0 = just left, 1 = back. */
   progress: number;
+  /** Where it is in its current cycle, which is what the dawn follows (r7 §3). */
+  status: CometStatus;
   leftOn: string;
   /** The receiver's words are aboard: a warm strand runs through the tail. */
   aboard: boolean;
@@ -92,6 +102,10 @@ type Props = {
   /** True whenever the cube should be drawn in its satellite form. */
   deployed: boolean;
   onDeployEnd?: () => void;
+  /** The arrival beat (r7 §11). A counter: each increment is one arrival. */
+  propel?: number;
+  /** A bloom has just opened, so the card can sound its three bells (§12). */
+  onBloom?: () => void;
   reducedMotion: boolean;
   onTransitionEnd: () => void;
   onZoomEnd: () => void;
@@ -122,6 +136,8 @@ export function CubeScene({
   deployMs,
   deployed,
   onDeployEnd,
+  propel = 0,
+  onBloom,
   onZoomEnd,
   ...cube
 }: Props) {
@@ -144,12 +160,48 @@ export function CubeScene({
     [slug, comet],
   );
 
+  /** This card's own sky of orbiting things (r7 §8.2). */
+  const orbSeed = useMemo(() => orbiterSeed(slug), [slug]);
+
+  /*
+   * The Propel flare, written by the camera rig and read by the sky's haze.
+   * A ref rather than state: it changes every frame for 2.4 seconds and not
+   * one of those should be a React render.
+   */
+  const flare = useRef(0);
+
+  /** The hub and everything staged in it (r7 §8.7). */
+  const inHub = cameraPhase === "orbit";
+
+  /*
+   * Blooms in flight (r7 §11).
+   *
+   * Held here rather than by the animations that open them, because each of
+   * those unmounts the moment its flight is over and a bloom is the *end* of
+   * the beat: the sparks should still be settling when the reply star
+   * appears. Each one removes itself when it has burned out.
+   */
+  const [blooms, setBlooms] = useState<(BloomRequest & { id: number })[]>([]);
+  const nextBloom = useRef(0);
+  const addBloom = useCallback(
+    (bloom: BloomRequest) => {
+      const id = nextBloom.current++;
+      setBlooms((open) => [...open, { ...bloom, id }]);
+      onBloom?.();
+    },
+    [onBloom],
+  );
+  const endBloom = useCallback((id: number) => {
+    setBlooms((open) => open.filter((bloom) => bloom.id !== id));
+  }, []);
+
   return (
     <Canvas
       dpr={[1, 1.75]}
       gl={{ antialias: true, alpha: false }}
       camera={{ fov: FOV, position: [0, 0, 16], near: 0.1, far: 120 }}
     >
+      <DawnProvider f={comet?.progress} status={comet?.status} active={deployed}>
       <CameraRig
         phase={cameraPhase}
         leg={cameraLeg}
@@ -157,6 +209,8 @@ export function CubeScene({
         seed={curveSeed}
         breathing={atRest}
         reducedMotion={cube.reducedMotion}
+        propel={propel}
+        flare={flare}
         onArrive={onZoomEnd}
       />
       <SpaceEnvironment
@@ -167,6 +221,13 @@ export function CubeScene({
         skyTurning={cameraPhase === "orbit"}
         sky={sky}
       />
+      {/*
+        The dawn's own sky (r7 §6). Only once the card is deployed: §3 leaves
+        the landing screen, the reading and the closing screen exactly as they
+        were, and those are the three places this is not mounted.
+      */}
+      {deployed ? <DawnSky flare={flare} /> : null}
+
       {/* A card without an orbit never pays for a planet it does not have. */}
       {deployed ? (
         <OrbitScene
@@ -174,6 +235,29 @@ export function CubeScene({
           returned={Boolean(returned)}
           reducedMotion={cube.reducedMotion}
           presence={presence}
+        />
+      ) : null}
+
+      {/*
+        The sun, coming up behind the planet. In the hub only: §3 gives the
+        chart and the close-up the sky colours and the haze but no flare,
+        because a flare belongs to one framing and those are other framings.
+      */}
+      {deployed && inHub ? <SunFlare reducedMotion={cube.reducedMotion} /> : null}
+
+      {/*
+        Company (r7 §8). Mounted for the whole of the deployed scene and
+        faded out when the camera leaves the hub, rather than unmounted: the
+        set has to be the same set when the reader comes back, and its clock
+        has to have kept running while they were away.
+      */}
+      {deployed ? (
+        <Orbiters
+          seed={orbSeed}
+          trailSeed={curveSeed}
+          hasTrail={Boolean(memories?.length)}
+          reducedMotion={cube.reducedMotion}
+          visible={inHub}
         />
       ) : null}
 
@@ -208,6 +292,7 @@ export function CubeScene({
           progress={comet.progress}
           rotation={cometRotation}
           reducedMotion={cube.reducedMotion}
+          onBloom={addBloom}
           onDone={onBoardEnd}
         />
       ) : null}
@@ -221,9 +306,19 @@ export function CubeScene({
         <RocketLaunch
           cometProgress={comet?.progress ?? 0.5}
           reducedMotion={cube.reducedMotion}
+          onBloom={addBloom}
           onDone={onLaunchEnd}
         />
       ) : null}
+      {blooms.map((bloom) => (
+        <Bloom
+          key={bloom.id}
+          {...bloom}
+          reducedMotion={cube.reducedMotion}
+          onDone={() => endBloom(bloom.id)}
+        />
+      ))}
+
       {deployed && launched && !launching ? (
         <ReplyStar cometProgress={comet?.progress ?? 0.5} reducedMotion={cube.reducedMotion} />
       ) : null}
@@ -332,6 +427,7 @@ export function CubeScene({
           returned={returned}
           stowed={cameraPhase === "trail"}
           seed={seed}
+          propel={flare}
         >
           <MessageCube
             {...cube}
@@ -347,6 +443,20 @@ export function CubeScene({
           />
         </SatelliteCarrier>
       </Suspense>
+
+      {/*
+        Still connected (r7 §9). Last in the tree because it reaches from the
+        satellite's mast, and the mast is the satellite's business — this only
+        needs to know where it ended up.
+      */}
+      {deployed && inHub ? (
+        <SignalPulses
+          cometProgress={comet?.progress}
+          warm={Boolean(launched || comet?.aboard)}
+          reducedMotion={cube.reducedMotion}
+        />
+      ) : null}
+      </DawnProvider>
     </Canvas>
   );
 }

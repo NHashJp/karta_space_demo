@@ -8,7 +8,7 @@
     "start": "next start",
     "check": "npm run typecheck && npm run verify",
     "typecheck": "tsc --noEmit",
-    "verify": "node --experimental-strip-types scripts/verify-rotation.mts && node --experimental-strip-types scripts/verify-spacing.mts",
+    "verify": "node --experimental-strip-types scripts/verify-rotation.mts && node --experimental-strip-types scripts/verify-spacing.mts && node --experimental-strip-types scripts/verify-orbiters.mts",
     "images": "node scripts/generate-placeholders.mjs"
   },
   "devDependencies": {

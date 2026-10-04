@@ -29,7 +29,19 @@ export const RESURFACE_MS = 1600;
 /** One memory to the next. */
 export const DRIFT_MS = 1100;
 
-export const LAUNCH_MS = 3000;
+/**
+ * The reply's flight (rev 7.1 §11, §17).
+ *
+ * Three and a half seconds rather than three, because r7 opens a bloom at
+ * 62% of the way through and then lets the reply star settle out of it. At
+ * 3000 the bloom and the landing were the same moment and neither read.
+ */
+export const LAUNCH_MS = 3400;
+/** Where in that flight the rocket overtakes the comet, and blooms. */
+export const LAUNCH_BLOOM_AT = 0.62;
+
+/** How long "返事は、彗星より先に届きました。" stays up (§13, §17). */
+export const REPLY_TOAST_MS = 4000;
 
 /** The comet moment (spec v0.2 rev 5, §8.4-§8.7). */
 export const DEPART_MS = 3600;

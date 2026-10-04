@@ -41,6 +41,18 @@ export const nebulaFragmentShader = /* glsl */ `
   uniform vec3 uFilamentWarm;
   uniform float uIntensity;
   /*
+   * The dawn (rev 7.1 §6, "Sky"). uDawnOn is 1 only in the orbit scene;
+   * everywhere else the void keeps r5's near-black, because r7 changes
+   * nothing about the landing screen, the reading or the closing screen.
+   *
+   * The gradient has to live here rather than on a quad behind this sphere,
+   * because this sphere is opaque and encloses the whole scene: anything
+   * drawn behind it is simply painted over.
+   */
+  uniform float uDawnOn;
+  uniform float uDawn;
+  uniform vec2 uResolution;
+  /*
    * How old the letter is (lib/skyAge.ts). Not a fade: uGas thins the cloud
    * out, and uWarmth takes the warm half of the palette away, so an old card
    * is the same sky seen from further out rather than a dimmer one. uIntensity
@@ -185,7 +197,22 @@ export const nebulaFragmentShader = /* glsl */ `
     // which is what being further out looks like.
     clouds *= uGas;
 
-    vec3 color = mix(uVoid, uDeep, smoothstep(0.12, 0.88, base));
+    /*
+     * The sky the dawn happens in. Screen space, on the diagonal from the
+     * top-left corner towards (0.4w, h) — not straight down, because the
+     * light comes from the bottom right and the darkest part of the sky has
+     * to be the corner furthest from it.
+     */
+    vec2 screen = gl_FragCoord.xy / max(uResolution, vec2(1.0));
+    float aspect = uResolution.x / max(uResolution.y, 1.0);
+    float a2 = aspect * aspect;
+    float down = 1.0 - screen.y;
+    float g = clamp((0.4 * screen.x * a2 + down) / (0.16 * a2 + 1.0), 0.0, 1.0);
+    vec3 skyTop = mix(vec3(0.024, 0.035, 0.078), vec3(0.043, 0.063, 0.141), uDawn);
+    vec3 skyBottom = mix(vec3(0.031, 0.078, 0.157), vec3(0.075, 0.125, 0.227), uDawn);
+    vec3 emptiness = mix(uVoid, mix(skyTop, skyBottom, g), uDawnOn);
+
+    vec3 color = mix(emptiness, uDeep, smoothstep(0.12, 0.88, base));
     color = mix(color, uNebula, clouds * 0.88);
     color = mix(color, uIon, pow(clouds, 3.0) * 0.48 * smoothstep(0.62, 0.30, temperature));
     color = mix(color, uEmber, pow(clouds, 4.0) * 0.30 * smoothstep(0.48, 0.78, temperature) * uWarmth);

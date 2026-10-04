@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { SocialLinks } from "./SocialLinks";
-import { ChevronLeftIcon } from "./Icons";
+import { CheckIcon, ChevronLeftIcon } from "./Icons";
 import { hubLabel } from "@/components/three/framing";
-import { ORBIT_IDLE_HINT_MS, ORBIT_TIP_MS } from "@/lib/timing";
+import { formatReturn } from "@/lib/returnLabel";
+import { ORBIT_IDLE_HINT_MS, ORBIT_TIP_MS, REPLY_TOAST_MS } from "@/lib/timing";
 import { useIdle } from "@/lib/useFaceNavigation";
 import type { OrbitPanel } from "@/lib/experienceState";
 import type { ClientCard } from "@/lib/clientCard";
@@ -24,6 +25,15 @@ type Props = {
   /** There is a line written inside this cube; without one there is nothing
    *  to look into, and the satellite offers the letter itself instead. */
   hasSecret: boolean;
+  /**
+   * Where the done reply pill leads (§13: "a tap focuses the reply star").
+   * The star is drawn in WebGL and has no DOM node to focus, so what the tap
+   * does instead is open the chart — which is where the star and the comet
+   * are both on screen and "it got there first" is actually legible.
+   */
+  onFindReply?: () => void;
+  /** The reply has just overtaken the comet: say so, once, for four seconds. */
+  overtook?: boolean;
 };
 
 /**
@@ -47,6 +57,8 @@ export function OrbitOverlay({
   onDock,
   onEnterSatellite,
   hasSecret,
+  onFindReply,
+  overtook = false,
 }: Props) {
   const [tip, setTip] = useState(true);
 
@@ -74,7 +86,23 @@ export function OrbitOverlay({
   }, []);
   const centre = label.centre;
 
+  /*
+   * The overtaking toast (rev 7.1 §13). The copy is r5's; what changes is
+   * where it sits — just above the bottom bar instead of at the top, where
+   * it used to appear over the promise and under the reader's eyeline at the
+   * exact moment the bloom they were meant to be watching went off.
+   */
+  const [toast, setToast] = useState(false);
+  useEffect(() => {
+    if (!overtook) return;
+    setToast(true);
+    const timer = setTimeout(() => setToast(false), REPLY_TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [overtook]);
+
   const busy = panel !== null;
+  /** On the day the caption says so, warmly, instead of counting down. */
+  const day = card.comet?.status === "returned";
 
   /*
    * Gone quiet, so the way into the cube is pointed out. A phone cannot
@@ -91,17 +119,30 @@ export function OrbitOverlay({
       </p>
 
       {/*
-        Where their words got to, on the first arrival in the hub. It is the
-        one thing a returning reader most wants to know and the one thing the
-        sky cannot say on its own — the comet is a speck out there.
+        The promise, in the top-right corner (rev 7.1 §10).
+
+        It replaces r5's floating chip, and the reason is worth saying: the
+        chip appeared for twenty seconds on arrival and then went, so the one
+        sentence the whole card is *about* — what was promised, and when it
+        comes back — was the only thing in the orbit view with a timer on it.
+        It is a caption now. It is always there, it is right-aligned into the
+        corner the composition keeps clear for it, and the orbiting things are
+        placed to stay out from under it (§8.3).
       */}
-      {aboard && card.comet ? (
-        <p className="orbit-ui__aboard" data-visible={tip && !busy} lang="ja">
-          <span>
-            <span className="orbit-ui__dot" aria-hidden="true" />
-            あなたの言葉は、彗星の上 · {card.comet.label.label}
-          </span>
-        </p>
+      {card.comet ? (
+        <div className="orbit-caption" data-day={day} lang="ja">
+          {card.comet.promise ? (
+            <p className="orbit-caption__promise">
+              {day ? "約束の彗星が、戻ってきました。" : card.comet.promise}
+            </p>
+          ) : null}
+          <p className="orbit-caption__when">
+            {day ? "この冬 · 今日" : formatReturn(card.comet.label)}
+          </p>
+          {aboard ? (
+            <p className="orbit-caption__aboard">あなたの言葉も、のっています</p>
+          ) : null}
+        </div>
       ) : null}
 
       {/*
@@ -162,15 +203,33 @@ export function OrbitOverlay({
             </button>
           ) : null}
 
+          {/*
+            Done, not disabled (rev 7.1 §13).
+
+            A greyed-out button is how an interface says "you cannot". The
+            reader *did* this — they sent a reply, which is the biggest thing
+            the card asks of them — and the control that records it should
+            look like an achievement rather than like a dead end. So it keeps
+            its warm border and its text, takes a check, and is marked
+            `aria-disabled` rather than `disabled`: still reachable, still
+            announced, and a tap takes the eye to the star it became.
+          */}
           {card.replyAvailable ? (
             <button
-              className="button button--quiet"
-              onClick={() => onOpenPanel("reply")}
-              aria-pressed={panel === "reply"}
-              disabled={launched}
+              className={`button button--quiet${launched ? " button--done" : ""}`}
+              onClick={() => (launched ? onFindReply?.() : onOpenPanel("reply"))}
+              aria-pressed={launched ? undefined : panel === "reply"}
+              aria-disabled={launched || undefined}
               lang="ja"
             >
-              {launched ? "返事は届きました" : "返事を打ち上げる"}
+              {launched ? (
+                <>
+                  <CheckIcon className="orbit-bar__done-cue" />
+                  返事、届いています
+                </>
+              ) : (
+                "返事を打ち上げる"
+              )}
             </button>
           ) : null}
 
@@ -182,10 +241,14 @@ export function OrbitOverlay({
 
           <button className="button button--quiet" onClick={onDock} lang="ja">
             <ChevronLeftIcon className="orbit-bar__back-cue" />
-            手紙に戻る
+            手紙を読みかえす
           </button>
         </div>
       </nav>
+
+      <p className="orbit-toast" data-visible={toast && !busy} role="status" lang="ja">
+        返事は、彗星より先に届きました。
+      </p>
 
       {card.social ? <SocialLinks links={card.social} /> : null}
     </div>

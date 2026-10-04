@@ -48,6 +48,19 @@ export function ChevronLeftIcon({ className }: IconProps) {
 }
 
 /**
+ * `✓` — done, and meant warmly (rev 7.1 §13). It marks a thing the reader
+ * has finished rather than a control they are locked out of, which is the
+ * distinction the whole "joyful, not loud" amendment turns on.
+ */
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+/**
  * The seal. It appears wherever the card says something is written but not
  * readable yet, which is the comet's whole proposition (§11.5).
  */
