@@ -1,5 +1,8 @@
 # KARTA_SPACE — MVP demo
 
+New to the code? Start with the [beginner-friendly architecture guide](./README.architecture.md)
+for the current project structure, major file roles, and technical basics.
+
 Six-sided 3D message cards. Open a URL, pass an optional password gate, see the
 card title, then scroll or swipe through six cube faces — each one a paragraph
 of Japanese text or an image.
