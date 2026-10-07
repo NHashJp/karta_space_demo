@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FACE_ARC, emptyTextFace, type SectionProps } from "../shared";
+import { emptyTextFace, type SectionProps } from "../shared";
 import { BODY_MAX, BODY_MIN, LINE_FACE_MAX, imageFolder } from "@/lib/cardRules";
 import type { CardFace, CardFaces } from "@/types/card";
 
@@ -117,9 +117,6 @@ export function FacesSection({
             <div className="face__head">
               <strong>
                 {String(index + 1).padStart(2, "0")}
-                <span className="editor__hint face__arc" lang="ja">
-                  {FACE_ARC[index]}
-                </span>
               </strong>
 
               <div className="face__types">
