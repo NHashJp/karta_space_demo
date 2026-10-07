@@ -49,7 +49,7 @@ export type PreviewFrame = {
 };
 
 /** How long the fade at the end takes, inside the arrival. */
-const OUT_MS = 1000;
+const OUT_MS = 2000;
 
 export function previewFrame(elapsedMs: number, reducedMotion: boolean): PreviewFrame {
   const d = reducedMotion

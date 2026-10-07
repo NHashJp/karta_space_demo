@@ -11,12 +11,19 @@
 /**
  * The closing screen holds as an ending before it offers a continuation.
  *
- * Only the orbit offer waits. The invitation to look inside the cube used to
- * wait longer still, so the two would not arrive together — but the cube is
- * already on the screen, so that offer is no surprise to hold back, and it is
- * now there from the first frame.
+ * The orbit offer waits this long. The invitation to look inside the cube
+ * comes **last of all** (`SECRET_AFTER_MS`): after the closing line and the
+ * signature have finished writing and after the orbit offer, so the screen
+ * reads as the ending first and every way onward arrives after it.
  */
 export const ORBIT_HINT_MS = 3500;
+
+/**
+ * How long after everything else the cube's "inside" invitation arrives —
+ * enough for the orbit offer's own 1.4 s fade to finish first, so the two are
+ * never seen arriving together.
+ */
+export const SECRET_AFTER_MS = 1600;
 
 /** Cube to satellite, and back. `CameraRig` must not outlast this. */
 export const DEPLOY_MS = 3600;

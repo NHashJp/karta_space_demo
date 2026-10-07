@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import StrokeText, { strokeTextDuration } from "@/components/text/StrokeText";
 import { SocialLinks } from "./SocialLinks";
 import { Signature } from "./Signature";
-import { ORBIT_HINT_MS, SIGNATURE_DRAW_MS, replayed } from "@/lib/timing";
+import { ORBIT_HINT_MS, SECRET_AFTER_MS, SIGNATURE_DRAW_MS, replayed } from "@/lib/timing";
 import { usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import { closingLines } from "@/lib/closingLines";
 import type { SocialLink } from "@/types/card";
@@ -84,6 +84,7 @@ export function CompletionState({
   const [width, setWidth] = useState(1024);
   const [offerOrbit, setOfferOrbit] = useState(false);
   const [written, setWritten] = useState(false);
+  const [offerSecret, setOfferSecret] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
 
   /*
@@ -192,6 +193,26 @@ export function CompletionState({
     return () => clearTimeout(timer);
   }, [hasOrbit, again]);
 
+  /*
+   * The invitation inside the cube comes **last**: after the closing line and
+   * the signature have finished writing, and after the orbit offer, with a
+   * beat of its own after both. It used to be there from the first frame,
+   * under a line that had not been written yet — an exit sign lit before the
+   * ending had been said.
+   */
+  useEffect(() => {
+    if (!hasSecret) return;
+    const writingEnds = reducedMotion
+      ? 0
+      : Math.max(writingEndsS * 1000, signature ? signatureDelayMs + SIGNATURE_DRAW_MS : 0);
+    const orbitArrives = hasOrbit ? ORBIT_HINT_MS : 0;
+    const timer = setTimeout(
+      () => setOfferSecret(true),
+      brisk(Math.max(writingEnds, orbitArrives) + SECRET_AFTER_MS),
+    );
+    return () => clearTimeout(timer);
+  }, [hasSecret, hasOrbit, writingEndsS, signatureDelayMs, signature, again, reducedMotion]);
+
   return (
     <div className="screen screen--completion" data-leaving={leaving} aria-hidden={leaving}>
       <div className="completion">
@@ -260,14 +281,14 @@ export function CompletionState({
         ) : null}
 
         {hasSecret ? (
-          <div className="secret-offer" data-visible={true}>
+          <div className="secret-offer" data-visible={offerSecret} aria-hidden={!offerSecret}>
             <p className="secret-offer__line" lang="ja">
               この立方体には、内側があります。
             </p>
             <button
               className="button button--quiet"
               onClick={onReveal}
-              disabled={leaving}
+              disabled={leaving || !offerSecret}
               lang="ja"
             >
               中をのぞく
