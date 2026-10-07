@@ -61,6 +61,7 @@ type Props = {
  * anything to it.
  */
 export function Planet({ seed, returned, reducedMotion }: Props) {
+  const facing = useRef<THREE.Group>(null);
   const surface = useRef<THREE.ShaderMaterial>(null);
   const airMaterial = useRef<THREE.ShaderMaterial>(null);
   const lowDetail = useThree((state) => state.size.width) < LOW_DETAIL_WIDTH;
@@ -75,6 +76,7 @@ export function Planet({ seed, returned, reducedMotion }: Props) {
       uDawn: { value: 0.2 },
       uTime: { value: 0 },
       uSunPos: { value: new THREE.Vector2(1, 0) },
+      uPixel: { value: 0.002 },
     }),
     [],
   );
@@ -131,7 +133,10 @@ export function Planet({ seed, returned, reducedMotion }: Props) {
     };
   }, [size.width, size.height, d.sunElevation]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
+    // Turned to face the lens, so the disc's outline is the circle on screen
+    // whatever the pose (see the note on the planet shader).
+    facing.current?.quaternion.copy(camera.quaternion);
     const t = clock.elapsedTime;
     const sun = keyLight(t, seed, active ? d : undefined, {
       reducedMotion,
@@ -153,6 +158,7 @@ export function Planet({ seed, returned, reducedMotion }: Props) {
       u.uDawn.value = d.p;
       u.uTime.value = time;
       u.uSunPos.value.set(air.sunDisc[0], air.sunDisc[1]);
+      u.uPixel.value = air.pixel;
     }
     if (airMaterial.current) {
       const u = airMaterial.current.uniforms;
@@ -165,9 +171,14 @@ export function Planet({ seed, returned, reducedMotion }: Props) {
   });
 
   return (
-    <group>
-      <mesh>
-        <sphereGeometry args={[PLANET_RADIUS, lowDetail ? 48 : 96, lowDetail ? 32 : 64]} />
+    <group ref={facing}>
+      {/*
+        A hair towards the lens from the planet's centre, so the sun's glow
+        staged at exactly that depth is cleanly behind it rather than
+        fighting it for the same depth.
+      */}
+      <mesh position-z={0.02} scale={PLANET_RADIUS}>
+        <circleGeometry args={[1, lowDetail ? 96 : 192]} />
         <shaderMaterial
           key={lowDetail ? "low" : "high"}
           ref={surface}
@@ -188,7 +199,7 @@ export function Planet({ seed, returned, reducedMotion }: Props) {
         Drawn after the surface, so the hairline sits on top of the disc's
         own edge rather than being hidden by it.
       */}
-      <mesh renderOrder={1} scale={PLANET_RADIUS}>
+      <mesh renderOrder={1} position-z={0.03} scale={PLANET_RADIUS}>
         {/* In planet radii, so the shader's maths is the document's maths. */}
         <ringGeometry args={[AIR_INNER, AIR_OUTER, 256, 1]} />
         <shaderMaterial

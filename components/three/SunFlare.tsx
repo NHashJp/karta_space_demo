@@ -9,17 +9,18 @@ import { useDawn } from "./DawnProvider";
 /**
  * The sun, coming up behind あなたの星 (rev 7.1 §6).
  *
- * Two objects, and the difference between them is the whole trick:
+ * Drawn the way the dawn mockup paints it, in two layers either side of the
+ * planet:
  *
- * - the **sun** itself is staged at the planet's own depth, just outside its
- *   limb, and is drawn with ordinary depth testing. So while `sunElevation` is
- *   negative the planet's disc simply covers it and all that escapes is the
- *   halo spilling past the edge — which is what blue hour looks like. As the
- *   dawn rises the sprite climbs out from behind the limb on its own, with
- *   nothing anywhere deciding that it should;
- * - the **flare** is drawn at the same depth with depth testing off and a late
- *   render order, so it is unmistakably in front of everything. Lens flare is
- *   not in the world; it is in the lens.
+ * - **behind** the planet, a wide warm glow (0.22R) with ordinary depth
+ *   testing, so the disc cuts it off along the limb and what spills past the
+ *   edge is the gold of a sky just before sunrise;
+ * - **in front**, the sun's white core (0.08R), its halo (0.26R) and the
+ *   flare, with depth testing off. Their strength follows how far the disc
+ *   has cleared the limb, so in blue hour they are a bright point sitting on
+ *   the horizon, and on the day a full starburst. Drawing the core behind the
+ *   planet instead — as this used to — hid most of the sun for most of the
+ *   wait, and the sunrise read as a soft smudge rather than as light.
  *
  * Both are additive planes rather than sprites. The hub camera looks straight
  * down −Z with no roll, so a plane in XY is already facing it and billboarding
@@ -144,6 +145,7 @@ export function SunFlare({ reducedMotion, shown }: Props) {
   const { d, visibility } = useDawn();
   const size = useThree((state) => state.size);
 
+  const behind = useRef<THREE.Mesh>(null);
   const core = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Mesh>(null);
   const flare = useRef<THREE.Mesh>(null);
@@ -153,6 +155,13 @@ export function SunFlare({ reducedMotion, shown }: Props) {
     () => ({
       uColor: { value: new THREE.Color("#fffaeb") },
       uIntensity: { value: 1 },
+    }),
+    [],
+  );
+  const behindUniforms = useMemo(
+    () => ({
+      uColor: { value: new THREE.Color("#ffecc8") },
+      uIntensity: { value: 0.55 },
     }),
     [],
   );
@@ -200,7 +209,7 @@ export function SunFlare({ reducedMotion, shown }: Props) {
     fade.current = THREE.MathUtils.damp(fade.current, shown ? 1 : 0, 3.4, delta);
     const lit = fade.current;
 
-    for (const mesh of [core.current, halo.current, flare.current]) {
+    for (const mesh of [behind.current, core.current, halo.current, flare.current]) {
       mesh?.position.set(x, y, z);
       if (mesh) mesh.visible = lit > 0.004;
     }
@@ -217,6 +226,9 @@ export function SunFlare({ reducedMotion, shown }: Props) {
      * core at 0.9, the halo at 0.35, exactly as the reference has them.
      */
     const intensity = (0.25 + 0.75 * visibility) * (0.55 + 0.45 * d.p) * lit;
+    // The glow behind the limb is there from the first day (§6), and is not
+    // scaled by how much of the disc has cleared: it is the sky, not the sun.
+    behindUniforms.uIntensity.value = (0.55 + 0.4 * d.p) * lit;
     coreUniforms.uIntensity.value = 0.9 * intensity;
     haloUniforms.uIntensity.value = 0.35 * intensity;
 
@@ -242,10 +254,10 @@ export function SunFlare({ reducedMotion, shown }: Props) {
   return (
     <group>
       {/* Behind the limb: ordinary depth testing, so the planet occludes it. */}
-      <mesh ref={halo} renderOrder={-2}>
-        <planeGeometry args={[PLANET_RADIUS * 0.52, PLANET_RADIUS * 0.52]} />
+      <mesh ref={behind} renderOrder={-2}>
+        <planeGeometry args={[PLANET_RADIUS * 0.44, PLANET_RADIUS * 0.44]} />
         <shaderMaterial
-          uniforms={haloUniforms}
+          uniforms={behindUniforms}
           vertexShader={glowVertex}
           fragmentShader={glowFragment}
           transparent
@@ -254,13 +266,29 @@ export function SunFlare({ reducedMotion, shown }: Props) {
           toneMapped={false}
         />
       </mesh>
-      <mesh ref={core} renderOrder={-1}>
+
+      {/* In front of the limb, as the mockup paints them. */}
+      <mesh ref={halo} renderOrder={38}>
+        <planeGeometry args={[PLANET_RADIUS * 0.52, PLANET_RADIUS * 0.52]} />
+        <shaderMaterial
+          uniforms={haloUniforms}
+          vertexShader={glowVertex}
+          fragmentShader={glowFragment}
+          transparent
+          depthTest={false}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh ref={core} renderOrder={39}>
         <planeGeometry args={[PLANET_RADIUS * 0.16, PLANET_RADIUS * 0.16]} />
         <shaderMaterial
           uniforms={coreUniforms}
           vertexShader={glowVertex}
           fragmentShader={glowFragment}
           transparent
+          depthTest={false}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
           toneMapped={false}

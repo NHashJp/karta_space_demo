@@ -2877,7 +2877,10 @@ body:has(.sheet-layer) .orbit-ui__reread {
   justify-content: center;
   padding: 0 var(--space-2);
   text-align: center;
-  background: radial-gradient(ellipse at center, rgba(5, 7, 12, 0.55), transparent 70%);
+  /* A low warm glow under the words: the horizon before the sun is up. */
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 62%, rgba(255, 196, 140, 0.12), transparent 70%),
+    radial-gradient(ellipse at center, rgba(5, 7, 12, 0.55), transparent 70%);
   transition: opacity 500ms ease;
 }
 
@@ -2926,6 +2929,7 @@ body:has(.sheet-layer) .orbit-ui__reread {
 
 .comet-intro__note[data-visible="true"] {
   opacity: 1;
+  color: var(--warm);
 }
 
 .comet-intro__count {
@@ -2945,7 +2949,9 @@ body:has(.sheet-layer) .orbit-ui__reread {
   margin: 0 0.15em;
   font-size: 2rem;
   font-weight: 600;
-  color: var(--ion);
+  /* Sunrise gold, the colour of the line on the horizon (rev 7.1 §3). */
+  color: #ffd6a0;
+  text-shadow: 0 0 18px rgba(255, 196, 140, 0.45);
   font-variant-numeric: tabular-nums;
   vertical-align: -0.12em;
 }

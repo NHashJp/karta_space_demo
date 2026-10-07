@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { hubComet, hubPose, hubProject, worldPerPixel } from "./framing";
@@ -166,6 +166,16 @@ export function Comet({
     line.computeLineDistances();
     return line;
   }, [progress, size.width, size.height, colours.ion]);
+
+  // Rebuilt whenever the progress changes — which the first-launch intro does
+  // many times over — so the old one is released rather than left on the GPU.
+  useEffect(
+    () => () => {
+      orbitLine.geometry.dispose();
+      (orbitLine.material as THREE.Material).dispose();
+    },
+    [orbitLine],
+  );
 
   /**
    * Away from the sun: where both tails point (r7 §10).

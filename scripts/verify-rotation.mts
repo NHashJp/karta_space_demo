@@ -1567,7 +1567,9 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
       }
     }
     const area = inside / (samples * samples);
-    check(`${label}: the planet covers 8-15% of the frame`, area >= 0.08 && area <= 0.15,
+    // 7%, not 8%: the dawn mockup's own desktop planet (rev 7.1) is 7.8%,
+    // and the hub is staged to match it.
+    check(`${label}: the planet covers 7-15% of the frame`, area >= 0.07 && area <= 0.15,
       `${(area * 100).toFixed(1)}%`);
 
     /*

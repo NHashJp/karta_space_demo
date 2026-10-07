@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { daysBetween } from "@/lib/orbitClock";
-import { daysLeft, previewFrame, type PreviewFrame } from "@/lib/cometPreview";
+import { daysLeft, previewFrame, showsTheDay, type PreviewFrame } from "@/lib/cometPreview";
 import type { ClientCard } from "@/lib/clientCard";
 
 /**
@@ -18,10 +18,17 @@ import type { ClientCard } from "@/lib/clientCard";
 export function CometIntro({
   card,
   reducedMotion,
+  onDay,
   onDone,
 }: {
   card: ClientCard;
   reducedMotion: boolean;
+  /**
+   * The intro is showing the reunion morning itself, so the scene can put on
+   * what it wears that day — the warm light, the meteors — and take it off
+   * again as it rewinds.
+   */
+  onDay: (day: boolean) => void;
   onDone: () => void;
 }) {
   const comet = card.comet;
@@ -51,6 +58,11 @@ export function CometIntro({
     return () => cancelAnimationFrame(raf);
   }, [reducedMotion]);
 
+  const day = showsTheDay(frame);
+  useEffect(() => {
+    onDay(day);
+  }, [day, onDay]);
+
   if (!comet) return null;
 
   const left = daysLeft(days, frame.run);
@@ -72,7 +84,7 @@ export function CometIntro({
         </p>
         <p className="comet-intro__count" aria-live="polite">
           {frame.arrived ? (
-            "また会えました"
+            "その朝、また会えます"
           ) : (
             <>
               あと<span className="comet-intro__days">{left}</span>日

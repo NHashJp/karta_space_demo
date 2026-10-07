@@ -220,6 +220,23 @@ export function CardExperience({
   }, [remember]);
 
   const onBoardEnd = useCallback(() => dispatch({ type: "boardEnd" }), []);
+  /*
+   * The intro's moment at zero: the scene shows the reunion morning — the
+   * warm light and the meteors the card really has that day — and the one
+   * bright sound in the palette. Off again as it rewinds to today.
+   */
+  const [introDay, setIntroDay] = useState(false);
+  const onIntroDay = useCallback(
+    (day: boolean) => {
+      setIntroDay(day);
+      if (day && card.sound !== false) sound.cue("returned");
+    },
+    [card.sound],
+  );
+  useEffect(() => {
+    if (state !== "previewing") setIntroDay(false);
+  }, [state]);
+
   const onPreviewEnd = useCallback(() => {
     // Once per cycle, like the departure it stands in for.
     remember({ introduced: true, departed: true });
@@ -339,8 +356,8 @@ export function CardExperience({
    */
   useEffect(() => {
     if (!soundAvailable || !comet) return;
-    sound.setDawn(dawnOf(comet.progress, comet.status).p);
-  }, [soundAvailable, comet]);
+    sound.setDawn(introDay ? 1 : dawnOf(comet.progress, comet.status).p);
+  }, [soundAvailable, comet, introDay]);
 
   /** Three bells as the reply goes past the comet (§12). */
   const onBloom = useCallback(() => {
@@ -397,7 +414,7 @@ export function CardExperience({
           cameraPhase={phase}
           cameraLeg={activeMemory}
           seed={seed}
-          returned={returned}
+          returned={returned || introDay}
           sky={sky}
           atRest={atRest}
           memories={card.memories}
@@ -488,7 +505,12 @@ export function CardExperience({
 
       {/* The first time the comet leaves, what it is for — before it asks. */}
       {state === "previewing" ? (
-        <CometIntro card={card} reducedMotion={reducedMotion} onDone={onPreviewEnd} />
+        <CometIntro
+          card={card}
+          reducedMotion={reducedMotion}
+          onDay={onIntroDay}
+          onDone={onPreviewEnd}
+        />
       ) : null}
 
       {/* The comet sheet: the end of every comet moment (§8.6). */}

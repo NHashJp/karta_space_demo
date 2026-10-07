@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
-import { useThree } from "@react-three/fiber";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import {
   hubPlanetScreen,
   hubSun,
@@ -12,6 +12,7 @@ import {
 } from "./framing";
 import { dawn, stillDawn, sunVisibility, type Dawn } from "@/lib/dawn";
 import type { CometStatus } from "@/lib/cometOrbit";
+import { introProgress, previewFrame } from "@/lib/cometPreview";
 
 /**
  * The dawn, resolved for this viewport, shared by everything that draws in it
@@ -79,11 +80,53 @@ type Props = {
   status?: CometStatus;
   /** The orbit scene is mounted: the staged sun applies (§3). */
   active: boolean;
+  /**
+   * The first-launch intro is playing (`lib/cometPreview`): the dawn runs
+   * forward to the reunion day as the countdown falls, then back to today.
+   */
+  intro?: boolean;
+  reducedMotion?: boolean;
   children: React.ReactNode;
 };
 
-export function DawnProvider({ f, status, active, children }: Props) {
+/**
+ * How finely the intro's dawn is stepped. Every step re-renders everything
+ * that reads the dawn, so it moves in small, even steps rather than every
+ * frame — at this size the eye cannot tell the difference.
+ */
+const INTRO_STEP = 0.004;
+
+export function DawnProvider({
+  f: today,
+  status,
+  active,
+  intro = false,
+  reducedMotion = false,
+  children,
+}: Props) {
   const size = useThree((state) => state.size);
+
+  /*
+   * The intro's own clock, started on the same render as the caption's and
+   * the comet's, and read through the same timeline, so the sky is never a
+   * step ahead of the number.
+   */
+  const [introF, setIntroF] = useState<number | null>(null);
+  const startedAt = useRef<number | null>(null);
+  useEffect(() => {
+    startedAt.current = null;
+    if (!intro) setIntroF(null);
+  }, [intro]);
+
+  useFrame(({ clock }) => {
+    if (!intro || today === undefined) return;
+    if (startedAt.current === null) startedAt.current = clock.elapsedTime;
+    const frame = previewFrame((clock.elapsedTime - startedAt.current) * 1000, reducedMotion);
+    const next = Math.round(introProgress(today, frame) / INTRO_STEP) * INTRO_STEP;
+    setIntroF((current) => (current === next ? current : next));
+  });
+
+  const f = intro && introF !== null ? introF : today;
 
   const value = useMemo<HubDawn>(() => {
     const portrait = size.width < size.height;

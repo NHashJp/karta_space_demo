@@ -213,7 +213,9 @@ const PORTRAIT: HubTargets = {
 const LANDSCAPE: HubTargets = {
   centre: [0.47, 0.5],
   tip: 0.36,
-  planet: { centre: [1.11, 1.44], radius: 0.55 },
+  // The dawn mockup's desktop planet (rev 7.1): a little smaller and further
+  // in, so more of the lit limb — and the sunrise on it — is in the frame.
+  planet: { centre: [1.06, 1.45], radius: 0.495 },
 };
 
 export function hubTargets(aspect: number): HubTargets {

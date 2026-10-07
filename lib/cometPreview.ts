@@ -12,6 +12,14 @@
  *    real one will;
  * 4. **arrive** — it is home, and the card says what that day means.
  *
+ * It is a **sunrise**, because the dawn is already the countdown (rev 7.1 §3):
+ * the sun's height over あなたの星 is the comet's progress towards the day.
+ * So the intro does not draw a sky of its own — it drives the real one. As
+ * the number falls, the scene's own dawn runs forward from today to the day,
+ * and at zero the sky, the sun, the planet's crescent and the light on the
+ * satellite are exactly what this card will show on the morning the comet is
+ * back. Then it all rewinds to today, which is where the reader actually is.
+ *
  * One timeline, read by both the DOM caption and the scene, so the number and
  * the ghost cannot drift apart: each computes its own elapsed time from the
  * moment it mounted, and both mount on the same render.
@@ -20,7 +28,7 @@
 export const PREVIEW_ANNOUNCE_MS = 2400;
 export const PREVIEW_DRAW_MS = 900;
 export const PREVIEW_RUN_MS = 4600;
-export const PREVIEW_ARRIVE_MS = 2200;
+export const PREVIEW_ARRIVE_MS = 3000;
 
 /** Reduced motion: no run. The number, the line, then the arrival. */
 const REDUCED = { announce: 2400, draw: 0, run: 0, arrive: 2400 };
@@ -41,7 +49,7 @@ export type PreviewFrame = {
 };
 
 /** How long the fade at the end takes, inside the arrival. */
-const OUT_MS = 600;
+const OUT_MS = 1000;
 
 export function previewFrame(elapsedMs: number, reducedMotion: boolean): PreviewFrame {
   const d = reducedMotion
@@ -68,9 +76,30 @@ export function previewFrame(elapsedMs: number, reducedMotion: boolean): Preview
   };
 }
 
+/**
+ * Where the comet is along its cycle at this point of the intro, starting
+ * from `today`'s progress: carried to 1 by the run, held there through the
+ * arrival, and rewound to `today` as it fades. Both the comet and the dawn
+ * are drawn from this one number, so the sun is never ahead of the comet.
+ */
+export function introProgress(today: number, frame: PreviewFrame): number {
+  const from = Math.min(Math.max(today, 0), 1);
+  const ahead = from + (1 - from) * frame.run;
+  return ahead + (from - ahead) * easeInOut(frame.out);
+}
+
+/** The intro is showing the reunion day itself: arrived, not yet rewinding. */
+export function showsTheDay(frame: PreviewFrame): boolean {
+  return frame.arrived && frame.out === 0;
+}
+
 /** The countdown shown at a given point of the run: `days` down to 0. */
 export function daysLeft(days: number, run: number): number {
   return Math.max(0, Math.round(days * (1 - run)));
+}
+
+function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
 function clamp(t: number): number {

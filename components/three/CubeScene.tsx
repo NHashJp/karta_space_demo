@@ -205,7 +205,13 @@ export function CubeScene({
       gl={{ antialias: true, alpha: false }}
       camera={{ fov: FOV, position: [0, 0, 16], near: 0.1, far: 120 }}
     >
-      <DawnProvider f={comet?.progress} status={comet?.status} active={deployed}>
+      <DawnProvider
+        f={comet?.progress}
+        status={comet?.status}
+        active={deployed}
+        intro={previewing}
+        reducedMotion={cube.reducedMotion}
+      >
       <CameraRig
         phase={cameraPhase}
         leg={cameraLeg}
@@ -273,10 +279,10 @@ export function CubeScene({
 
       {/*
         The comet is drawn from its dates, so it is simply *where it is* — no
-        animation, no state. It is hidden only while the departure is flying
-        it out, which is the one time something else is drawing it.
+        animation, no state. It is hidden only while the departure or the
+        first-launch intro is flying it, the times something else draws it.
       */}
-      {deployed && comet && !departing ? (
+      {deployed && comet && !departing && !previewing ? (
         <Comet
           progress={comet.progress}
           slug={slug}
@@ -298,7 +304,13 @@ export function CubeScene({
       ) : null}
 
       {previewing && comet ? (
-        <CometPreview progress={comet.progress} reducedMotion={cube.reducedMotion} />
+        <CometPreview
+          progress={comet.progress}
+          slug={slug}
+          releasedOn={comet.leftOn}
+          tone={comet.aboard ? "receiver" : "sender"}
+          reducedMotion={cube.reducedMotion}
+        />
       ) : null}
 
       {boarding && comet && onBoardEnd ? (

@@ -101,7 +101,14 @@ export const atmosphereFragmentShader = /* glsl */ `
     float reach =
       (1.0 - smoothstep(1.3 * s, 3.2 * s, fromSun)) * 0.50 +
       (1.0 - smoothstep(3.2 * s, 3.2 * s + 2.2, fromSun)) * 0.50;
-    reach *= 0.34 + 0.66 * uDawn;
+    /*
+     * Barely dimmed by the dawn. The mockup draws the limb at full strength
+     * at every point in the countdown — it is the one brilliant line in a
+     * dark corner from the first day — and only the *span* of gold widens as
+     * the sun climbs. Scaling it by the dawn as well halved it for most of
+     * the wait and left a thin grey wire where the reference has a lit edge.
+     */
+    reach *= 0.85 + 0.15 * uDawn;
 
     /*
      * The three passes. §6: a haze 0.03R wide blurred by 10 px, a glow 0.008R
@@ -110,8 +117,11 @@ export const atmosphereFragmentShader = /* glsl */ `
      * whatever size the planet happens to be drawn.
      */
     float d = r - 1.0;
-    float haze = exp(-pow(d / 0.020, 2.0)) * 0.16;
-    float glow = exp(-pow(d / 0.0060, 2.0)) * 0.45;
+    // Weighted as the mockup's strokes are: the blurred haze is drawn at the
+    // conic's full alpha there, not as a faint tint — it is what makes the
+    // edge glow rather than merely be outlined.
+    float haze = exp(-pow((d - 0.006) / 0.024, 2.0)) * 0.55;
+    float glow = exp(-pow(d / 0.0060, 2.0)) * 0.80;
     float line = exp(-pow(d / max(uPixel * 1.1, 0.0006), 2.0)) * 0.95;
 
     /*
@@ -122,7 +132,7 @@ export const atmosphereFragmentShader = /* glsl */ `
      * edge. The weight on the line is what carries the limb; the haze is
      * only there so the line is not a wire.
      */
-    haze *= d < 0.0 ? 0.22 : 1.0;
+    haze *= d < 0.0 ? 0.35 : 1.0;
 
     /*
      * Clamped, and that matters more than it looks. Three overlapping passes
@@ -159,11 +169,19 @@ export const atmosphereFragmentShader = /* glsl */ `
       smoothstep(0.5, 1.0, d / height)
     );
 
-    vec3 lit = color * alpha + auroraColor * aurora;
     float a = min(alpha + aurora, 1.0);
     if (a < 0.003) discard;
 
-    gl_FragColor = vec4(lit, a);
+    /*
+     * What the mockup's canvas adds, exactly: colour × alpha **in screen
+     * colours**. The colours above are written as sRGB hex, and this output is
+     * encoded to sRGB before the additive blend — so it is decoded here, and
+     * written at alpha 1 so the blend does not multiply by alpha a second
+     * time. Without that the encoding squeezed the channels together and the
+     * gold-to-cyan-to-blue limb came out as a silvery white line.
+     */
+    vec3 lit = pow(clamp(color * alpha + auroraColor * aurora, 0.0, 1.0), vec3(2.2));
+    gl_FragColor = vec4(lit, 1.0);
 
     #include <colorspace_fragment>
   }

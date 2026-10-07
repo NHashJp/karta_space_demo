@@ -187,6 +187,9 @@ const washFragment = /* glsl */ `
 `;
 
 /** §4: where the band crosses the frame, and how wide its core is. */
+/** Inside the camera's far plane (120), behind everything the hub stages. */
+const SKY_DISTANCE = 100;
+
 const MILKY = {
   portrait: { a: [1.05, -0.06], b: [-0.2, 0.5], width: 0.12 },
   landscape: { a: [0.6, -0.08], b: [-0.05, 0.72], width: 0.11 },
@@ -240,12 +243,24 @@ export function DawnSky({ milkyWay = true, flare }: Props) {
      * order.
      */
     const height = 2 * Math.tan(((FOV * Math.PI) / 180) / 2);
-    for (const mesh of [back.current, wash.current]) {
+    /*
+     * The sky is placed far back, where it is depth-tested against the
+     * planet, and the wash just in front of the lens. Transparent things are
+     * drawn after solid ones whatever their render order, so a sky one unit
+     * from the lens with depth testing off was painted *over* the planet —
+     * its warm haze lay across the night side and turned a dark world with a
+     * brilliant edge into a grey one. In the mockup the planet covers the sky.
+     */
+    const placed: [THREE.Mesh | null, number][] = [
+      [back.current, SKY_DISTANCE],
+      [wash.current, 1],
+    ];
+    for (const [mesh, distance] of placed) {
       if (!mesh) continue;
       mesh.quaternion.copy(camera.quaternion);
       mesh.position.copy(camera.position);
-      mesh.translateZ(-1);
-      mesh.scale.set(height * aspect, height, 1);
+      mesh.translateZ(-distance);
+      mesh.scale.set(height * aspect * distance, height * distance, 1);
     }
 
     const sx = sunScreen[0] / size.width;
@@ -281,7 +296,6 @@ export function DawnSky({ milkyWay = true, flare }: Props) {
           vertexShader={skyVertex}
           fragmentShader={skyFragment}
           transparent
-          depthTest={false}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
           toneMapped={false}

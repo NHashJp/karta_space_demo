@@ -39,13 +39,28 @@
  * are still faintly there to put the cities on.
  */
 
+/*
+ * Drawn on a **disc facing the camera**, not on a sphere.
+ *
+ * The hub stages this planet huge and very close — its centre under three
+ * units from the lens on a desktop, with a radius of 2.2 — and far off to the
+ * side of the frame. A real sphere there is drawn with heavy perspective: its
+ * outline on screen is a stretched shape half as big again as the circle the
+ * composition asks for (`hubPlanetScreen`). Everything that hangs off that
+ * circle — the limb's air ring, the sun on the horizon, the crescent, the
+ * aurora — then sat on a contour the planet did not have, and the shine on
+ * the limb ran off the edge of the world.
+ *
+ * So the surface is a flat disc of radius 1, turned to face the camera, and
+ * the sphere is reconstructed here from where the fragment lands on it. Its
+ * outline is exactly the circle everything else is placed on, from every
+ * camera pose, which is what the mockup — a flat painted disc — always had.
+ */
 export const planetVertexShader = /* glsl */ `
-  varying vec3 vNormal;
-  varying vec3 vPosition;
+  varying vec2 vLocal;
 
   void main() {
-    vNormal = normalize(normalMatrix * normal);
-    vPosition = position;
+    vLocal = position.xy;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -66,9 +81,10 @@ export const planetFragmentShader = /* glsl */ `
    * once the dawn has lifted it (§4, Dawn.sunElevation).
    */
   uniform vec2 uSunPos;
+  /** One screen pixel, in planet radii, so city lights are sized on screen. */
+  uniform float uPixel;
 
-  varying vec3 vNormal;
-  varying vec3 vPosition;
+  varying vec2 vLocal;
 
   #ifdef LOW_DETAIL
     #define SURFACE_OCTAVES 3
@@ -133,8 +149,13 @@ export const planetFragmentShader = /* glsl */ `
   }
 
   void main() {
-    vec3 unit = normalize(vPosition);
-    vec3 normal = normalize(vNormal);
+    float rr = dot(vLocal, vLocal);
+    if (rr > 1.0) discard;
+    // The sphere under this point of the disc, in view space (the disc faces
+    // the camera), and the same point in the world, so the ground does not
+    // slide when the camera turns.
+    vec3 normal = vec3(vLocal, sqrt(1.0 - rr));
+    vec3 unit = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
 
     // ---- surface ---------------------------------------------------------
     vec3 surfacePoint = spin(unit, uSurfaceAngle) * 2.3;
@@ -276,9 +297,18 @@ export const planetFragmentShader = /* glsl */ `
      * pixels across and the coast read as a row of orange clouds. These are
      * towns seen from orbit; they are points.
      */
-    float cluster = pow(smoothstep(0.50, 0.78, valueNoise(surfacePoint * 14.0)), 1.4);
-    float grain = valueNoise(surfacePoint * 120.0);
-    float cities = pow(smoothstep(0.66, 0.97, grain), 1.6) * cluster * isLand;
+    /*
+     * Sized in **screen pixels**, as the dawn mockup draws them: about
+     * forty-five small clusters near the limb, each a handful of 1–2 px
+     * points. Fixed surface frequencies made a light fifteen pixels across on
+     * a desktop and the coast read as a row of orange clouds; scaling by the
+     * pixel keeps a town a speck at every size the planet is drawn.
+     */
+    float pointFreq = 1.0 / (2.3 * 2.6 * uPixel);
+    float clusterFreq = 1.0 / (2.3 * 26.0 * uPixel);
+    float cluster = pow(smoothstep(0.66, 0.86, valueNoise(surfacePoint * clusterFreq)), 1.2);
+    float grain = valueNoise(surfacePoint * pointFreq);
+    float cities = pow(smoothstep(0.72, 0.96, grain), 2.0) * cluster * isLand;
 
     /*
      * In the outer third of the disc, which is the part of this planet the
@@ -287,7 +317,7 @@ export const planetFragmentShader = /* glsl */ `
      * deeper into it. §6 says "the outer 18%"; reaching a little further in
      * is what keeps the night side inhabited rather than empty on a phone.
      */
-    float outer = smoothstep(0.62, 0.84, radius) * (1.0 - smoothstep(0.988, 1.0, radius));
+    float outer = smoothstep(0.78, 0.84, radius) * (1.0 - smoothstep(0.988, 1.0, radius));
     cities *= outer;
 
     // Out where it is already day there is nothing to see: they fade inside
@@ -296,19 +326,14 @@ export const planetFragmentShader = /* glsl */ `
     cities *= 1.0 - day;
 
     // Each cluster on its own phase, so the coast twinkles: +/-35%.
-    float flicker = 1.0 + 0.35 * sin(uTime * 1.7 + grain * 40.0 + cluster * 9.0);
+    float flicker = 0.75 + 0.25 * sin(uTime * 0.9 + grain * 40.0 + cluster * 9.0);
 
     vec3 cityCore = srgb(vec3(1.0, 0.839, 0.588));  // #ffd696
     vec3 cityGlow = srgb(vec3(1.0, 0.769, 0.471));  // #ffc478
-    color += cityCore * cities * flicker * uNight * 2.2 * (1.0 - cloud * 0.7);
-    /*
-     * A dim haze over a cluster, so a town is a smudge of light with points
-     * in it rather than a pinprick that aliases away at phone size. Keyed to
-     * a *second* threshold on the same coarse field, so it only appears where
-     * the lights are dense — not as a wash over every landmass.
-     */
-    float lit = pow(smoothstep(0.60, 0.86, valueNoise(surfacePoint * 14.0)), 2.0);
-    color += cityGlow * lit * isLand * outer * (1.0 - day) * uNight * 0.12;
+    color += cityCore * cities * flicker * uNight * 1.5 * (1.0 - cloud * 0.5);
+    // A warmer rim on each point, the mockup's small glow round a light —
+    // on the point itself, not as a wash over the cluster.
+    color += cityGlow * cities * flicker * uNight * 0.35;
 
     gl_FragColor = vec4(color, 1.0);
 
