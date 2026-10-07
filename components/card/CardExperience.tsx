@@ -12,6 +12,7 @@ import { CardProgress } from "./CardProgress";
 import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
 import { CometSheet } from "./CometSheet";
+import { CometIntro } from "./CometIntro";
 import { CrossroadsPanel } from "./CrossroadsPanel";
 import { TrajectoryPanel } from "./TrajectoryPanel";
 import { ReplyPanel } from "./ReplyPanel";
@@ -219,6 +220,11 @@ export function CardExperience({
   }, [remember]);
 
   const onBoardEnd = useCallback(() => dispatch({ type: "boardEnd" }), []);
+  const onPreviewEnd = useCallback(() => {
+    // Once per cycle, like the departure it stands in for.
+    remember({ introduced: true, departed: true });
+    dispatch({ type: "previewEnd" });
+  }, [remember]);
 
   /*
    * The invite has been shown. Written the first time the sheet offers to
@@ -405,6 +411,7 @@ export function CardExperience({
           onLaunchEnd={onLaunchEnd}
           departing={state === "departing"}
           onDepartEnd={onDepartEnd}
+          previewing={state === "previewing"}
           boarding={state === "boarding"}
           onBoardEnd={onBoardEnd}
           deploying={deploying}
@@ -462,7 +469,7 @@ export function CardExperience({
         />
       ) : null}
 
-      {phase === "orbit" && state !== "deploying" ? (
+      {phase === "orbit" && state !== "deploying" && state !== "previewing" ? (
         <OrbitOverlay
           card={card}
           panel={panel}
@@ -477,6 +484,11 @@ export function CardExperience({
           onFindReply={onOpenChart}
           overtook={overtook}
         />
+      ) : null}
+
+      {/* The first time the comet leaves, what it is for — before it asks. */}
+      {state === "previewing" ? (
+        <CometIntro card={card} reducedMotion={reducedMotion} onDone={onPreviewEnd} />
       ) : null}
 
       {/* The comet sheet: the end of every comet moment (§8.6). */}

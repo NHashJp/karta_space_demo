@@ -24,6 +24,7 @@ import { Comet, type CometTone } from "./Comet";
 import { MemoryPanel } from "./MemoryPanel";
 import { CapsuleBoarding } from "./CapsuleBoarding";
 import { CometDeparture } from "./CometDeparture";
+import { CometPreview } from "./CometPreview";
 import { MeteorShower } from "./MeteorShower";
 import { ReplyStar } from "./ReplyStar";
 import { RocketLaunch } from "./RocketLaunch";
@@ -84,6 +85,8 @@ type Props = {
   /** The comet moment (§8.4, §8.7). */
   departing?: boolean;
   onDepartEnd?: () => void;
+  /** The first-launch explanation: the comet's way home, counted down. */
+  previewing?: boolean;
   boarding?: boolean;
   onBoardEnd?: () => void;
   /** One short line on the inside of the far wall, if this card has one. */
@@ -129,6 +132,7 @@ export function CubeScene({
   onLaunchEnd,
   departing,
   onDepartEnd,
+  previewing,
   boarding,
   onBoardEnd,
   dimmed,
@@ -291,6 +295,10 @@ export function CubeScene({
           reducedMotion={cube.reducedMotion}
           onDone={onDepartEnd}
         />
+      ) : null}
+
+      {previewing && comet ? (
+        <CometPreview progress={comet.progress} reducedMotion={cube.reducedMotion} />
       ) : null}
 
       {boarding && comet && onBoardEnd ? (

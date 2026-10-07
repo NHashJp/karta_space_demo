@@ -1114,7 +1114,7 @@ console.log("8. Orbit, trail and panels (spec v0.2 §6):");
 
   // ---- the reveal rules hold over every new state too ---------------------
   const v02 = [
-    "deploying", "orbit", "undeploying", "departing", "charting", "nudging",
+    "deploying", "orbit", "undeploying", "departing", "previewing", "charting", "nudging",
     "boarding", "homing", "rewinding", "remembering", "drifting",
     "resurfacing", "launching",
   ] as const;
@@ -1907,6 +1907,7 @@ console.log("11b. The comet moment (spec v0.2 rev 5, \u00a78.3):");
   const flags = (patch: Partial<typeof NO_COMET_FLAGS> = {}) => ({
     ...NO_COMET_FLAGS,
     exists: true,
+    introduced: true,
     ...patch,
   });
   const card = (comet: typeof NO_COMET_FLAGS, hasCrossroads = true) =>
@@ -1929,6 +1930,25 @@ console.log("11b. The comet moment (spec v0.2 rev 5, \u00a78.3):");
     deployTo(flags({ departed: true })).state === "orbit");
   check("returned: every deployment ends at the comet",
     deployTo(flags({ departed: true, returned: true })).state === "charting");
+
+  // ---- the first time it becomes a satellite, the intro plays -------------
+  {
+    let intro = deployTo(flags({ introduced: false, capsuleOpen: true }));
+    check("a first deployment plays the intro", intro.state === "previewing");
+    check("the intro stays in the orbit pose", cameraPhase(intro.state) === "orbit");
+    check("the intro keeps the satellite deployed", isDeployed(intro.state));
+    check("the intro ignores input",
+      !acceptsInput(intro.state) &&
+      reduceExperience(intro, { type: "move", direction: 1 }) === intro);
+    intro = reduceExperience(intro, { type: "previewEnd" });
+    check("and then goes to the chart", intro.state === "charting");
+    check("marking it played, and the departure with it",
+      intro.comet.introduced && intro.comet.departed);
+    intro = reduceExperience(intro, { type: "zoomEnd" });
+    check("which opens the sheet that asks for words", intro.state === "nudging");
+    check("a returned comet skips the intro",
+      deployTo(flags({ introduced: false, returned: true })).state === "charting");
+  }
 
   // ---- the departure is watched once per cycle ---------------------------
   let exp = deployTo(flags());
@@ -2836,7 +2856,7 @@ console.log("22. Looking into the satellite lands where 中をのぞく lands (r
     hasCrossroads: true,
     comet: {
       exists: true, returned: false, kept: false,
-      capsule: false, capsuleOpen: false, departed: true,
+      capsule: false, capsuleOpen: false, departed: true, introduced: true,
     },
   };
 

@@ -2846,3 +2846,113 @@ body:has(.sheet-layer) .orbit-ui__reread {
  * the same thing, permanently, instead of for twenty seconds on arrival.
  * `.orbit-ui__dot` goes with it — nothing else used it.
  */
+
+/* ---------------------------------------------------------------------------
+ * The comet's first-launch explanation (lib/cometPreview.ts)
+ *
+ * Over the scene, not in a sheet: the dashed way home *is* the explanation,
+ * and nothing may cover it. The caption reuses the chart's head so the words
+ * are in the place the promise will be read from a moment later.
+ * ------------------------------------------------------------------------- */
+.comet-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  animation: panel-arrive 240ms ease both;
+  transition: opacity 600ms ease;
+}
+
+.comet-intro[data-out="true"] {
+  opacity: 0;
+}
+
+/* The announcement: centred, larger, and gone once the path starts. */
+.comet-intro__announce {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-2);
+  text-align: center;
+  background: radial-gradient(ellipse at center, rgba(5, 7, 12, 0.55), transparent 70%);
+  transition: opacity 500ms ease;
+}
+
+.comet-intro__announce .comet-intro__count {
+  font-size: 1.5rem;
+  line-height: 40px;
+}
+
+.comet-intro__announce .comet-intro__days {
+  font-size: 2.6rem;
+}
+
+.comet-intro[data-started="true"] .comet-intro__announce {
+  opacity: 0;
+}
+
+.comet-intro__head {
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+
+.comet-intro[data-started="true"] .comet-intro__head {
+  opacity: 1;
+}
+
+.comet-intro__lead,
+.comet-intro__note {
+  font-size: 0.82rem;
+  line-height: 20px;
+  letter-spacing: 0.1em;
+  color: var(--lunar);
+  text-shadow: 0 0 24px rgba(5, 7, 12, 0.9);
+  transition: opacity 400ms ease;
+}
+
+.comet-intro__lead[data-visible="false"] {
+  opacity: 0;
+}
+
+.comet-intro__note {
+  max-width: 22em;
+  margin-top: var(--space-1);
+  text-wrap: balance;
+  opacity: 0;
+}
+
+.comet-intro__note[data-visible="true"] {
+  opacity: 1;
+}
+
+.comet-intro__count {
+  margin-top: var(--space-half);
+  font-size: 1.25rem;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--starlight);
+  text-shadow: 0 0 24px rgba(5, 7, 12, 0.9);
+}
+
+/* The number is the thing that moves; the sentence around it holds still. */
+.comet-intro__days {
+  display: inline-block;
+  min-width: 2.2em;
+  margin: 0 0.15em;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--ion);
+  font-variant-numeric: tabular-nums;
+  vertical-align: -0.12em;
+}
+
+.comet-intro__skip {
+  position: absolute;
+  right: var(--space-2);
+  bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  pointer-events: auto;
+}

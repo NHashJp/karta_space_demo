@@ -3,15 +3,15 @@
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_RADIUS, cometAt, hubPlanet, orbitPosition, replyStarAt } from "./framing";
+import { cometAt, hubProject, hubUnproject, orbitPosition, replyStarAt } from "./framing";
 import { LAUNCH_BLOOM_AT, LAUNCH_MS, REDUCED_MS } from "@/lib/timing";
 import type { BloomRequest } from "./Bloom";
 
 /**
  * The reply, on its way (spec v0.2 §10.3).
  *
- * A point of light lifts off the planet's limb, rises on an arc to the orbit
- * ring, **pauses beside the satellite for a moment** and then goes on out
+ * A point of light enters from the far edge of the screen, crosses on an arc
+ * to the orbit ring, **pauses beside the satellite for a moment** and then goes on out
  * along the comet's path, overtaking it, and settles as a star just beyond it
  * (spec §10.3; mockups M8b, M8c).
  *
@@ -99,13 +99,6 @@ export function RocketLaunch({ cometProgress, reducedMotion, onBloom, onDone }: 
 
   /** Lift-off point, the satellite's meeting point, and where the star settles. */
   const path = useMemo(() => {
-    // The planet as it is actually drawn — staged per aspect by `hubPlanet`
-    // — not the world constant, which is a different place entirely.
-    const planet = new THREE.Vector3(...hubPlanet(size.width, size.height));
-    // The planet's visible limb, up and slightly right of its centre.
-    const from = planet
-      .clone()
-      .add(new THREE.Vector3(0.55, 0.83, 0.1).normalize().multiplyScalar(PLANET_RADIUS));
     const meet = new THREE.Vector3(...orbitPosition(0.9));
 
     /*
@@ -118,6 +111,31 @@ export function RocketLaunch({ cometProgress, reducedMotion, onBloom, onDone }: 
     // opens. `cometAt` is the one answer to where the comet is drawn, so the
     // bloom cannot land anywhere the comet is not.
     const past = new THREE.Vector3(...cometAt(cometProgress, size.width, size.height));
+
+    /*
+     * It enters from beyond the far side of the screen — opposite where it
+     * ends — so the flight crosses the whole frame rather than starting
+     * halfway there. Placed at the satellite's depth, so it reads as coming
+     * in alongside it.
+     */
+    const width = size.width;
+    const height = size.height;
+    const end = hubProject([to.x, to.y, to.z], width, height);
+    const depth = hubProject([meet.x, meet.y, meet.z], width, height).depth;
+    const dx = end.x - width / 2;
+    const dy = end.y - height / 2;
+    const length = Math.hypot(dx, dy) || 1;
+    const ux = dx / length;
+    const uy = dy / length;
+    // Far enough along the mirrored direction to clear the nearer edge.
+    const reach =
+      Math.min(
+        Math.abs(ux) > 1e-3 ? width / 2 / Math.abs(ux) : Infinity,
+        Math.abs(uy) > 1e-3 ? height / 2 / Math.abs(uy) : Infinity,
+      ) + 40;
+    const from = new THREE.Vector3(
+      ...hubUnproject(width / 2 - ux * reach, height / 2 - uy * reach, depth, width, height),
+    );
 
     return { from, meet, past, to };
   }, [cometProgress, size.width, size.height]);

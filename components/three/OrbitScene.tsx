@@ -42,8 +42,33 @@ export function OrbitScene({ seed, returned, reducedMotion, presence }: Props) {
    */
   const at = useMemo(() => hubPlanet(size.width, size.height), [size.width, size.height]);
 
+  /*
+   * The planet is staged *between* the camera and the satellite — it is close
+   * and large, which is how it fills the corner of the hub. In the hub the two
+   * never overlap on screen, so that costs nothing. But while the cube unfolds
+   * and rises (or folds and sinks back) it is still full size and the camera is
+   * further out, and on a phone its wings sweep across the planet's disc and
+   * would vanish behind it. For that stretch the planet stops writing depth
+   * and draws first, so the satellite is always in front of it.
+   */
+  const behind = useRef<boolean | null>(null);
+
   useFrame(() => {
-    planet.current?.position.set(...at);
+    const group = planet.current;
+    if (!group) return;
+    group.position.set(...at);
+
+    const transit = presence.current < 1;
+    if (behind.current === transit) return;
+    behind.current = transit;
+    group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const material = object.material as THREE.Material;
+      object.userData.renderOrder ??= object.renderOrder;
+      object.userData.depthWrite ??= material.depthWrite;
+      object.renderOrder = transit ? -0.5 : object.userData.renderOrder;
+      material.depthWrite = transit ? false : object.userData.depthWrite;
+    });
   });
 
   return (
