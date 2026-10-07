@@ -228,7 +228,10 @@ export function SunFlare({ reducedMotion, shown }: Props) {
     const intensity = (0.25 + 0.75 * visibility) * (0.55 + 0.45 * d.p) * lit;
     // The glow behind the limb is there from the first day (§6), and is not
     // scaled by how much of the disc has cleared: it is the sky, not the sun.
-    behindUniforms.uIntensity.value = (0.55 + 0.4 * d.p) * lit;
+    // A little under the mockup's 0.55 + 0.4p: here it adds onto the sky's
+    // own warm haze and the limb, and at full strength the three together
+    // burned out into a white patch where the mockup has a soft gold one.
+    behindUniforms.uIntensity.value = (0.38 + 0.4 * d.p) * lit;
     coreUniforms.uIntensity.value = 0.9 * intensity;
     haloUniforms.uIntensity.value = 0.35 * intensity;
 

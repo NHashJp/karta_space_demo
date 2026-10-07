@@ -178,11 +178,9 @@ Worth knowing so you do not go looking:
 
 Not blockers, but you should know before you deploy rather than after:
 
-- [ ] **The signature path on your card points at the sample's folder** —
-      `/cards/2026-newyear-7k2m/signature.svg?v=…`. It works, because
-      `/public` is served flat, and it will keep working on Vercel. It is the
-      same class of thing as the memory photographs that *were* broken, and
-      the save-time repair does not yet cover signatures. Tidy, not urgent.
+- [x] **Signatures are no longer public files.** They are kept in the card
+      itself (`.karta/cards.local.json`), like its words, and reach the
+      browser only behind the card's password — see `lib/signature.ts`.
 - [ ] **The two sample cards will be publicly reachable** on your domain,
       gated only by whatever `CARD_PASSWORD` you set. Decide whether you want
       them deployed at all.

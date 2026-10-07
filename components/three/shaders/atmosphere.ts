@@ -120,8 +120,8 @@ export const atmosphereFragmentShader = /* glsl */ `
     // Weighted as the mockup's strokes are: the blurred haze is drawn at the
     // conic's full alpha there, not as a faint tint — it is what makes the
     // edge glow rather than merely be outlined.
-    float haze = exp(-pow((d - 0.006) / 0.024, 2.0)) * 0.55;
-    float glow = exp(-pow(d / 0.0060, 2.0)) * 0.80;
+    float haze = exp(-pow((d - 0.006) / 0.020, 2.0)) * 0.34;
+    float glow = exp(-pow(d / 0.0045, 2.0)) * 0.60;
     float line = exp(-pow(d / max(uPixel * 1.1, 0.0006), 2.0)) * 0.95;
 
     /*
@@ -132,7 +132,7 @@ export const atmosphereFragmentShader = /* glsl */ `
      * edge. The weight on the line is what carries the limb; the haze is
      * only there so the line is not a wire.
      */
-    haze *= d < 0.0 ? 0.35 : 1.0;
+    haze *= d < 0.0 ? 0.2 : 1.0;
 
     /*
      * Clamped, and that matters more than it looks. Three overlapping passes

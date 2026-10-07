@@ -223,7 +223,7 @@ export function CompletionState({
         */}
         {signature ? (
           <Signature
-            src={signature}
+            markup={signature}
             delayMs={brisk(signatureDelayMs)}
             drawMs={brisk(SIGNATURE_DRAW_MS)}
           />

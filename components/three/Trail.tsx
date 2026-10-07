@@ -29,7 +29,12 @@ const SEGMENTS = 220;
  * to drift were there, but too few pixels wide for anyone to see them drift.
  */
 const WIDTH_NEAR = 0.16;
-const WIDTH_FAR = 0.03;
+/*
+ * And not a hair at the far end. Seen from the hub that end is far away and
+ * thin on screen whatever its width; seen from the oldest memories, with the
+ * camera beside it, 0.03 was a thread nobody could follow.
+ */
+const WIDTH_FAR = 0.1;
 
 /**
  * How close the ribbon may come to the lens before it fades out entirely.

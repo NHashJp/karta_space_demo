@@ -3,8 +3,9 @@ import { hashSeed, seededUnit } from "./seed.ts";
 /**
  * Shooting stars: the classic thing, occasionally, far out in the sky.
  *
- * A bright head with a tail that tapers away behind it, crossing a corner of
- * the frame in a second or so and gone. It asks for nothing and means
+ * A short bright streak with a tail that tapers away behind it, appearing in
+ * the upper sky, sliding a little way down and across in a second and a half,
+ * and gone — the dawn mockup's meteor. It asks for nothing and means
  * nothing — which is the point. The hub already has objects that *mean*
  * things (the comet is a countdown, the trail is a memory, the satellite is
  * the letter), and a sky made entirely of meaningful objects stops reading as
@@ -24,7 +25,7 @@ import { hashSeed, seededUnit } from "./seed.ts";
  * |---|---|---|
  * | when | every ~14 s, always | once, on the day |
  * | how many | one | five together |
- * | speed | fast — about 1.2 s | slow — 4.2 s |
+ * | speed | a glimpse — about 1.5 s | slow — 4.2 s |
  * | colour | white, faintly cool | warm `#ffe9c9` |
  *
  * and the field goes quiet while the shower is playing (`QUIET_AFTER_S`), so
@@ -88,18 +89,32 @@ export const QUIET_AFTER_S = 5;
 export const DEPTH_MIN = 34;
 export const DEPTH_MAX = 62;
 
-export const DURATION_MIN = 0.9;
-export const DURATION_MAX = 1.7;
+/**
+ * The dawn mockup's meteor (rev 7.1): a streak that is visible for about a
+ * quarter of a 6¼-second beat, so a second and a half, give or take.
+ */
+export const DURATION_MIN = 1.3;
+export const DURATION_MAX = 1.8;
 
-/** The streak itself, in half-heights: a quarter to two thirds of the frame. */
-export const LENGTH_MIN = 0.3;
-export const LENGTH_MAX = 0.62;
+/**
+ * The streak, as a share of the frame: the mockup's is 6% of the width
+ * across by 5% of the height down. Multiplied by the frame's own shape, so
+ * it is the same short dash on a phone as on a desktop.
+ */
+export const STREAK = { across: 0.06, down: 0.05 };
+/** And the distance its head slides: 12% of the width, 10% of the height. */
+export const SLIDE = { across: 0.12, down: 0.1 };
 
 /** And how thick, in half-heights. A few pixels: it is a line, not a rod. */
 export const WIDTH = 0.018;
 
-/** Far enough to carry it off the other side from wherever it came in. */
-export const TRAVEL = 3.4;
+/**
+ * Where it may appear, as fractions of the frame from the top left: the open
+ * upper-left sky, as in the mockup. The lower part of the frame is where the
+ * planet rises and every control sits, and the top right is the promise's
+ * caption.
+ */
+export const APPEAR = { left: 0.1, right: 0.7, top: 0.05, bottom: 0.32 };
 
 /** Draws per star, with room to add one later without shifting the others. */
 const STRIDE = 16;
@@ -140,17 +155,14 @@ export function starGap(seed: number, index: number): number {
 }
 
 /**
- * One shooting star, for a frame of the given aspect.
+ * One shooting star, for a frame of the given aspect — drawn the way the dawn
+ * mockup draws its meteors.
  *
- * It enters through the top most of the time, and through the upper part of a
- * side the rest — which is simply where they read best. The lower third of
- * the frame is where the planet rises and every control sits, and a streak
- * crossing it would be competing with the interface rather than decorating
- * the sky.
- *
- * Whichever edge it enters by, it is aimed back across the frame rather than
- * out of it: a star that enters at the top right heading right is on screen
- * for a tenth of a second and reads as a glitch.
+ * It appears *in* the open sky rather than flying in from an edge, slides a
+ * short way down and to the right, and fades in and out as it goes: a short
+ * bright dash of a thing, glimpsed rather than tracked. The old ones raced
+ * the whole width of the frame in a second, from off screen to off screen,
+ * and were mostly over before anyone had seen them.
  */
 export function shootingStar(
   seed: number,
@@ -160,33 +172,27 @@ export function shootingStar(
   const next = draws(seed, index);
   const halfW = Math.max(aspect, 0.4);
 
-  const edge = next();
-  let from: Vec2;
-  let angle: number; // radians, measured clockwise from straight down
+  // Frame fractions (from the top left) to half-height units (centred, y up).
+  const u = APPEAR.left + next() * (APPEAR.right - APPEAR.left);
+  const v = APPEAR.top + next() * (APPEAR.bottom - APPEAR.top);
+  const from: Vec2 = [(u * 2 - 1) * halfW, 1 - v * 2];
 
-  if (edge < 0.7) {
-    // In through the top, heading down and across.
-    const x = (next() * 2 - 1) * halfW * 1.05;
-    from = [x, 1.14];
-    // Aimed back towards the middle, plus a little of its own.
-    angle = (-x / halfW) * 0.62 + (next() * 2 - 1) * 0.4;
-  } else {
-    // In through the upper part of one side, heading down and inwards.
-    const side = edge < 0.85 ? -1 : 1;
-    from = [side * halfW * 1.08, 0.25 + next() * 0.85];
-    angle = side * -(0.75 + next() * 0.5);
-  }
+  // Down and to the right, at the frame's own diagonal, with a little play.
+  const slide: Vec2 = [SLIDE.across * 2 * halfW, -SLIDE.down * 2];
+  const angle = Math.atan2(slide[1], slide[0]) + (next() * 2 - 1) * 0.15;
+  const direction: Vec2 = [Math.cos(angle), Math.sin(angle)];
+  const travel = Math.hypot(slide[0], slide[1]) * (0.85 + next() * 0.3);
 
-  const direction: Vec2 = [Math.sin(angle), -Math.cos(angle)];
   const duration = DURATION_MIN + next() * (DURATION_MAX - DURATION_MIN);
+  const streak = Math.hypot(STREAK.across * 2 * halfW, STREAK.down * 2);
 
   return {
     index,
     duration,
     from,
     direction,
-    speed: TRAVEL / duration,
-    length: LENGTH_MIN + next() * (LENGTH_MAX - LENGTH_MIN),
+    speed: travel / duration,
+    length: streak * (0.8 + next() * 0.4),
     depth: DEPTH_MIN + next() * (DEPTH_MAX - DEPTH_MIN),
     tint: Math.pow(next(), 1.6),
   };
@@ -204,15 +210,12 @@ export function headAt(star: Omit<ShootingStar, "startAt">, local: number): Vec2
 /**
  * How bright it is, `0..1` through its flight.
  *
- * In fast and out slow, which is what a meteor does and also what keeps it
- * from looking like a line being switched on: by the time it is bright it is
- * already moving, and it thins away rather than stopping.
+ * A half sine, as the mockup has it: it swells out of the sky and thins
+ * back into it, and is never a line being switched on or off.
  */
 export function brightness(progress: number): number {
   const p = Math.min(Math.max(progress, 0), 1);
-  const rise = Math.min(1, p / 0.12);
-  const fall = 1 - Math.min(1, Math.max(0, (p - 0.55) / 0.45));
-  return rise * fall * fall;
+  return Math.sin(Math.PI * p);
 }
 
 /** The card's own timetable: `count` stars with absolute start times. */

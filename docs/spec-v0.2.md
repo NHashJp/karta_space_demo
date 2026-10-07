@@ -826,7 +826,7 @@ Rules:
 
 ### 13.1 Signature (handwriting, F6)
 
-- `signature: "/cards/<slug>/signature.svg"` points to an SVG made of **stroked paths** (no fills): the sender's name or a short sign-off in their own hand.
+- `signature` holds an SVG made of **stroked paths** (no fills) — the sender's name or a short sign-off in their own hand — as markup **inside the card**, kept with its words in `.karta/cards.local.json` and sent to the browser only behind the password. It is never a file in `public/` (revised: it used to be `/cards/<slug>/signature.svg`, which anyone could fetch).
 - Rendered under the closing line on the closing screen, `strokeColor #7fd4f5` → final `--starlight`, drawn path by path in document order using the same dash technique as `StrokeText` (`pathLength`-normalised dash), total ~1.8 s, starting when the closing line's fill wipe ends.
 - Max rendered height 72px (phone) / 96px (desktop).
 - Drawn in the editor's signature pad (§15.5).
@@ -1078,7 +1078,7 @@ v0.1 kept passwords only in environment variables. This is safe but slow to shar
 - A dialog with a 600 × 220 drawing area on the void background, drawing in starlight.
 - Pointer events → smoothed polyline (Catmull-Rom to cubic Béziers). Pressure is ignored.
 - **Undo stroke**, **Clear**, **Save**.
-- Save posts the paths to `/api/editor/signature`, which writes `public/cards/<slug>/signature.svg`: stroked paths only, `stroke-linecap="round"`, viewBox fitted to the strokes with 4px padding. It then sets `signature` on the card.
+- Save posts the paths to `/api/editor/signature`, which returns the SVG (stroked paths only, `stroke-linecap="round"`, viewBox fitted to the strokes with 4px padding) without writing any file. The editor sets it as `signature` on the card, and it is saved with the card. The server rebuilds it from its paths (`cleanSignature`) before it reaches the page.
 - Below the pad, a preview replays the drawing exactly as the closing screen will (§13.1).
 
 ### 15.6 Share: issue a link with a password

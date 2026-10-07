@@ -2,6 +2,7 @@ import { civilDate, DEFAULT_TIME_ZONE } from "./orbitClock.ts";
 import { cometCycle, type CometStatus } from "./cometOrbit.ts";
 import { returnLabel, type ReturnLabel } from "./returnLabel.ts";
 import { sortMemoriesNewestFirst } from "./fuzzyDate.ts";
+import { cleanSignature } from "./signature.ts";
 import type { CardConfig, Memory, MemoryImage } from "@/types/card";
 
 /**
@@ -118,6 +119,14 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
     };
   }
 
+  /*
+   * The handwriting, rebuilt from its own paths before it leaves the server,
+   * and only ever as part of the card — so it reaches the browser on the same
+   * terms as the card's words: behind the password. An old public path is
+   * dropped rather than followed.
+   */
+  const signature = cleanSignature(card.signature);
+
   const memories = card.memories?.length
     ? sortMemoriesNewestFirst(card.memories).map((memory) => ({
         ...memory,
@@ -147,6 +156,7 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
     from,
     timeZone,
     passwordHint: access?.hint,
+    signature,
     memories,
     comet,
     replyAvailable,

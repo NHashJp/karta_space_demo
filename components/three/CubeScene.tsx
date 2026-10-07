@@ -29,6 +29,7 @@ import { MeteorShower } from "./MeteorShower";
 import { ReplyStar } from "./ReplyStar";
 import { RocketLaunch } from "./RocketLaunch";
 import { Trail } from "./Trail";
+import { TrailSky } from "./TrailSky";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { asteroidSeed } from "@/lib/asteroids";
 import { shootingStarSeed } from "@/lib/shootingStars";
@@ -409,6 +410,16 @@ export function CubeScene({
         The trail exists from the landing screen onwards, faintly, so the card
         hints at what is behind it before anyone has been told (§7).
       */}
+      {/* The sky ages with the journey down the trail (`TrailSky`). */}
+      {memories?.length ? (
+        <TrailSky
+          curveSeed={curveSeed}
+          memoryCount={memories.length}
+          activeMemory={activeMemory}
+          shown={cameraPhase === "trail"}
+        />
+      ) : null}
+
       {memories?.length ? (
         <Trail
           curveSeed={curveSeed}

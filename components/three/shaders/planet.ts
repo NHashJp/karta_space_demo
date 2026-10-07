@@ -306,9 +306,9 @@ export const planetFragmentShader = /* glsl */ `
      */
     float pointFreq = 1.0 / (2.3 * 2.6 * uPixel);
     float clusterFreq = 1.0 / (2.3 * 26.0 * uPixel);
-    float cluster = pow(smoothstep(0.66, 0.86, valueNoise(surfacePoint * clusterFreq)), 1.2);
+    float cluster = pow(smoothstep(0.58, 0.82, valueNoise(surfacePoint * clusterFreq)), 1.2);
     float grain = valueNoise(surfacePoint * pointFreq);
-    float cities = pow(smoothstep(0.72, 0.96, grain), 2.0) * cluster * isLand;
+    float cities = pow(smoothstep(0.64, 0.93, grain), 1.6) * cluster * isLand;
 
     /*
      * In the outer third of the disc, which is the part of this planet the
@@ -330,7 +330,7 @@ export const planetFragmentShader = /* glsl */ `
 
     vec3 cityCore = srgb(vec3(1.0, 0.839, 0.588));  // #ffd696
     vec3 cityGlow = srgb(vec3(1.0, 0.769, 0.471));  // #ffc478
-    color += cityCore * cities * flicker * uNight * 1.5 * (1.0 - cloud * 0.5);
+    color += cityCore * cities * flicker * uNight * 2.4 * (1.0 - cloud * 0.4);
     // A warmer rim on each point, the mockup's small glow round a light —
     // on the point itself, not as a wash over the cluster.
     color += cityGlow * cities * flicker * uNight * 0.35;

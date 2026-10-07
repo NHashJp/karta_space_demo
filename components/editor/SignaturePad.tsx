@@ -80,13 +80,13 @@ export function SignaturePad({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ slug, strokes }),
     });
-    const payload = (await response.json().catch(() => ({}))) as { src?: string };
+    const payload = (await response.json().catch(() => ({}))) as { svg?: string };
     setSaving(false);
 
-    if (payload.src) {
-      // Cache-busted: the file keeps its name, so without this the closing
-      // screen would keep drawing the previous signature.
-      onSaved(`${payload.src}?v=${Date.now()}`);
+    if (payload.svg) {
+      // The drawing itself, kept in the card and saved with it — never a
+      // public file (see lib/signature.ts).
+      onSaved(payload.svg);
       onClose();
     }
   }
@@ -148,7 +148,8 @@ export function SignaturePad({
 
         <p className="editor__hint">
           Drawn stroke by stroke on the closing screen, in the order you write
-          it. Saved to public/cards/{slug}/signature.svg.
+          it. Kept in the card with its words, and shown only behind its
+          password.
         </p>
       </div>
     </div>

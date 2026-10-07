@@ -61,6 +61,7 @@ import { serializeCards } from "../lib/cardsFile.ts";
 import { allProblems, cardProblems, MEMORY_MAX } from "../lib/cardRules.ts";
 import { rehomeCard, strayMedia } from "../lib/cardMedia.ts";
 import {
+  APPEAR,
   MEAN_GAP_S,
   POOL as STAR_POOL,
   QUIET_AFTER_S,
@@ -70,6 +71,7 @@ import {
   shootingStarSeed,
   shootingStars,
 } from "../lib/shootingStars.ts";
+import { cleanSignature } from "../lib/signature.ts";
 /** The meteor shower's own length, read from the component that plays it. */
 const SHOWER_S = Number(
   /const DURATION_S = ([\d.]+)/.exec(
@@ -124,6 +126,7 @@ import {
   TRAIL_NEAR_Z,
   memoryU,
   trailControlPoints,
+  MEANDER,
   trailPoint,
   trailSeedFor,
 } from "../lib/trailCurve.ts";
@@ -424,22 +427,18 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
       check(id(`face ${i + 1} readable on phone`), fit.fontPx >= 14, `${fit.fontPx}px`);
     }
 
-    // A signature that is configured but not there would simply not draw, and
-    // nothing on the closing screen would say so — hence a check, not a note.
+    /*
+     * The signature is kept in the card, like its words, and never as a file
+     * anyone can fetch without the password (lib/signature.ts). One that is
+     * configured but does not survive `cleanSignature` would simply not draw,
+     * and nothing on the closing screen would say so — hence a check.
+     */
     if (card.signature) {
-      /*
-       * The editor's signature pad appends `?v=<timestamp>` so the browser
-       * reloads the drawing after it is redrawn. That is a URL, not a path —
-       * `existsSync` was being handed it whole and failing on every card
-       * whose signature had ever been edited.
-       */
-      const file = `public${card.signature.split("?")[0]}`;
-      const there = existsSync(file);
-      check(id("signature file exists"), there, file);
-      if (there) {
-        const svg = readFileSync(file, "utf8");
-        console.log(`    signature: ${card.signature}`);
-        check(id("signature is an SVG"), svg.includes("<svg"));
+      const svg = cleanSignature(card.signature);
+      check(id("signature is kept in the card, not a public file"),
+        !card.signature.trimStart().startsWith("/"), card.signature.slice(0, 40));
+      check(id("signature is a drawing the closing screen can use"), Boolean(svg));
+      if (svg) {
         // It is drawn by walking a dash along each path; a signature made of
         // filled shapes would simply appear, which is not the same thing.
         check(id("signature is made of stroked paths"), /<path[\s>]/.test(svg));
@@ -1796,7 +1795,9 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 
     check("the trail is always a real point", !nan);
     check("the trail always recedes", recedes);
-    check("the trail stays near its axis", worstLateral <= TRAIL_LATERAL * 1.25,
+    // The seeded wander and the far meander together (lib/trailCurve.ts).
+    check("the trail stays near its axis",
+      worstLateral <= TRAIL_LATERAL * 1.25 + Math.hypot(MEANDER.across, MEANDER.up),
       `${worstLateral.toFixed(2)}u`);
 
     const near = trailPoint(points, 0);
@@ -3481,7 +3482,7 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
 
   let missed = 0;
   let tested = 0;
-  let startedOnFrame = 0;
+  let startedLow = 0;
   let shortest = Infinity;
   let longest = 0;
 
@@ -3492,18 +3493,18 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
         const star = shootingStar(seed, index, aspect);
         tested++;
         if (!crossesFrame(star, aspect)) missed++;
-        // It must arrive from outside: one that blinks into existence inside
-        // the frame reads as a glitch rather than as something passing.
-        if (Math.abs(star.from[0]) <= aspect && Math.abs(star.from[1]) <= 1) startedOnFrame++;
+        // It appears in the open upper sky, as the dawn mockup's do — never
+        // down where the planet rises and the controls sit.
+        if (star.from[1] < 1 - APPEAR.bottom * 2 - 1e-9) startedLow++;
         shortest = Math.min(shortest, star.duration);
         longest = Math.max(longest, star.duration);
       }
     }
   }
 
-  check("every shooting star crosses the frame", missed === 0, `${missed} of ${tested}`);
-  check("and none of them begins on it", startedOnFrame === 0, String(startedOnFrame));
-  check("they are over in about a second", shortest >= 0.8 && longest <= 2,
+  check("every shooting star is seen in the frame", missed === 0, `${missed} of ${tested}`);
+  check("and every one appears in the upper sky", startedLow === 0, String(startedLow));
+  check("they are over in a second and a half or so", shortest >= 1.2 && longest <= 2,
     `${shortest.toFixed(2)}-${longest.toFixed(2)}s`);
 
   /*
@@ -3515,7 +3516,7 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
   check("a star begins and ends invisible",
     brightness(0) < 1e-6 && brightness(1) < 1e-6,
     `${brightness(0).toExponential(1)} / ${brightness(1).toExponential(1)}`);
-  check("and is brightest in flight", brightness(0.3) > 0.9, brightness(0.3).toFixed(2));
+  check("and is brightest in flight", brightness(0.5) > 0.99, brightness(0.5).toFixed(2));
 
   /*
    * The timetable, and the one thing that must not happen: the returned

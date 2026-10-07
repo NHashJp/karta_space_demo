@@ -79,6 +79,43 @@ function mix(a: Rgb, b: Rgb, amount: number): Rgb {
  * With `reducedMotion`, time is frozen: the card keeps its own colours, they
  * simply stop moving.
  */
+/**
+ * The colour of an **era** of the trail — what the contrail is mostly made of
+ * at this point along it, before the drift plays over it.
+ *
+ * Further along the trail is further back in time, so the colour moves with
+ * the memories: ion-cool where the newest are, through the nebula's violet
+ * and ember, to a warm amber by the oldest — the light of something long
+ * ago. The same colour tints the sky behind the trail as the camera travels
+ * it (`TrailSky`), so the whole scene ages with the journey.
+ *
+ * Slow on purpose: well inside the continuity bound, so it is felt as the
+ * journey goes on rather than seen as bands.
+ */
+export const ERAS: { at: number; colour: Rgb }[] = [
+  { at: 0.0, colour: [0.498, 0.831, 0.961] }, // #7fd4f5 the newest: ion-cool
+  { at: 0.35, colour: [0.561, 0.498, 0.839] }, // #8f7fd6 nebula violet
+  { at: 0.65, colour: [0.780, 0.478, 0.659] }, // #c77aa8 ember
+  { at: 1.0, colour: [0.941, 0.659, 0.376] }, // #f0a860 the oldest: amber
+];
+
+export function trailEra(u: number): Rgb {
+  const v = Math.min(Math.max(u, 0), 1);
+  for (let i = 1; i < ERAS.length; i++) {
+    const a = ERAS[i - 1];
+    const b = ERAS[i];
+    if (v <= b.at) return mix(a.colour, b.colour, smoothstep((v - a.at) / (b.at - a.at)));
+  }
+  return ERAS[ERAS.length - 1].colour;
+}
+
+/**
+ * How much of the trail's colour is its era, and how much the drift — more
+ * era the further back it goes, so the oldest memories read as unmistakably
+ * warm while the near end keeps the drift's full range of colours.
+ */
+const ERA_WEIGHT = { near: 0.25, far: 0.85 };
+
 export function trailColour(u: number, t: number, seed: TrailSeed, reducedMotion = false): Rgb {
   const at = reducedMotion ? 0 : drift(t, seed);
   const c = 5 * valueNoise1D(BAND_SCALE * u + seed.s1 + at, seed.noise);
@@ -86,7 +123,9 @@ export function trailColour(u: number, t: number, seed: TrailSeed, reducedMotion
   const index = Math.floor(c);
   const from = PALETTE[((index % 5) + 5) % 5];
   const to = PALETTE[((index + 1) % 5 + 5) % 5];
-  const colour = mix(from, to, smoothstep(c - index));
+  // The drift, played over the colour of this part of the trail's era.
+  const weight = ERA_WEIGHT.near + (ERA_WEIGHT.far - ERA_WEIGHT.near) * Math.min(Math.max(u, 0), 1);
+  const colour = mix(mix(from, to, smoothstep(c - index)), trailEra(u), weight);
 
   // Where the trail leaves the cube it is exhaust, not nebula.
   if (u < EXHAUST_U) return mix(colour, STARLIGHT, 1 - u / EXHAUST_U);
@@ -95,7 +134,10 @@ export function trailColour(u: number, t: number, seed: TrailSeed, reducedMotion
 
 /** The ribbon fades out along its length. */
 export function trailAlpha(u: number): number {
-  return 0.95 * Math.pow(1 - Math.min(Math.max(u, 0), 1), 1.3);
+  const v = Math.min(Math.max(u, 0), 1);
+  const head = smoothstep(Math.min(v / 0.12, 1));
+  const end = 1 - smoothstep(Math.min(Math.max((v - 0.94) / 0.06, 0), 1));
+  return 0.98 * head * (1 - 0.45 * v) * end;
 }
 
 export function toCss([r, g, b]: Rgb): string {

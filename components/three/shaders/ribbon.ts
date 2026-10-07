@@ -75,9 +75,18 @@ export const ribbonFragmentShader = /* glsl */ `
      * that new peak back at the 0.95 the old near end had, so the trail is
      * no dimmer than it was — only no longer cut off.
      */
+    /*
+     * And it lasts **to the end of the memories**. The far end used to fade as
+     * (1 − u)^1.3, which is already down to a fifth by u = 0.7 — about the
+     * fifth memory of a full trail — so the reader travelling it found the
+     * contrail gone around them for the whole second half of the journey.
+     * Now it only eases down to a little over half, and leaves for good over
+     * the last few per cent, past the oldest memory (at u = 0.92).
+     */
     float head = smoothstep(0.0, 0.12, vU);
-    float tail = pow(1.0 - clamp(vU, 0.0, 1.0), 1.3);
-    float lengthwise = 1.119 * head * tail;
+    float u = clamp(vU, 0.0, 1.0);
+    float tail = (1.0 - 0.45 * u) * (1.0 - smoothstep(0.94, 1.0, u));
+    float lengthwise = 0.98 * head * tail;
 
     /*
      * The cross-section (rev 6).

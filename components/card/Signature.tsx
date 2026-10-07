@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 type Props = {
-  /** An SVG of stroked paths — the sender's own hand (spec v0.2 §13.1). */
-  src: string;
+  /**
+   * An SVG of stroked paths — the sender's own hand (spec v0.2 §13.1) —
+   * already sanitised on the server by `cleanSignature`.
+   */
+  markup: string;
   /** Hold until the closing line has finished drawing itself. */
   delayMs: number;
   /** How long the hand takes over the whole name; shorter on a replay. */
@@ -20,29 +23,13 @@ type Props = {
  * thing the receiver sees of the letter itself, and the moment the card stops
  * being a designed object and becomes something a specific person wrote.
  *
- * The SVG is fetched rather than put in an `<img>`, because an image cannot be
+ * The SVG arrives as markup inside the card rather than as a file, and is put
+ * into the document rather than into an `<img>`, because an image cannot be
  * animated from outside: the drawing works by setting a dash on each path and
  * walking it, which needs the paths themselves in the document.
  */
-export function Signature({ src, delayMs, drawMs }: Props) {
+export function Signature({ markup, delayMs, drawMs }: Props) {
   const host = useRef<HTMLDivElement>(null);
-  const [markup, setMarkup] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(src)
-      .then((response) => (response.ok ? response.text() : null))
-      .then((text) => {
-        // A signature that fails to load is simply absent. It is the quietest
-        // thing on the screen, and a broken-image icon under the closing line
-        // would be far worse than nothing at all.
-        if (!cancelled && text && text.includes("<svg")) setMarkup(text);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
 
   useEffect(() => {
     const svg = host.current?.querySelector("svg");
@@ -82,15 +69,13 @@ export function Signature({ src, delayMs, drawMs }: Props) {
     return () => timers.forEach(clearTimeout);
   }, [markup, delayMs, drawMs]);
 
-  if (!markup) return null;
-
   return (
     <div
       className="signature"
       ref={host}
       aria-hidden="true"
-      // The file is authored by the sender, in this repository, and written by
-      // the editor's own pad — the same trust level as the card's text.
+      // Drawn by the editor's own pad and rebuilt from its paths alone on the
+      // server (`cleanSignature`), so nothing but stroked paths reaches here.
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
