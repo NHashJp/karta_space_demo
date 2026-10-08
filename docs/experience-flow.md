@@ -5,7 +5,7 @@ Source: `lib/experienceState.ts`, `lib/useFaceNavigation.ts`,
 
 ## The machine
 
-Twenty-three states, nineteen events, one pure reducer. No timers, no side effects,
+Twenty-four states, twenty-one events, one pure reducer. No timers, no side effects,
 no async — which is why the whole flow is testable in Node. It also carries a
 little session history, which is still pure: whether a reply has been
 `launched`, and how many times each ceremony has been watched (below).
@@ -62,8 +62,20 @@ Past the closing screen, for a card with an orbit:
                                                     zoomEnd └───┘  └─> orbit
 
                orbit ── openPanel(p) ──> orbit, panel = p
-    panel "reply" ── launch ──> launching ── launchEnd ──> orbit, launched
-    panel "comet" ── release ─> releasing  ── releaseEnd ─> orbit, released
+    panel "reply" ── launch ──> launching (panel closed) ── launchEnd ──> orbit, launched
+```
+
+And the comet moment, which a deployment walks into by itself (`afterDeploy`):
+
+```
+              first launch this cycle          previewEnd            zoomEnd
+   deployEnd ─────────────────────────> previewing ─────────> charting ─────> nudging
+       │      not yet watched leaving                 departEnd   ^             │ board
+       ├──────────────────────────────> departing ────────────────┘             v
+       │      back today, or room for words                               boarding
+       ├──────────────────────────────> charting                             │ boardEnd
+       └── otherwise ──> orbit                                               v
+                                         nudging ── leaveChart ──> homing ── zoomEnd ──> orbit
 ```
 
 Two rules hold the trail together. **Either end of it returns to orbit** rather
@@ -72,8 +84,9 @@ never stranded at the far end of them. And **while a panel is open every `move`
 is ignored**, because the reader may be typing a reply into it; the ✕, Escape
 and the space around the panel are the ways out.
 
-`launch` and `release` are dispatched *only after the server has accepted* the
-reply or the comet (§10, §11). The animation is a confirmation, never a guess:
+`launch` and `board` are dispatched *only after the server has accepted* the
+reply or the comet's words (§10, §11). `launch` also closes the reply panel: the
+form has done its job, and the rocket's flight should have the screen. The animation is a confirmation, never a guess:
 if the send fails there is nothing to confirm, and the panel says so instead.
 
 | State | Camera | Face text | Secret line | Accepts input |
@@ -95,8 +108,13 @@ if the send fails there is nothing to confirm, and the panel says so instead.
 | `remembering` | at one memory | hidden | hidden | yes |
 | `drifting` | along the trail | hidden | hidden | no |
 | `resurfacing` | leaving the trail | hidden | hidden | no |
+| `departing` | the orbit pose | hidden | hidden | no |
+| `previewing` | the orbit pose | hidden | hidden | no |
+| `charting` | closing on the comet | hidden | hidden | no |
+| `nudging` | the chart, sheet open | hidden | hidden | the sheet only |
+| `boarding` | the chart | hidden | hidden | no |
+| `homing` | back to the orbit pose | hidden | hidden | no |
 | `launching` | the orbit pose | hidden | hidden | no |
-| `releasing` | the orbit pose | hidden | hidden | no |
 
 A memory's title, date and caption follow the same rule face text does, in
 `remembering` and nowhere else — `revealsMemory`.
@@ -122,6 +140,27 @@ acceptsInput(state)  // reading | completed | inside | orbit | remembering
 `isZoomedIn` was a boolean until the cube acquired an inside; the camera now has
 three positions rather than two, so `cameraPhase` is the real signal and
 `isZoomedIn` is derived from it.
+
+## The first launch: the comet, explained (`previewing`)
+
+The first time the cube becomes a satellite in a comet's cycle, the machine
+goes to `previewing` before anything asks for words. `CometIntro` (the words)
+and `CometPreview` (the scene) play one timeline from `lib/cometPreview.ts`:
+
+1. **announce** — the countdown alone, あと **X** 日, over the sender's own
+   promise as entered in the editor (falling back to また会えます);
+2. **draw** — the comet's way home as a dashed gold line;
+3. **run** — the real comet flown home along it while the number counts down,
+   and the scene's own dawn (`DawnProvider`'s `intro`) rising from today's to
+   the reunion morning's, so the background at zero is exactly the sky this
+   card will show on the day — warm light and meteor shower included;
+4. **arrive**, then everything rewinds to today and `previewEnd` goes on to
+   the chart and the 言葉をのせる sheet. スキップ ends it at any point.
+
+"First" is remembered in the comet's visit record (`introduced`, in
+`lib/cometVisit.ts`), per cycle, alongside `departed`; the intro marks both,
+since it shows the same journey the departure did, and all of it. A returned
+comet skips it.
 
 ## Why the inside is three states, not one
 

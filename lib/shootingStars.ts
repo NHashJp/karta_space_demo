@@ -61,6 +61,22 @@ export const MEAN_GAP_S = 14;
  * on top of each other and the tail never leaves a minute of nothing.
  */
 export const MIN_GAP_S = 3.5;
+
+/**
+ * The orbit view's own, busier sky: an extra stream of shooting stars at
+ * about one every six seconds, on top of the ordinary one. The hub is the
+ * screen a reader sits in rather than reads, under the open sky of the
+ * dawn mockup, so it is the one place more of them is welcome.
+ */
+export const ORBIT_MEAN_GAP_S = 6;
+
+/**
+ * Now and then, a big one: about one in eight is a fireball rather than a
+ * streak — longer, thicker, brighter at the head, and slower, because a
+ * heavier thing burns longer. Rare enough that each one is a small event.
+ */
+export const BIG_CHANCE = 0.12;
+export const BIG = { length: 2.4, width: 2.2, duration: 1.4, travel: 1.8, glow: 1.6 };
 export const MAX_GAP_S = 70;
 
 /** How many can be crossing at once. They last ~1.2 s, so this is generous. */
@@ -135,6 +151,8 @@ export type ShootingStar = {
   depth: number;
   /** 0 white, 1 faintly warm. */
   tint: number;
+  /** A fireball (`BIG`): drawn wider and brighter at the head. */
+  big: boolean;
 };
 
 /** Its own seed, so no two cards share a sky. */
@@ -147,11 +165,15 @@ function draws(seed: number, index: number): () => number {
   return () => seededUnit(seed, i++);
 }
 
-/** The gap before star `index`, in seconds. */
-export function starGap(seed: number, index: number): number {
+/**
+ * The gap before star `index`, in seconds, for a stream averaging `meanGap`.
+ * The floor shrinks with a busier stream, so a faster sky is still Poisson
+ * rather than a stream clamped into a beat.
+ */
+export function starGap(seed: number, index: number, meanGap = MEAN_GAP_S): number {
   const u = seededUnit(seed, index * STRIDE + STRIDE - 1);
-  const gap = -MEAN_GAP_S * Math.log(1 - u);
-  return Math.min(Math.max(gap, MIN_GAP_S), MAX_GAP_S);
+  const gap = -meanGap * Math.log(1 - u);
+  return Math.min(Math.max(gap, Math.min(MIN_GAP_S, meanGap * 0.3)), MAX_GAP_S);
 }
 
 /**
@@ -185,16 +207,23 @@ export function shootingStar(
 
   const duration = DURATION_MIN + next() * (DURATION_MAX - DURATION_MIN);
   const streak = Math.hypot(STREAK.across * 2 * halfW, STREAK.down * 2);
+  const length = streak * (0.8 + next() * 0.4);
+  const depth = DEPTH_MIN + next() * (DEPTH_MAX - DEPTH_MIN);
+  const tint = Math.pow(next(), 1.6);
+  // Drawn last, so every ordinary star is exactly the star it always was.
+  const big = next() < BIG_CHANCE;
 
+  const lasts = big ? duration * BIG.duration : duration;
   return {
     index,
-    duration,
+    duration: lasts,
     from,
     direction,
-    speed: travel / duration,
-    length: streak * (0.8 + next() * 0.4),
-    depth: DEPTH_MIN + next() * (DEPTH_MAX - DEPTH_MIN),
-    tint: Math.pow(next(), 1.6),
+    speed: (big ? travel * BIG.travel : travel) / lasts,
+    length: big ? length * BIG.length : length,
+    depth,
+    tint,
+    big,
   };
 }
 
@@ -219,11 +248,16 @@ export function brightness(progress: number): number {
 }
 
 /** The card's own timetable: `count` stars with absolute start times. */
-export function shootingStars(seed: number, count: number, aspect: number): ShootingStar[] {
+export function shootingStars(
+  seed: number,
+  count: number,
+  aspect: number,
+  meanGap = MEAN_GAP_S,
+): ShootingStar[] {
   const stars: ShootingStar[] = [];
   let at = 0;
   for (let index = 0; index < count; index++) {
-    at += starGap(seed, index);
+    at += starGap(seed, index, meanGap);
     stars.push({ ...shootingStar(seed, index, aspect), startAt: at });
   }
   return stars;

@@ -33,6 +33,8 @@ export const shootingStarFragmentShader = /* glsl */ `
   uniform vec3 uHead;
   uniform vec3 uTail;
   uniform float uOpacity;
+  /** 1 for an ordinary star; more for a fireball's brighter head. */
+  uniform float uGlow;
 
   varying vec2 vUv;
 
@@ -50,8 +52,11 @@ export const shootingStarFragmentShader = /* glsl */ `
     float body = pow(t, 2.2);
     float head = pow(t, 14.0);
 
+    // A fireball's head carries a soft halo wider than its core.
+    float halo = exp(-1.4 * across * across) * pow(t, 9.0) * 0.55 * (uGlow - 1.0);
+
     vec3 color = mix(uTail, uHead, head);
-    float alpha = uOpacity * core * (body * 0.8 + head * 1.7);
+    float alpha = uOpacity * (core * (body * 0.8 + head * 1.7 * uGlow) + halo);
 
     gl_FragColor = vec4(color * (0.75 + 0.9 * head), alpha);
 

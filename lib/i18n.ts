@@ -18,8 +18,6 @@
 
 export type Lang = "ja" | "en";
 
-export const LANGS: Lang[] = ["ja", "en"];
-
 export function langOf(value: unknown): Lang {
   return value === "en" ? "en" : "ja";
 }

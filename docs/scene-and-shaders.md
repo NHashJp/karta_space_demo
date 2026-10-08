@@ -146,6 +146,46 @@ The seed shifts only the phases, never the arc: two cards are lit from slightly
 different points in the same sweep, so they do not look identical side by side
 without either of them looking wrong.
 
+## The planet and the sunrise
+
+The orbit view is matched to the dawn mockup
+(`KARTA_SPACE_orbit_dawn_v7.1_mockup.html`), which paints the planet as a flat
+disc with a brilliant limb and a sun sitting on it. Four things make the 3D
+scene draw the same picture.
+
+**The planet is a disc, not a sphere** (`Planet.tsx`, `shaders/planet.ts`).
+The hub stages it huge, under three units from the lens and far off to the
+side of the frame. A real sphere there is drawn with heavy perspective: its
+outline on screen is a stretched shape half as big again as the circle the
+composition asks for (`hubPlanetScreen`), so the air ring, the sun, the
+crescent and the aurora — all placed on that circle — sat on a contour the
+planet did not have, and the shine ran off the edge of the world. The surface
+is now a circle facing the camera, and the sphere is reconstructed in the
+shader from where each fragment lands on it. Its outline is exactly the
+circle everything else is placed on, from every camera pose.
+
+**The sky is behind it.** `DawnSky`'s haze is transparent, and three.js draws
+every transparent object after every opaque one whatever its render order —
+so a sky one unit from the lens with depth testing off was painted *over* the
+planet, greying its night side. The sky quad now sits at 100 units, inside
+the far plane, and is depth-tested; the planet covers it, as in the mockup.
+
+**The limb is coloured in screen space.** `shaders/atmosphere.ts` writes its
+colours as sRGB hex, and the output is encoded to sRGB before the additive
+blend. Written straight, the encoding squeezed the channels together and the
+gold → cyan → blue limb came out silvery white; it now decodes its colour and
+writes at alpha 1, so the blend adds exactly what the mockup's canvas adds.
+
+**The sun is two layers** (`SunFlare.tsx`). A wide warm glow sits *behind*
+the planet, depth-tested, so the limb cuts it off; the white core, its halo
+and the flare are drawn *in front*, with their strength following how far the
+disc has cleared the limb. The core used to be behind the planet too, which
+hid most of the sun for most of the wait.
+
+City lights are sized in screen pixels (`uPixel`), so a town is a 1–2 px point
+in a cluster near the limb at every size the planet is drawn, rather than a
+blob fifteen pixels across on a desktop.
+
 ## Starfield
 
 1500 points in a spherical shell, positioned with `cbrt` so density is even
@@ -164,9 +204,10 @@ Generation is seeded, so the sky is identical on every load.
 
 ## Shooting stars
 
-The classic thing: a bright head with a tail tapering behind it, crossing a
-corner of the frame in about a second, every fourteen seconds or so. It asks
-for nothing and means nothing, and that is the point — the hub is otherwise
+The dawn mockup's meteor: a short bright streak that appears in the open
+upper-left sky, slides a little way down and to the right, and fades in and
+out on a half sine over about a second and a half — every fourteen seconds or
+so. It asks for nothing and means nothing, and that is the point — the hub is otherwise
 full of objects that *mean* something (the comet is a countdown, the trail is
 a memory, the satellite is the letter), and a sky made only of meaningful
 objects stops reading as a sky.
@@ -181,9 +222,9 @@ the rare thing ordinary, so they are kept apart deliberately:
 
 | | Shooting star | Meteor shower |
 |---|---|---|
-| when | every ~14 s, always | once, on the day |
+| when | every ~14 s (~4 s in orbit) | once, on the day |
 | how many | one | five together |
-| speed | fast, ~1.2 s | slow, 4.2 s |
+| speed | a glimpse, ~1.5 s | slow, 4.2 s |
 | colour | white, faintly cool | warm `#ffe9c9` |
 
 and the sky **holds still for five seconds** while the shower plays, so an
@@ -212,10 +253,24 @@ space through the camera's own frustum at the star's depth. It also makes
 7,200 paths across six screen shapes, rather than something you find out on
 someone else's phone.
 
-They enter from off-frame — through the top, mostly, or the upper part of a
-side — and are aimed back across the middle rather than straight out of the
-nearest edge. The lower third is left alone: that is where the planet rises
-and every control sits.
+They appear inside the frame, in `APPEAR` — 10–70% across and 5–32% down —
+and never lower: that is where the planet rises and every control sits, and
+the top right is the promise's caption. They used to enter from off-frame and
+race the whole width in a second, which was mostly over before anyone saw it.
+
+### More in orbit, and the occasional fireball
+
+The hub is the screen a reader sits in, under the open sky the mockup draws,
+so it gets a second stream on top of the ordinary one (`ORBIT_MEAN_GAP_S`,
+about one every six seconds, its own seed): together, one every four seconds
+or so. Elsewhere the sky keeps its fourteen.
+
+About one in eight (`BIG_CHANCE`) is a **fireball**: 2.4× the length, 2.2× the
+width, a brighter head with a soft halo, travelling further and lasting about
+40% longer (`BIG`). Whether a star is one is drawn *last* from its seed, so
+every ordinary star is exactly the star it was before fireballs existed.
+`npm run verify` holds them to their own duration bound and checks they stay
+between 5% and 20% of all stars.
 
 ### One quad, and why that is enough
 
@@ -334,6 +389,28 @@ arrives at a point the way the far end already leaves at one.
 Each of those changes carries a scale factor chosen so the trail is no
 brighter or dimmer than it was — 0.948 on the cross-section, 1.119 on the
 length. The point was the shape of the edges, not the exposure.
+
+**It lasts to the oldest memory** (V7). The far end used to fade as
+(1 − u)^1.3 — down to a fifth by u = 0.7, about the fifth memory of a full
+trail — and thin to 0.03 units, so the reader travelling it found it gone
+around them for the second half of the journey. It now eases only to a little
+over half, leaves over the last few per cent (past the oldest memory at
+u = 0.92), and keeps a width of 0.1 at the far end.
+
+**Its colour ages with the memories.** `trailEra(u)` runs from ion-cool by the
+newest through the nebula's violet and ember to amber by the oldest, and
+`trailColour` mixes the drift over it — more drift near the satellite, more
+era further back, so the near end still reaches every palette colour (a
+verify check). `TrailSky` lays the same era's light into the background as
+the camera travels, eased so a drift between memories carries the sky with it.
+
+**It bends after the first few memories.** `meander` in `lib/trailCurve.ts`
+adds long, one-sided S-bends past u ≈ 0.42, added inside `trailPoint` so the
+ribbon, the panels, the arc-length spacing and the camera all follow the same
+curve, and the hub's first stretch is untouched. One-sided (left and down
+only) because the far trail sits in the top-left of the hub, and bends that
+could swing either way pushed it out of its corner on a phone. The size is
+the largest that keeps the camera 1.2 units clear of the ribbon.
 
 ## Speed is drawn, not simulated
 

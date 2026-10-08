@@ -132,14 +132,6 @@ export function trailColour(u: number, t: number, seed: TrailSeed, reducedMotion
   return colour;
 }
 
-/** The ribbon fades out along its length. */
-export function trailAlpha(u: number): number {
-  const v = Math.min(Math.max(u, 0), 1);
-  const head = smoothstep(Math.min(v / 0.12, 1));
-  const end = 1 - smoothstep(Math.min(Math.max((v - 0.94) / 0.06, 0), 1));
-  return 0.98 * head * (1 - 0.45 * v) * end;
-}
-
 export function toCss([r, g, b]: Rgb): string {
   const channel = (value: number) =>
     Math.round(Math.min(Math.max(value, 0), 1) * 255)

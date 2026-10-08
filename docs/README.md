@@ -24,11 +24,12 @@ Everything below goes deep on one part of it.
 | [Experience flow](./experience-flow.md) | The state machine, how one gesture becomes one face, and the way into the cube |
 | [Cube and motion](./cube-and-motion.md) | Face orientations, rotation presets, and why a showy spin still lands exactly square-on |
 | [Framing and text](./framing-and-text.md) | Camera distance, the `<Html transform>` scale rule, and fitting type to a cube face |
-| [Scene and shaders](./scene-and-shaders.md) | Nebula, starfield, wandering lights, dimming and the performance budget |
+| [Scene and shaders](./scene-and-shaders.md) | Nebula, starfield, the planet and the sunrise, shooting stars, the contrail, and the performance budget |
 | [Access and security](./access-and-security.md) | Slug, password, cookie, and an honest account of what this does and does not protect |
 | [The orbit](./orbit.md) | What v0.2 is for: the satellite, the trail of memories, the comet that comes back |
 | [Messaging](./messaging.md) | The reply, the comet, the three emails, and the daily job |
 | [The editor](./editor.md) | Writing a card without editing the config by hand |
+| [Languages](./languages.md) | Japanese and English cards: one table of words per language, and fitting English text |
 | [Verification](./verification.md) | What `npm run verify` proves, and the bugs it has actually caught |
 | [Testing](./testing.md) | How to exercise every feature by hand, and what each one should do |
 | [Deployment](./deployment.md) | The checklist before going live on Vercel, and what breaks without each variable |

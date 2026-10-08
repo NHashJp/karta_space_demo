@@ -167,16 +167,32 @@ with a growing tail — so for months it is a speck you have to look for, and in
 the final weeks it is unmistakably coming back. Nobody has to read a number to
 feel that the day is near.
 
-Both people can send one. The sender's is ion-blue, set in the config, and
-already on its way when the card is first opened. The receiver's is warm,
-released from the orbit view, and goes to the sender as a link. See
-[messaging](./messaging.md) for what that link is and what it costs.
+The sender's comet is set in the config and already on its way when the card
+is first opened. The receiver can put their own words **on it**: sealed until
+the same day, sent to the sender as a link, and warm from then on, because
+something of theirs is aboard. See [messaging](./messaging.md) for what that
+link is and what it costs.
+
+In the hub it rides an **ellipse** (`hubCometAt` in `framing.ts`), not a
+single arc. The comet's dates already moved it by real Kepler motion
+(`orbitPoint`), but the hub used to keep only how far out that put it and
+slide it along one bowed line, so the way out and the way home were the same
+path. Now the long axis runs from the homecoming point beside the planet to
+the far point in the top-right; how far along it comes from the
+display-compressed orbit (so it climbs into the open sky quickly), and the
+loop's width from the true orbit (sharp near the planet, widest far out). It
+leaves along the right-hand side and comes home along the left. The width is
+narrower in portrait, where the sky beside the satellite is a strip; both are
+the widest that pass the clearance checks.
 
 ### The reply meets the letter
 
-The rocket pauses beside the satellite for a moment before going on. That pause
-is the animation: without it, something is being fired into space; with it, the
-reply visibly meets the letter that prompted it.
+The rocket comes in from beyond the far edge of the screen — opposite where it
+will settle — so its flight crosses the whole frame, and pauses beside the
+satellite for a moment before going on to overtake the comet. That pause is
+the animation: without it, something is being fired into space; with it, the
+reply visibly meets the letter that prompted it. The reply panel closes as
+the rocket launches, so the flight has the screen.
 
 It plays **only after the server has accepted the message**. The animation is a
 confirmation, never a guess — if the send fails there is nothing to confirm,
@@ -662,8 +678,11 @@ something; the two should never be mistaken for each other.
 
 What the card does after the six faces, once a comet exists:
 
-1. the cube becomes a satellite, and the comet **leaves** — watched once per
-   cycle (`departed`), so a later deployment goes straight to the chart;
+1. the cube becomes a satellite and, the first time in a cycle, the **intro**
+   explains the comet: the countdown over the sender's own promise, then its
+   whole way home played fast while the number falls and the sky rises to the
+   reunion morning (`previewing`, see [experience flow](./experience-flow.md));
+   a later deployment goes straight to the chart;
 2. the sheet says briefly what the comet is, and what is sealed on it;
 3. it asks whether to put the reader's words on it — the long ask the first
    time, the short one after (M13a / M13e);
@@ -686,10 +705,34 @@ different sizes of decision: the first is "would you?", which is one line and
 two buttons; the second is a form. Opening straight into the form answered the
 first question on the reader's behalf.
 
+## Ready before the button
+
+The orbit's pieces — the planet, the dawn sky, the sun, the orbiting things and
+the comet — are mounted as soon as the closing screen is up on a card that has
+an orbit, inside one group that is hidden until the cube is deployed.
+`Precompile` shows that group for the length of a single `gl.compile` call,
+which draws nothing, so their shader programs are built while the reader is
+still looking at the closing line. Building them used to happen in the first
+frames of the deployment, exactly when the cube is turning and unfolding.
+Once prepared they stay, so going back into the letter and out again does not
+pay for them twice. The reunion-day meteor shower is the exception: it plays
+once, and must not play unseen.
+
+While the satellite is mid-deployment the planet stops writing depth and draws
+first (`OrbitScene`), because the cube is still full size and on a phone its
+wings sweep across the planet's disc on the way out.
+
+## What it is about
+
+The `?` beside the sound control, in the hub only, opens a short briefing
+(`AboutPanel`): the core idea and five values, drawn from the design
+principles in the spec, in the card's own language.
+
 ## The rule that holds all of it together
 
 **Nothing is on a timer that can disagree with what is on screen.** Every
 animated phase ends when the thing that is animating says it has arrived:
-`MessageCube` owns the deployment, `CameraRig` owns the trail, `RocketLaunch`
-and `CometRelease` own their own flights. The reducer is pure and knows about
+`MessageCube` owns the deployment, `CameraRig` owns the trail, `RocketLaunch`,
+`CometDeparture` and `CapsuleBoarding` own their own flights, and `CometIntro`
+owns the intro's timeline. The reducer is pure and knows about
 none of it.

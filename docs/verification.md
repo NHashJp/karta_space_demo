@@ -178,7 +178,7 @@ than listing each, here is what each group is *for*:
 | 27 | that the satellite's label never covers the clickable comet |
 | 28 | that a full trail still has room between its photographs |
 | 29 | that a card's pictures follow it when its slug changes |
-| 30 | that every shooting star actually crosses the frame |
+| 30 | that every shooting star is seen in the upper sky, and fireballs stay rare |
 | 9, 9b | the dawn curve, and the light it produces (rev 7.1) |
 | 31 | the two things rev 7.1 promises not to move: the satellite and the contrail |
 | 32 | that coming back from the trail is one continuous move |
@@ -504,23 +504,23 @@ shape is the URL `/c/<slug>/media/private/cards/<other>/memory-01.png`, which
 the media route resolves under `private/cards/<slug>/` and cannot find. The
 check asserts that shape existed before and is gone after.
 
-## 30. Shooting stars cross the frame, on every screen
+## 30. Shooting stars are seen, on every screen
 
 A shooting star is a thing you see, so the only property that really matters
 is that it is seen. Their paths are in half-height units rather than world
 coordinates precisely so that this is checkable: 7,200 paths, across six
-screen shapes from a 0.46 phone to a 2.37 ultrawide, and every one of them
-crosses the visible frame.
+screen shapes from a 0.46 phone to a 2.37 ultrawide, and every one of them is
+bright inside the visible frame.
 
 Also checked:
 
-- **None of them begins on frame.** One that blinks into existence inside the
-  picture reads as a glitch rather than as something passing through.
-- **They are over in about a second** — 0.9 to 1.7 s.
-- **A star begins and ends invisible**, and is brightest in flight. Not
-  bit-exact zero: the fall-off divides 0.45 by 0.45 and lands a floating-point
-  hair under one, leaving 1e-32 of alpha. The assertion is "invisible", which
-  is the honest claim.
+- **Every one appears in the upper sky** (`APPEAR`), the dawn mockup's meteor —
+  never down where the planet rises and the controls sit.
+- **They are over in a second and a half or so** — 1.2 to 2 s; a fireball
+  (`BIG`) is held to its own, proportionally longer bound.
+- **Fireballs are occasional** — between 5% and 20% of all stars.
+- **A star begins and ends invisible**, and is brightest in flight: a half sine,
+  zero at both ends.
 - **The gaps are Poisson, not a metronome** — mean 14 s, and never all equal.
 - **The quiet outlasts the meteor shower.** The shower's own duration is read
   out of `MeteorShower.tsx` rather than copied, so lengthening the shower past
@@ -528,6 +528,26 @@ Also checked:
   the one day that was supposed to be special. With the hold cut to 3 s the
   check fails, so the margin is real.
 
+
+## What V7 added to the suite
+
+- **Section 6, the comet moment**: a first deployment goes to the intro
+  (`previewing`), which keeps the orbit pose, keeps the satellite deployed,
+  ignores input, and goes on to the chart marking both `introduced` and
+  `departed`; a returned comet skips it.
+- **Section 5, configured content**: a signature must be inline markup kept in
+  the card — never a path to a public file — and must survive `cleanSignature`.
+  Face lengths are measured by visual length, so English faces are judged as
+  they actually set.
+- **Section 11, the hub**: the comet is checked on its ellipse (`hubCometAt`)
+  — in the top-right, its glow and tail clear of the satellite, inside the
+  frame, home beside the planet. The planet may cover 7–15% of the frame:
+  the dawn mockup's own desktop planet is 7.8%.
+- **The trail's axis**: the bound allows the far meander on top of the seeded
+  wander, and the camera must still fly 1.2 units clear of the ribbon at every
+  memory — the check that sized the bends.
+- **Trail colour** still reaches every palette colour within ten minutes, with
+  the era colours mixed in.
 
 ## 31. The dawn is a countdown, the sky keeps its company, and two things do not move
 

@@ -62,6 +62,7 @@ import { allProblems, cardProblems, MEMORY_MAX } from "../lib/cardRules.ts";
 import { rehomeCard, strayMedia } from "../lib/cardMedia.ts";
 import {
   APPEAR,
+  BIG,
   MEAN_GAP_S,
   POOL as STAR_POOL,
   QUIET_AFTER_S,
@@ -3484,6 +3485,8 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
   let startedLow = 0;
   let shortest = Infinity;
   let longest = 0;
+  let longestBig = 0;
+  let bigOnes = 0;
 
   for (const [, aspect] of shapes) {
     for (let card = 0; card < 20; card++) {
@@ -3495,8 +3498,14 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
         // It appears in the open upper sky, as the dawn mockup's do — never
         // down where the planet rises and the controls sit.
         if (star.from[1] < 1 - APPEAR.bottom * 2 - 1e-9) startedLow++;
-        shortest = Math.min(shortest, star.duration);
-        longest = Math.max(longest, star.duration);
+        if (star.big) {
+          // A fireball burns longer on purpose (`BIG`); held to its own bound.
+          bigOnes++;
+          longestBig = Math.max(longestBig, star.duration);
+        } else {
+          shortest = Math.min(shortest, star.duration);
+          longest = Math.max(longest, star.duration);
+        }
       }
     }
   }
@@ -3505,6 +3514,10 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
   check("and every one appears in the upper sky", startedLow === 0, String(startedLow));
   check("they are over in a second and a half or so", shortest >= 1.2 && longest <= 2,
     `${shortest.toFixed(2)}-${longest.toFixed(2)}s`);
+  check("a fireball lasts longer, but not much", longestBig <= 2 * BIG.duration,
+    `${longestBig.toFixed(2)}s`);
+  check("fireballs are occasional", bigOnes / tested > 0.05 && bigOnes / tested < 0.2,
+    `${((bigOnes / tested) * 100).toFixed(1)}%`);
 
   /*
    * Brightness: in fast, out slow, and nothing at either end. A streak that

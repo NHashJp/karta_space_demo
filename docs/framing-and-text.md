@@ -99,6 +99,14 @@ That is only a starting point, because lines round up to whole lines. So
 `fitFontSize` steps down in 0.25px increments until the *measured* wrapped
 layout actually fits, clamped to 12.5–20px.
 
+`N` is a **visual length**, not a character count (`visualLength` in
+`lib/i18n.ts`): a kana or kanji counts 1, a Latin letter 0.55, a space 0.3.
+Every rule here was written for Japanese, where a character is about an em
+wide; an English paragraph counted by its letters would be fitted as though it
+were twice as long as it sets, and drawn at half the size. The same measure
+sizes the line faces, the secret line, the closing line (which also breaks
+after an English comma or full stop) and the length limits in `cardRules`.
+
 ### The rounding bug
 
 `fitFontSize` originally rounded its result. Rounding **up** — 15.947 to 15.95

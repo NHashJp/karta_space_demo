@@ -105,8 +105,6 @@ function CometPageBody({ comet, today, lang }: { comet: Opened; today: string; l
           </group>
           <Comet
             progress={progress}
-            slug={comet.slug}
-            releasedOn={comet.leftOn}
             tone="receiver"
             reducedMotion={reducedMotion}
             showOrbit

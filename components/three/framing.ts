@@ -81,12 +81,6 @@ export const WING_AXIS_DEG = -50;
 /** The camera looks a little above the planet, so it sits low in the frame. */
 export const ORBIT_TARGET: Vec3 = [1.1, -1.0, -1.3];
 
-/**
- * Margin beyond the composition. §17 requires 8%; designing to 12% leaves the
- * check somewhere to fail from if the numbers are ever tuned.
- */
-const ORBIT_MARGIN = 1.12;
-
 export type Vec3 = [number, number, number];
 export type Pose = { position: Vec3; lookAt: Vec3 };
 

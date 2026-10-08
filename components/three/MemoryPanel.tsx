@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useRef } from "react";
 import { useTexture } from "@react-three/drei";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { MEMORY_PANEL_WORLD } from "./framing";
 import { SafeTexture } from "./SafeTexture";

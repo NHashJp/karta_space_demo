@@ -27,12 +27,11 @@ const HANDOVER_TO = 0.45;
 type Props = {
   /** Where the comet ends up: today's progress along its orbit. */
   progress: number;
-  rotation: number;
   reducedMotion: boolean;
   onDone: () => void;
 };
 
-export function CometDeparture({ progress, rotation, reducedMotion, onDone }: Props) {
+export function CometDeparture({ progress, reducedMotion, onDone }: Props) {
   const size = useThree((state) => state.size);
   const spark = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Mesh>(null);
