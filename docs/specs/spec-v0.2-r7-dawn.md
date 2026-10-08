@@ -51,9 +51,9 @@ Only the *light that falls on* the satellite and the contrail changes.
 
 ## 1. Working with Claude Code
 
-1. Commit this file as `docs/spec-v0.2-r7-dawn.md`, replacing 7.0. Put the mockup in `docs/mockups/orbit-dawn.html`, replacing the 7.0 mockup, so later sessions can open it. Link both from `docs/README.md` with one line: "Revision 7.1 (dawn) changes the orbit scene's light, adds things in orbit, and keeps the satellite and the contrail as built; see the table in §0."
+1. Commit this file as `docs/spec-v0.2-r7-dawn.md`, replacing 7.0. Put the mockup in `docs/specs/mockups/orbit-dawn.html`, replacing the 7.0 mockup, so later sessions can open it. Link both from `docs/README.md` with one line: "Revision 7.1 (dawn) changes the orbit scene's light, adds things in orbit, and keeps the satellite and the contrail as built; see the table in §0."
 2. The scene is already built, so this lands as a **migration**. Run §14's steps one per session, in order. Each step keeps `npm run verify` and `npm run typecheck` green and is visible on its own.
-3. Session prompt: "Read `docs/spec-v0.2.md` §0, `docs/spec-v0.2-r6-orbit.md` and `docs/spec-v0.2-r7-dawn.md` (which wins). Open `docs/mockups/orbit-dawn.html` for the look. Do step N of §14 in r7. Add the verify checks it names. Do not change the satellite's geometry, materials, position or movement. Do not change the contrail."
+3. Session prompt: "Read `docs/spec-v0.2.md` §0, `docs/spec-v0.2-r6-orbit.md` and `docs/spec-v0.2-r7-dawn.md` (which wins). Open `docs/specs/mockups/orbit-dawn.html` for the look. Do step N of §14 in r7. Add the verify checks it names. Do not change the satellite's geometry, materials, position or movement. Do not change the contrail."
 4. When something in the build does not match the earlier documents, fix it in step 0 before adding anything new (§14). The two kept items are the exception: for the contrail and the satellite, **the build is the reference**, even where it differs from r5 or r6.
 
 ---
@@ -529,7 +529,7 @@ components/card/
   OrbitOverlay.tsx        CHANGE  promise caption top-right, chip removed, done-state pill, toast position
 lib/sound.ts              CHANGE  ambient chord + arpeggio, `dawn` and `bloom` cues (§12)
 scripts/verify-orbiters.ts        NEW     §15 orbiter checks
-docs/mockups/orbit-dawn.html      REPLACE the 7.1 mockup (reference only; not shipped)
+docs/specs/mockups/orbit-dawn.html      REPLACE the 7.1 mockup (reference only; not shipped)
 ```
 
 Docs: update these.

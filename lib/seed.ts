@@ -4,7 +4,7 @@
  * each comet's orbit rotation (§11.2).
  *
  * The spec does not say where this lives, so it lives here rather than being
- * written twice — a decision recorded in docs/content-and-cards.md.
+ * written twice.
  */
 
 /** FNV-1a, 32-bit. Small, stable across runs, good enough to seed from a slug. */

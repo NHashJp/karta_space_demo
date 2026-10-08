@@ -31,7 +31,7 @@ const STARLIGHT = PALETTE[4];
  * continuity bound §17 asks verify to enforce (< 0.08 per channel between
  * samples 0.01 apart), and puts more than the two-to-four bands §9.1 itself
  * describes on the trail. Measured worst case per channel: 3.0 -> 0.21,
- * 1.6 -> 0.085, 1.2 -> 0.066. Recorded in docs/content-and-cards.md.
+ * 1.6 -> 0.085, 1.2 -> 0.066.
  */
 export const BAND_SCALE = 1.2;
 

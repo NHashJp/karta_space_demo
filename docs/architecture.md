@@ -1,164 +1,140 @@
 # Architecture
 
-## Shape of the thing
+One Next.js App Router app with no database. React draws the screens; Three.js
+(through React Three Fiber and drei) draws the scene; GLSL shaders draw the
+procedural sky, planet, comet and contrail. There is no CSS framework and no
+animation library for the 3D work — every animated value is advanced by hand in
+`useFrame`, because each one needs an exact end state.
 
-One Next.js App Router application, deployed to Vercel, with no database.
-Cards live in source control as configuration: `config/cards.config.ts` is an
-array of them, and `lib/cards.ts` turns that array into a slug registry at
-import time. Adding a card is appending an entry and dropping its images in
-`private/cards/<slug>/` — no other file changes.
-
-Why this scales far enough for the MVP: a card is a few kilobytes of text, the
-registry is a `Map` built once per server start, and the only per-card state
-(has this visitor entered the password) lives in a cookie named after the card.
-The first thing that would force a database is letting someone *author* a card
-without a deploy; everything up to that point is just more entries in the
-array.
+## Code map
 
 ```
-Request  /c/[slug]
-    │
-    ├─ server component ──> slug not in the registry? ──> invalid-card state, nothing else sent
-    │                       password set for this slug and no valid cookie? ──> PasswordGate
-    │                       otherwise ──> CardExperience, with card content
-    │
-    └─ POST /api/access ──> compare password, set HttpOnly cookie
-```
-
-Everything after access is granted happens in the browser. There is no further
-server round-trip: no card API, no analytics, no response submission.
-
-## Layers
-
-```
-app/                     routing, server-side access decisions
- ├─ page.tsx             dev card index; a neutral notice in production
- ├─ c/[slug]/page.tsx    server component: the only place content is gated
- ├─ editor/page.tsx      dev-only authoring UI for the config file
- ├─ api/access/route.ts  password check, cookie issue
- ├─ api/editor/route.ts  dev-only: validate, then rewrite the config file
- └─ layout.tsx           fonts, metadata, noindex
-
-lib/                     logic with no rendering in it
- ├─ access.ts            per-card password, token derivation, cookie, rate limit
- ├─ cards.ts             slug registry, built from the config at import
- ├─ cardRules.ts         validation rules (pure; shared by registry and editor)
- ├─ cardsFile.ts         dev-only: serialise the cards back to the config file
- ├─ experienceState.ts   the state machine (pure)
- └─ useFaceNavigation.ts wheel / touch / keyboard gestures
-
+app/
+  page.tsx                 dev: card index · production: a neutral notice
+  c/[slug]/page.tsx        the card — the only place access is decided
+  c/[slug]/media/[...path] private pictures, behind the card's access check
+  c/[slug]/reply|comet     the receiver's two ways of writing back
+  comet/[token]/           the sender's link to a comet's sealed words
+  api/access               password check → access cookie
+  api/cron/comets          daily comet-day reminder
+  editor/, api/editor/*    the authoring tool (development only)
 components/
- ├─ access/              PasswordGate
- ├─ card/                screens and the state machine's host component
- ├─ editor/              the dev-only authoring UI
- ├─ three/               everything inside the WebGL canvas
- │   ├─ framing.ts       camera and typography maths (pure)
- │   ├─ rotationPresets.ts  orientation maths (pure)
- │   └─ shaders/         GLSL sources
- └─ text/                vendored React Bits StrokeText
-
-config/cards.config.ts   every card: title, six faces, closing, links
-types/card.ts            the content model
-scripts/                 placeholder image generator, verification suite
+  card/                    DOM over the scene: screens, panels, sheets, the bar
+  three/                   everything inside the canvas; shaders/ holds the GLSL
+  access/, editor/, text/  gates, the editor UI, the vendored StrokeText
+lib/                       logic — almost all pure, so it can be checked in Node
+config/cards.config.ts     the committed sample cards
+.karta/                    real cards and plaintext passwords (gitignored)
+private/cards/<slug>/      every picture a card uses
+scripts/                   the verify suite and the placeholder generator
 ```
 
-`lib/cardRules.ts` is the reason the editor cannot corrupt the config: the
-rules that the registry enforces at import time are the same object the editor
-API checks before writing and the same one the UI shows as you type. There is
-one definition of a valid card, not three.
+**Anything worth checking is a pure function in a file with no React in it** —
+`experienceState.ts`, `framing.ts`, `rotationPresets.ts`, `cometOrbit.ts`,
+`dawn.ts` and the rest. That is what lets `npm run verify` prove the geometry,
+the flow and the seals without a browser ([testing](./testing.md)).
 
-The deliberate split is that **anything worth checking is a pure function in a
-file with no React in it**. `framing.ts`, `rotationPresets.ts` and
-`experienceState.ts` are all importable from a plain Node script, which is what
-makes [verification](./verification.md) possible without a browser.
-
-## Server and client boundary
-
-`app/c/[slug]/page.tsx` is a server component. It is the only place that
-decides whether to render a card at all, and the only route whose rendering
-depends on the card's password. (In development `app/editor/page.tsx` also
-reads the environment, but only to report *whether* a password variable is set
-— never its value.) When access has not been granted it returns `<PasswordGate>`
-and the card object is never serialised into the response.
-
-Everything under `components/card/` and `components/three/` is a client
-component. They receive the already-authorised `CardConfig` as props.
-
-## Component tree, once the card is open
+## From URL to card
 
 ```
-CardExperience                     state machine host, owns activeFace
-├── CubeScene                      the <Canvas>
-│   ├── CameraRig                  sole owner of camera distance (far/near/inside)
-│   ├── SpaceEnvironment
-│   │   ├── NebulaBackdrop         shader sphere, radius 90
-│   │   ├── Starfield              1500 points, custom shader
-│   │   └── WanderingLights        3 point lights + additive glows
-│   └── MessageCube                orientation, idle drift, dimming
-│       ├── TextFace   x n         <Html transform> paragraph on a face
-│       ├── ImageFace  x n         texture on a face
-│       └── inner shell            mounted only while the camera is inside
-│           └── SecretFace         the line on the inside of the far wall
-├── CardLanding | CompletionState  the screens that bracket the experience
-├── CardProgress + hint            the reading UI
-└── .sr-only                       all face text as plain DOM, for assistive tech
+/c/<slug>  →  app/c/[slug]/page.tsx (server)
+               ├─ unknown slug         → 404, nothing else sent
+               ├─ password, no cookie  → PasswordGate (no card data in the page)
+               └─ otherwise            → toClientCard() → CardExperience (browser)
+                                                            ├─ DOM screens and panels
+                                                            └─ CubeScene (the canvas)
 ```
 
-`CardExperience` holds the only mutable state. Everything below it is driven by
-props, and the three-dimensional components translate those props into
-animation in `useFrame` rather than re-rendering.
+`toClientCard` (`lib/clientCard.ts`) is the boundary: it drops the password hash,
+withholds a sealed comet message until its date, turns picture paths into
+gated media URLs, sanitises the signature, and decides from the environment
+which features can actually be offered. Everything after that runs in the
+browser; the server is called again only for pictures, a reply, or a comet.
 
-## Why animation does not re-render
+## Where data lives
 
-React re-rendering at 60fps would be wasteful and jittery. So every animated
-value — cube orientation, camera distance, dim level, shader uniforms — lives
-in a `useRef` and is advanced inside `useFrame`. React renders only when a
-*phase* changes, which happens a handful of times in a whole session.
+| Data | Where | Notes |
+|---|---|---|
+| Sample cards | `config/cards.config.ts` | committed, deployed |
+| Real cards | `.karta/cards.local.json` | gitignored; local wins over a sample with the same slug |
+| Pictures | `private/cards/<slug>/` | committed; served only through the gated media route |
+| Plaintext passwords | `.karta/secrets.local.json` | gitignored; the config holds only a hash |
+| Secrets and settings | environment (`.env.local` locally) | never sent to the browser |
+| Replies | the sender's inbox | never stored |
+| The receiver's comet words | an encrypted link, emailed to the sender | the link is the only copy |
+| "Seen the intro", "launched a reply" | the reader's `localStorage` | per browser, not shared |
 
-The pattern throughout:
+## The state machine
 
-```tsx
-const value = useRef(0);
+The whole experience is one pure reducer, `lib/experienceState.ts`: 24 states,
+21 events, no timers, no I/O. `CardExperience` hosts it with `useReducer`.
 
-useEffect(() => {
-  // a phase changed: record where we are and where we are going
-}, [phase]);
-
-useFrame((state, delta) => {
-  // advance value, apply it to the three.js object directly
-});
+```
+landing → entering → reading ⇄ transitioning → leaving → completed
+                       ↑ (scroll back / replay: returning)   │
+                                                             ├─ reveal → descending → inside → ascending
+                                                             └─ deploy → deploying → (comet moment) → orbit
+orbit ⇄ rewinding / remembering / drifting / resurfacing   (the trail)
+orbit → panel "reply" → launching → orbit                   (the rocket)
+orbit → undeploying → completed                             (back to the letter)
 ```
 
-## Dependencies, and why each is here
+The comet moment, chosen by the reducer on `deployEnd` (`afterDeploy`):
 
-| Package | Why |
+| Condition | Goes to |
 |---|---|
-| `next`, `react` | App Router gives the server-side gate without a separate backend |
-| `three`, `@react-three/fiber` | the 3D scene |
-| `@react-three/drei` | `<Html transform>` for real DOM text on a cube face, `<Edges>` for cube edges, `useTexture`, `useProgress` |
-| `gsap` | required by the vendored React Bits StrokeText |
+| first launch this cycle, comet still away | `previewing` (the intro) → `charting` → `nudging` (the sheet) |
+| not yet watched leaving | `departing` → `charting` → `nudging` |
+| back today, or still room for words | `charting` → `nudging` |
+| otherwise, or no comet | `orbit` |
 
-There is no animation library for the 3D work. Cube rotation, the camera dolly
-and dimming are hand-rolled in `useFrame`, because all three need exact
-end-states — quaternion slerp with a decorative offset, and damping that snaps
-its tail — which is more direct to write than to configure.
+From the sheet, `board` → `boarding` (words fly to the comet) and `leaveChart` →
+`homing` → `orbit`; `replayIntro` plays the intro again and returns to the sheet.
+`launch` and `board` are dispatched only after the server accepts the message, so
+an animation is a confirmation, never a guess.
 
-No CSS framework. `app/globals.css` is one file of plain CSS with custom
-properties for the palette.
+Rules worth knowing:
 
-## Content model
+- **Nothing is on a timer.** Each animated phase ends when the thing animating
+  says it has arrived: `MessageCube` (`rotationEnd`, `deployEnd`), `CameraRig`
+  (`zoomEnd`), `RocketLaunch` (`launchEnd`), `CometDeparture` (`departEnd`),
+  `CapsuleBoarding` (`boardEnd`), `CometIntro` (`previewEnd`). Phase and
+  animation cannot drift apart at any frame rate.
+- **Content is attached only when it is being read**: face text in `reading`,
+  the secret line in `inside`, a memory in `remembering`. Derived predicates
+  (`revealsText`, `cameraPhase`, `isDeployed`, `dimsScene`, `acceptsInput`, …)
+  keep every component reading the same answer.
+- **A card with no orbit is the v0.1 card**: with `hasOrbit` false the orbit
+  events are no-ops.
+- **Reached from orbit, the inside never shows the closing screen**:
+  `undeploying → descending → inside → ascending → deploying → orbit`
+  (`insideVia` remembers which way in).
+- **Ceremonies are counted** (`closings`, `deployments`), so the second
+  deployment and closing play at `REPLAY_SCALE` (0.55).
 
-```ts
-type CardFace =
-  | { type: "text"; body: string }
-  | { type: "image"; src: string; alt: string; fit?: "cover" | "contain" };
-```
+## Input
 
-A face is text or image, never both (spec §6). `lib/cards.ts` validates every
-card at import time — slug shape, slug uniqueness, exactly six faces, non-empty
-title and closing — so a miscounted or duplicated card fails the build rather
-than the page. That check is what keeps a config file with dozens of cards in
-it safe to edit, by hand or through `/editor`.
+`lib/useFaceNavigation.ts` turns wheel, swipe and keys (↑ ↓, PageUp/Down,
+Space) into at most one `move` per deliberate gesture: wheel deltas accumulate
+to 50 then lock until 260 ms of quiet, so trackpad momentum cannot skip a face;
+a swipe needs 45 px. Input inside a text field is ignored, and nothing fires
+while a transition is in flight.
 
-The model, the registry, the rules and the editor's design are covered in
-[content and cards](./content-and-cards.md).
+## Animation without re-rendering
+
+React renders when a *phase* changes — a handful of times a session. Every
+continuous value (cube orientation, camera, opacity, uniforms) lives in a ref
+and is advanced in `useFrame`, applied straight to three.js objects.
+
+## Development parameters
+
+Inert in production (each checks for itself):
+
+| | |
+|---|---|
+| `?at=` | replay the reader's own events to a state: `landing`, `face-1`…`face-6`, `closing`, `inside`, `orbit`, `departure`, `chart`, `crossroads`, `trail`, `reply`, `trajectory` |
+| `?now=` | move the card's clock, e.g. `?now=2026-12-25` |
+| `?visit=` | pretend a `first`, `again` or `sent` visit |
+| `MAIL_DEV_SINK=1` | write emails to `.mail/` instead of sending them |
+
+`?at=` has no back door into the reducer — it can only reach states a reader can.

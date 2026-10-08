@@ -19,7 +19,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
  * Whoever holds `COMET_SECRET` can open any comet whenever they like, and in
  * the MVP the sender *is* the operator. The seal stops a curious person
  * peeking at a link; it does not stop a determined one who also runs the
- * server. `docs/access-and-security.md` says this in plain words, because a
+ * server. `docs/security.md` says this in plain words, because a
  * seal that is described as stronger than it is is worse than no seal at all.
  *
  * Rotating `COMET_SECRET` loses every comet still on its way. They are not
