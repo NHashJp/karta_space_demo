@@ -77,8 +77,9 @@ export type Problems = {
   notes: string[];
 };
 
+/** Where a card's pictures live — faces and memories alike, all gated. */
 export function imageFolder(slug: string): string {
-  return `/cards/${slug}/`;
+  return `private/cards/${slug}/`;
 }
 
 function faceProblems(face: CardFace, index: number, slug: string, out: Problems): void {
@@ -107,8 +108,12 @@ function faceProblems(face: CardFace, index: number, slug: string, out: Problems
   const src = face.src.trim();
   if (!src) out.errors.push(`${at}: no image path`);
   else if (src.endsWith("/")) out.errors.push(`${at}: image path is a folder, not a file`);
-  else if (!src.startsWith(imageFolder(slug))) {
-    out.warnings.push(`${at}: image should live in public${imageFolder(slug)}`);
+  else if (src.startsWith("/cards/")) {
+    out.warnings.push(
+      `${at}: image is in public/ — anyone with its URL can see it. Save the card in the editor to move it into ${imageFolder(slug)}`,
+    );
+  } else if (!src.replace(/^\/+/, "").startsWith(imageFolder(slug))) {
+    out.warnings.push(`${at}: image should live in ${imageFolder(slug)}`);
   }
   if (!face.alt.trim()) out.warnings.push(`${at}: no alt text (needed for screen readers)`);
 }

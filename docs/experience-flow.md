@@ -162,6 +162,11 @@ and `CometPreview` (the scene) play one timeline from `lib/cometPreview.ts`:
 since it shows the same journey the departure did, and all of it. A returned
 comet skips it.
 
+Once the reader's words are aboard, the comet sheet offers it again under
+軌道へもどる — 彗星の軌道をもう一度見る. That dispatches `replayIntro`, which the
+reducer accepts only from the open sheet (`nudging`) and only while the comet
+is still away; the replay ends where the intro always does, back on the sheet.
+
 ## Why the inside is three states, not one
 
 `descending`, `inside` and `ascending` mirror `entering` / `reading` /

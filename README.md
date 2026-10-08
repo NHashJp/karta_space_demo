@@ -165,8 +165,9 @@ optional line inside the cube, and exactly six faces, each face either:
 ### Adding a card
 
 1. **+ Add card** in the editor, or append an entry to the array by hand.
-2. Put its images in `public/cards/<slug>/` — `npm run images <slug>` writes
-   two placeholders there.
+2. Put its images — cube faces and memory photographs — in
+   `private/cards/<slug>/` (`npm run images <slug>` writes two placeholders
+   there). They are served only to someone who can open the card.
 3. Optionally set `CARD_PASSWORD_<SLUG>` in the environment, then restart the
    dev server — passwords are read at server start.
 4. `npm run verify`, then redeploy. Send the recipient `/c/<slug>`.

@@ -6,7 +6,7 @@ One Next.js App Router application, deployed to Vercel, with no database.
 Cards live in source control as configuration: `config/cards.config.ts` is an
 array of them, and `lib/cards.ts` turns that array into a slug registry at
 import time. Adding a card is appending an entry and dropping its images in
-`public/cards/<slug>/` — no other file changes.
+`private/cards/<slug>/` — no other file changes.
 
 Why this scales far enough for the MVP: a card is a few kilobytes of text, the
 registry is a `Map` built once per server start, and the only per-card state

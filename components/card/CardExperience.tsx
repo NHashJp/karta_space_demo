@@ -238,6 +238,7 @@ export function CardExperience({
     if (state !== "previewing") setIntroDay(false);
   }, [state]);
 
+  const onReplayIntro = useCallback(() => dispatch({ type: "replayIntro" }), []);
   const onPreviewEnd = useCallback(() => {
     // Once per cycle, like the departure it stands in for.
     remember({ introduced: true, departed: true });
@@ -534,6 +535,7 @@ export function CardExperience({
               dispatch({ type: "board" });
             }}
             onLeave={onLeaveChart}
+            onReplayIntro={onReplayIntro}
           />
         ) : null}
 

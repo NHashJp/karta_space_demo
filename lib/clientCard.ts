@@ -131,6 +131,18 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
    */
   const signature = cleanSignature(card.signature);
 
+  /*
+   * Cube faces go through the same gated route as memories: a picture on the
+   * card is as personal as the words beside it. A face still pointing at an
+   * old public path (`/cards/...`) is passed through as it is until the
+   * editor next saves the card and carries it into the private folder.
+   */
+  const faces = card.faces.map((face) =>
+    face.type === "image" && face.src.replace(/^\/+/, "").startsWith("private/cards/")
+      ? { ...face, src: mediaUrl(card.slug, face.src) }
+      : face,
+  ) as CardConfig["faces"];
+
   const memories = card.memories?.length
     ? sortMemoriesNewestFirst(card.memories).map((memory) => ({
         ...memory,
@@ -157,6 +169,7 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
 
   return {
     ...rest,
+    faces,
     lang,
     from,
     timeZone,

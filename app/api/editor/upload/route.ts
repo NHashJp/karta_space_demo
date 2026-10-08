@@ -6,17 +6,11 @@ import { editorDenied, safeSlug } from "@/lib/editorGuard";
 /**
  * Adding a picture to a card (spec v0.2 §15.7).
  *
- * Two destinations, because the card has two kinds of picture:
- *
- * - **memories** land in `private/cards/<slug>/` and are served through the
- *   gated media route (§14.3). They are the one genuinely personal part of a
- *   card, and they should not be fetchable by anyone who guesses the path.
- * - **cube faces** land in `public/cards/<slug>/`. A face is the card itself;
- *   it is behind whatever gate the card is behind and nothing more, and it is
- *   loaded as a plain texture by the 3D scene.
- *
- * The caller says which with `to`, and the default is the private one — the
- * safer of the two to get wrong.
+ * One destination for every picture: `private/cards/<slug>/`, served only
+ * through the gated media route (§14.3). Memory photographs always went
+ * there; cube faces used to go to `public/cards/<slug>/`, where anyone who
+ * knew or guessed the URL could fetch them without the card's password. A
+ * picture on the cube is as personal as the words beside it.
  *
  * Nothing is ever overwritten. A sender who uploads two different photographs
  * that happen to be called `IMG_0042.jpg` should end up with two photographs,
@@ -47,16 +41,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
 
-  // Anything that is not exactly "public" is treated as private.
-  const isPublic = form.get("to") === "public";
+  /*
+   * Always private: faces and memories alike go to `private/cards/<slug>/`
+   * and are served only through the gated media route. Faces used to go to
+   * `public/`, where anyone with the URL could fetch them without the
+   * password.
+   */
 
   const extension = TYPES[file.type];
   if (!extension) return NextResponse.json({ error: "unsupported_type" }, { status: 415 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "too_large" }, { status: 413 });
 
-  const folder = isPublic
-    ? join(process.cwd(), "public", "cards", slug)
-    : join(process.cwd(), "private", "cards", slug);
+  const folder = join(process.cwd(), "private", "cards", slug);
   mkdirSync(folder, { recursive: true });
 
   const name = uniqueName(folder, sanitise(file.name, extension));
@@ -64,15 +60,8 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    /*
-     * The path as the config names it, so the editor can drop it straight in
-     * — and the two are spelled differently. A private photograph is named by
-     * its place in the repository, because the media route reads it from
-     * there; a public face is named by its URL, because the browser fetches
-     * it. Handing back the wrong one produces a card that validates and shows
-     * nothing.
-     */
-    src: isPublic ? `/cards/${slug}/${name}` : `private/cards/${slug}/${name}`,
+    // The path in the repository; `toClientCard` turns it into the gated URL.
+    src: `private/cards/${slug}/${name}`,
     bytes: file.size,
     large: file.size > WARN_BYTES,
   });

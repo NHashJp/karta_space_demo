@@ -1,6 +1,6 @@
 /**
  * Generates placeholder card images (dependency-free PNG encoder).
- * Images live per card, so this writes into public/cards/<slug>/:
+ * Images live per card, privately, so this writes into private/cards/<slug>/:
  *   node scripts/generate-placeholders.mjs [slug]
  *
  * Swap them for real photographs when you have them.
@@ -118,7 +118,8 @@ function render({ seed, glow, accent }) {
 }
 
 const slug = process.argv[2] ?? "2026-newyear-7k2m";
-const dir = `public/cards/${slug}`;
+// Private, like every picture on a card: served only through the gated route.
+const dir = `private/cards/${slug}`;
 mkdirSync(dir, { recursive: true });
 
 writeFileSync(

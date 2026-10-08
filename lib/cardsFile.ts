@@ -21,7 +21,7 @@ import type { CardConfig } from "@/types/card";
  */
 
 const CONFIG_PATH = join(process.cwd(), "config", "cards.config.ts");
-const PUBLIC_CARDS = join(process.cwd(), "public", "cards");
+const PRIVATE_CARDS = join(process.cwd(), "private", "cards");
 
 const HEADER = `import type { CardConfig } from "@/types/card";
 
@@ -34,8 +34,8 @@ const HEADER = `import type { CardConfig } from "@/types/card";
  *
  * To add a card, use the editor's Share tab — it issues a slug with an
  * unguessable random part and a password, and tells you what to deploy. By
- * hand: append an entry, put cube-face images in \`public/cards/<slug>/\` and
- * memory photographs in \`private/cards/<slug>/\`, redeploy. Nothing else in the
+ * hand: append an entry, put its pictures — cube faces and memory photographs
+ * alike — in \`private/cards/<slug>/\`, redeploy. Nothing else in the
  * codebase needs to know the card exists — \`lib/cards.ts\` builds the slug
  * registry from this array and validates every entry at import time, so a
  * malformed card fails the build rather than the page.
@@ -75,17 +75,17 @@ export function imagesBySlug(): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   let slugs: string[];
   try {
-    slugs = readdirSync(PUBLIC_CARDS, { withFileTypes: true })
+    slugs = readdirSync(PRIVATE_CARDS, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
   } catch {
-    return out; // no public/cards yet
+    return out; // no private/cards yet
   }
 
   for (const slug of slugs) {
-    out[slug] = readdirSync(join(PUBLIC_CARDS, slug))
+    out[slug] = readdirSync(join(PRIVATE_CARDS, slug))
       .filter((name) => /\.(png|jpe?g|webp|avif)$/i.test(name))
-      .map((name) => `/cards/${slug}/${name}`)
+      .map((name) => `private/cards/${slug}/${name}`)
       .sort();
   }
   return out;

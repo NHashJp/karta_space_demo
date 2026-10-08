@@ -257,7 +257,7 @@ export function ShareSection({
           <span>○</span> Pushed and deployed
         </p>
         <pre className="editor__message">
-          {`git add config private/cards public/cards && git commit -m ${JSON.stringify(
+          {`git add config private/cards && git commit -m ${JSON.stringify(
             `Card: ${card.title || card.slug}`,
           )} && git push`}
         </pre>

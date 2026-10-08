@@ -20,7 +20,8 @@ export type Copied = { from: string; to: string; done: boolean; why?: string };
 export function carryMedia(moves: Relocation[], root = process.cwd()): Copied[] {
   return moves.map((move) => {
     const from = join(root, diskPath(move.from, move.where));
-    const to = join(root, diskPath(move.to, move.where));
+    // Every picture lands in the card's private folder (see `Relocation`).
+    const to = join(root, diskPath(move.to, "private"));
 
     if (!existsSync(from)) {
       // The path was already wrong before this, or the file has been deleted.

@@ -141,6 +141,7 @@ export type Strings = {
     alsoAboard: string;
     continue: string;
     comesBack: (when: string) => string;
+    replayPreview: string;
   };
   crossroads: {
     title: string;
@@ -353,6 +354,7 @@ const ja: Strings = {
     alsoAboard: "あなたの言葉も、のっています。",
     continue: "つづける",
     comesBack: (when) => `${when}に、ここへ戻ってきます。`,
+    replayPreview: "彗星の軌道をもう一度見る",
   },
   crossroads: {
     title: "このあとは",
@@ -562,6 +564,7 @@ const en: Strings = {
     alsoAboard: "Your words are aboard too.",
     continue: "Continue",
     comesBack: (when) => `It comes back here by ${when}.`,
+    replayPreview: "Watch the comet's journey again",
   },
   crossroads: {
     title: "What next",

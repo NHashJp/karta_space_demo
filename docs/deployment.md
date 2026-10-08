@@ -22,19 +22,25 @@ so the checks below are mostly about noticing absence.
 Your card is not in the repository, and that is deliberate. `.karta/` is
 gitignored, so `.karta/cards.local.json` — where the editor saves — never
 leaves your machine. Only `config/cards.config.ts` is committed, and that
-holds the two sample cards.
+holds the four sample cards.
 
-So today, a deploy would serve:
+So today (checked against this repository), a deploy would serve:
 
 | | On Vercel |
 |---|---|
-| `/c/2026-newyear-7k2m` | works (sample) |
-| `/c/thanks-sample-3f9q` | works (sample) |
-| `/c/sddsgf` | **404 — the card does not exist there** |
+| `/c/2026-newyear-7k2m` | works (sample, Japanese, every feature) |
+| `/c/newyear-en-k7m2q9x4` | works (sample, English, every feature) |
+| `/c/thanks-sample-3f9q` | works (sample, Japanese, minimal) |
+| `/c/thanks-en-r4t8w2p6` | works (sample, English, minimal) |
+| `/c/yulmun99` | **404 — your card lives only in `.karta/cards.local.json`** |
 
-The photographs are fine: `private/cards/` and `public/cards/` are both
-tracked, and `private/cards/sddsgf/` is committed. It is the card *config*
-that stays behind.
+Photographs travel only if they are committed under `private/cards/<slug>/` —
+cube faces and memories alike, all served through the password-checked media
+route. The build traces `private/cards/` into that route, so a committed
+photograph is served to someone who can open the card and to nobody else. `yulmun99` has no photograph
+folder at all, so its memories would show empty frames even once the card
+itself is deployed. (`private/cards/sddsgf/` is the reverse: photographs with
+no card config anywhere any more.)
 
 Two ways out, and it is a real decision rather than a formality:
 
@@ -69,18 +75,23 @@ dashboard *is* the environment.
 | `MAIL_FROM` | the address mail is sent from | as above — all three are required together |
 | `NOTIFY_TO` | the inbox replies arrive at | as above |
 | `PUBLIC_BASE_URL` | absolute links inside emails | the links in your own emails are broken |
+| `MAIL_DEV_SINK` | **development only**: writes mail to `./.mail/` | — must not be set on Vercel |
 
 - [ ] `ACCESS_SECRET` — 32 random bytes. Set it even if no card uses a hash
       today, so that issuing one later does not silently lock the card.
 - [ ] `COMET_SECRET` — 32 random bytes.
 - [ ] `CRON_SECRET` — 32 random bytes. Vercel sends it as
       `Authorization: Bearer $CRON_SECRET` automatically once it is set.
-- [ ] `RESEND_API_KEY`, and **verify your `MAIL_FROM` domain in Resend** — an
-      unverified sending domain is the usual reason the first real send fails.
+- [ ] `RESEND_API_KEY` — a key with **Sending access** is enough, and is the
+      safer kind: the app only ever calls `POST /emails`.
+- [ ] `MAIL_FROM` — see *Resend* below. With `onboarding@resend.dev` it works
+      **only while `NOTIFY_TO` is the address that owns the Resend account**.
 - [ ] `NOTIFY_TO` — your own inbox. Per-card override is
       `CARD_NOTIFY_TO_<SLUG>`.
 - [ ] `PUBLIC_BASE_URL` — the deployed origin, **no trailing slash**, e.g.
-      `https://karta.example.com`.
+      `https://karta.example.com` or `https://<project>.vercel.app`. Your local
+      `.env.local` has `http://localhost:3000`; do not copy that value across,
+      or every link in your emails points at your own laptop.
 - [ ] **`MAIL_DEV_SINK` must NOT be set.** It writes mail to `./.mail/`
       instead of sending it, and on Vercel that means every reply is written to
       a read-only filesystem and lost.
@@ -88,23 +99,53 @@ dashboard *is* the environment.
       production regardless, so this only matters locally.
 
 **On the password decision:** `CARD_PASSWORD` applies to *every* card,
-including the two samples — and the samples ship with no `access.hint`, so
+including the four samples — and the samples ship with no `access.hint`, so
 anyone opening one gets a password box with no clue on it. If you only want
-your own card gated, use `CARD_PASSWORD_SDDSGF` and leave `CARD_PASSWORD`
-unset. Your card's hint is currently `Discord見てね`.
+your own card gated, give it its own — `CARD_PASSWORD_YULMUN99` for
+`yulmun99` — and leave `CARD_PASSWORD` unset.
+
+### Resend
+
+Checked against your key today: it is a valid, sending-only key, and a real
+test email sent through the app's own `sendMail` (a reply mail, with the dev
+sink off) was **accepted by Resend**. So the integration works end to end.
+
+What it is sending *from* is the thing to decide. `MAIL_FROM` is on
+`resend.dev`, Resend's shared test domain, which only delivers to the email
+address of the Resend account's owner. This app only ever emails you, so that
+is workable — but:
+
+- [ ] **For a launch, verify your own domain** in Resend → Domains (add the
+      DNS records it gives you; usually SPF and DKIM, plus a DMARC record is
+      recommended), then set `MAIL_FROM` to e.g.
+      `KARTA_SPACE <cards@yourdomain>`. Mail from a shared test domain is more
+      likely to land in spam, and it stops working the day `NOTIFY_TO` is not
+      the account owner.
+- [ ] Resend's free tier is 100 emails a day and 3,000 a month — far more than
+      a handful of cards will send, but worth knowing.
+- [ ] After deploying, Resend → **Logs** shows every send and why one failed.
+      The app logs failures too, as `[karta-space] mail send failed: …` in the
+      Vercel function logs.
 
 ---
 
 ## 3. Before you push
 
-- [ ] `npm run check` — typecheck plus 29 verify sections and the 8-point grid.
-- [ ] `npm run build` — passes today (18 routes, exit 0). Worth running once
-      locally, because a build that fails on Vercel costs a round trip.
-- [ ] `git status` is clean, and any new photographs under `private/cards/` or
-      `public/cards/` are committed. They are **not** gitignored, but they are
-      easy to leave untracked after an upload, and a missing one is an empty
-      frame on the trail with no error anywhere.
-- [ ] Decide §1.
+- [ ] `npm run check` — typecheck plus the verify suite and the 8-point grid.
+      The verify scripts use `node --experimental-strip-types`, so they need
+      **Node 22.6 or newer** locally; on Node 20 run them with
+      `npx tsx scripts/verify-rotation.mts` (and `verify-spacing`,
+      `verify-orbiters`) instead. Vercel does not run them.
+- [ ] `npm run build` — passes today (17 routes, no warnings). Worth running
+      once locally, because a build that fails on Vercel costs a round trip.
+      It used to warn that the reply route traced the whole project, `public/`
+      included; the development-only mail sink's paths are now marked
+      untraced, so the functions ship only what they read.
+- [ ] `git status` is clean, and any new photographs under `private/cards/`
+      are committed. They are **not** gitignored, but they are easy to leave
+      untracked after an upload, and a missing one is an empty face or frame
+      with no error anywhere.
+- [ ] Decide §1 — and if your card is going, commit its photographs too.
 
 ---
 
@@ -112,6 +153,12 @@ unset. Your card's hint is currently `Discord見てね`.
 
 - [ ] Import the repository. Framework preset: **Next.js**. No build-command
       override needed.
+- [ ] **Node.js version: 22.x** (Settings → Build and Deployment). Next 16
+      needs 20.9 or newer; 22 matches what the checks expect.
+- [ ] Production branch: the one you merge into (`main`). Every other branch
+      gets a preview deployment — with Production variables only if you also
+      tick *Preview* for them, so a preview with no mail configured simply has
+      no reply button.
 - [ ] Node runtime — the media route reads from disk with `node:fs`, so it
       must not be moved to the edge runtime. Nothing here does that today;
       just do not add `export const runtime = "edge"` to anything under
@@ -147,8 +194,13 @@ Then, by hand, on a phone:
 - [ ] `?at=orbit`, `?now=2027-01-01` and `?visit=again` all do **nothing** on
       the deployed site. They are inert outside development, and a `?now=`
       that still worked would be the comet's seal undone.
-- [ ] Send yourself a reply from the card. It arrives at `NOTIFY_TO`, and the
-      links inside it are absolute and work.
+- [ ] The reply and comet buttons are **there**. If they are missing, a mail
+      variable is missing — features hide rather than break.
+- [ ] Send yourself a reply from the card. It arrives at `NOTIFY_TO` (check
+      spam the first time), and the links inside it are absolute and point at
+      your domain, not `localhost`.
+- [ ] Open an English sample card (`/c/newyear-en-k7m2q9x4`) and check the
+      interface, dates and countdown are in English.
 - [ ] Put words on the comet. The email arrives; the link opens
       `/comet/<token>`; it refuses to show the message before the return date.
 - [ ] Trigger the cron once by hand rather than waiting a day:
@@ -181,9 +233,13 @@ Not blockers, but you should know before you deploy rather than after:
 - [x] **Signatures are no longer public files.** They are kept in the card
       itself (`.karta/cards.local.json`), like its words, and reach the
       browser only behind the card's password — see `lib/signature.ts`.
-- [ ] **The two sample cards will be publicly reachable** on your domain,
+- [ ] **The four sample cards will be publicly reachable** on your domain,
       gated only by whatever `CARD_PASSWORD` you set. Decide whether you want
-      them deployed at all.
+      them deployed at all; their slugs also end in short random parts, which
+      `npm run verify` notes as guessable.
+- [ ] `private/cards/2026-newyear-7k2m/` holds a stray
+      `screenshot-2026-09-22-at-11.38.56.png` that no card uses. It is deployed
+      with the media route; delete it if it is not meant to be public.
 
 ---
 

@@ -314,7 +314,8 @@ cycle: `あと X 日` over the promise as written in the editor, then the dashed
 way home drawn, the comet flown home while the number counts down and the sky
 rises to the reunion morning, then a rewind to today and the `言葉をのせる`
 sheet. `スキップ` must end it at any point. The sky at zero should be the sky
-`?now=<returnsOn>` shows.
+`?now=<returnsOn>` shows. Once words are aboard, `彗星の軌道をもう一度見る`
+under `軌道へもどる` in the sheet plays it again and comes back to the sheet.
 
 Fastest way in: **`?at=chart`**. That plays the departure and lands on the
 chart with the sheet open. Tapping `彗星` in the bar gets there too, and after

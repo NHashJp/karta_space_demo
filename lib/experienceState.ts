@@ -118,6 +118,8 @@ export type ExperienceEvent =
   | { type: "departEnd" }
   /** The first-launch explanation has played, or was skipped. */
   | { type: "previewEnd" }
+  /** Watch the comet's way home again, from the sheet (it ends back there). */
+  | { type: "replayIntro" }
   /** Tap the comet, or 彗星 in the bottom bar. */
   | { type: "openChart" }
   /** Dispatched only once the server has accepted the words (§14.5). */
@@ -283,6 +285,15 @@ function transition(current: Experience, event: ExperienceEvent): Experience {
      * all of it — so it marks both, and goes on to the chart and the sheet
      * that asks for words.
      */
+    /*
+     * The intro, asked for again from the comet sheet. Only while the comet
+     * is still on its way — a comet that is back has no way home to show —
+     * and it ends where it always ends, on the chart with the sheet open.
+     */
+    case "replayIntro":
+      if (state !== "nudging" || current.comet.returned) return current;
+      return { ...current, state: "previewing" };
+
     case "previewEnd":
       if (state !== "previewing") return current;
       return {

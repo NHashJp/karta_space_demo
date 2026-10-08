@@ -174,17 +174,16 @@ sender than to the receiver.
 
 ## Photographs
 
-`POST /api/editor/upload` takes a `to`, because the card has two kinds of
-picture and they live in different places:
+`POST /api/editor/upload` writes every picture — cube faces and memory
+photographs alike — to `private/cards/<slug>/`, and returns the path the config
+should name (`private/cards/<slug>/<file>`). `toClientCard` turns that into
+the gated `/c/<slug>/media/<file>` URL, so a picture is served only to someone
+who can open the card.
 
-| | Goes to | Named by | Why |
-|---|---|---|---|
-| Memory photographs | `private/cards/<slug>/` | its path in the repository | personal, and served through the gated media route (§14.3) |
-| Cube faces | `public/cards/<slug>/` | its URL | part of the card itself, loaded as a texture by the scene |
-
-The default is the private one, the safer of the two to get wrong. Handing
-back the wrong spelling produces a card that validates and shows nothing, so
-the route returns the path the config should name, already in the right form.
+Cube faces used to go to `public/cards/<slug>/`, which is served flat: anyone
+who knew or guessed the URL could see a face photograph without the password.
+A face still pointing at an old `/cards/...` path keeps working, is flagged by
+`cardRules`, and is carried into the private folder on the card's next save.
 
 Faces only gained an upload recently. Before that the Faces tab offered a
 dropdown of files already on disk and a box to type a path into, so putting a

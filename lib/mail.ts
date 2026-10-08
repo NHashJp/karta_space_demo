@@ -110,12 +110,15 @@ async function writeToSink(mail: Mail): Promise<SendResult> {
     const { mkdir, writeFile } = await import("node:fs/promises");
     const { join } = await import("node:path");
 
-    const dir = join(process.cwd(), MAIL_SINK_DIR);
+    // Development only (`mailSink` is off in production), so the bundler is
+    // told not to trace these paths — otherwise it cannot see their bounds and
+    // ships the whole project, `public/` included, inside the reply route.
+    const dir = join(/*turbopackIgnore: true*/ process.cwd(), MAIL_SINK_DIR);
     await mkdir(dir, { recursive: true });
 
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const slug = mail.subject.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 48);
-    const path = join(dir, `${stamp}-${slug}.txt`);
+    const path = join(/*turbopackIgnore: true*/ dir, `${stamp}-${slug}.txt`);
 
     await writeFile(
       path,

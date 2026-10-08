@@ -3,9 +3,9 @@ import type { CardConfig } from "./../types/card";
 /**
  * Photographs follow their card when its slug changes.
  *
- * Every picture a card owns is filed under the card's own slug — cube faces in
- * `public/cards/<slug>/`, memory photographs in `private/cards/<slug>/` — and
- * both of those paths are written into the config as text. So the slug is not
+ * Every picture a card owns — cube faces and memory photographs alike — is
+ * filed under the card's own slug in `private/cards/<slug>/`, and that path is
+ * written into the config as text. So the slug is not
  * just a name: it is half of every media path on the card.
  *
  * Which means renaming a card, or starting one by copying another, quietly
@@ -35,14 +35,19 @@ import type { CardConfig } from "./../types/card";
 export type Relocation = {
   /** The path as the config has it now. */
   from: string;
-  /** The same file, under this card's own folder. */
+  /** The same file, under this card's own private folder. */
   to: string;
+  /**
+   * Where the file is **now**. It always lands in `private/cards/<slug>/`:
+   * a cube face used to live in `public/`, served to anyone with its URL, and
+   * an old one is carried into the private folder on the next save.
+   */
   where: "public" | "private";
 };
 
-/** `/cards/<slug>/<file>` — a cube face, addressed by its URL. */
+/** `/cards/<slug>/<file>` — a cube face from before faces were private. */
 const FACE = /^\/cards\/([^/]+)\/(.+)$/;
-/** `private/cards/<slug>/<file>` — a memory, addressed by its path in the repo. */
+/** `private/cards/<slug>/<file>` — any picture, addressed by its path in the repo. */
 const MEMORY = /^private\/cards\/([^/]+)\/(.+)$/;
 
 /**
@@ -58,13 +63,17 @@ export function strayMedia(card: CardConfig): Relocation[] {
 
   card.faces?.forEach((face) => {
     if (face.type !== "image") return;
-    const match = FACE.exec(face.src?.trim() ?? "");
+    const src = face.src?.trim() ?? "";
+    // A public face moves into the private folder whichever card it named:
+    // faces are gated now, like everything else on the card.
+    const legacy = FACE.exec(src);
+    if (legacy) {
+      moves.push({ from: src, to: `private/cards/${card.slug}/${legacy[2]}`, where: "public" });
+      return;
+    }
+    const match = MEMORY.exec(src.replace(/^\/+/, ""));
     if (!match || match[1] === card.slug) return;
-    moves.push({
-      from: face.src.trim(),
-      to: `/cards/${card.slug}/${match[2]}`,
-      where: "public",
-    });
+    moves.push({ from: src, to: `private/cards/${card.slug}/${match[2]}`, where: "private" });
   });
 
   card.memories?.forEach((memory) => {

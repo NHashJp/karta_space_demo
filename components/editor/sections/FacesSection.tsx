@@ -32,14 +32,14 @@ export function FacesSection({
    * Upload straight onto a face (§15.7).
    *
    * There was no way to do this: the section offered a dropdown of files
-   * already in `public/cards/<slug>/` and a box to type a path into, so
+   * already in the card's folder and a box to type a path into, so
    * putting a picture on a face meant leaving the editor, copying a file into
    * the right folder by hand, and coming back. Memories have had a file input
    * all along; faces simply never got one.
    *
-   * `to: "public"` is the difference between the two. A face is part of the
-   * card and is fetched as a texture; a memory photograph is private and goes
-   * through the gated media route.
+   * Faces go where memory photographs go — the card's private folder — and
+   * are served through the same gated media route, so a picture on the cube
+   * is behind the card's password like everything else on it.
    */
   async function upload(index: number, face: CardFace, file: File) {
     setUploading(index);
@@ -47,7 +47,6 @@ export function FacesSection({
 
     const form = new FormData();
     form.set("slug", card.slug);
-    form.set("to", "public");
     form.set("file", file);
 
     try {

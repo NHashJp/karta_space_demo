@@ -2612,6 +2612,12 @@ body:has(.sheet-layer) .orbit-ui__reread {
   gap: var(--space-1);
 }
 
+/* Under 軌道へもどる: a quieter way to watch the comet's journey again. */
+.sheet__replay {
+  align-self: center;
+  min-height: var(--control-h-compact);
+}
+
 /*
  * The promise itself is a caption on the chart, not a line in the sheet
  * (mockups M12c, M13a, M14c). It belongs to the ellipse behind it — the date

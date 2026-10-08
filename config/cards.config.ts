@@ -9,8 +9,8 @@ import type { CardConfig } from "@/types/card";
  *
  * To add a card, use the editor's Share tab — it issues a slug with an
  * unguessable random part and a password, and tells you what to deploy. By
- * hand: append an entry, put cube-face images in `public/cards/<slug>/` and
- * memory photographs in `private/cards/<slug>/`, redeploy. Nothing else in the
+ * hand: append an entry, put its pictures — cube faces and memory photographs
+ * alike — in `private/cards/<slug>/`, redeploy. Nothing else in the
  * codebase needs to know the card exists — `lib/cards.ts` builds the slug
  * registry from this array and validates every entry at import time, so a
  * malformed card fails the build rather than the page.
@@ -112,7 +112,7 @@ export const cards: CardConfig[] = [
       },
       {
         "type": "image",
-        "src": "/cards/2026-newyear-7k2m/image-01.png",
+        "src": "private/cards/2026-newyear-7k2m/image-01.png",
         "alt": "静かな夜空にひろがる青い星雲",
         "fit": "cover"
       },
@@ -127,7 +127,7 @@ export const cards: CardConfig[] = [
       },
       {
         "type": "image",
-        "src": "/cards/2026-newyear-7k2m/image-02.png",
+        "src": "private/cards/2026-newyear-7k2m/image-02.png",
         "alt": "遠くの惑星を照らす紫色のやわらかな光",
         "fit": "cover"
       },
@@ -263,7 +263,7 @@ export const cards: CardConfig[] = [
       },
       {
         "type": "image",
-        "src": "/cards/newyear-en-k7m2q9x4/image-01.png",
+        "src": "private/cards/newyear-en-k7m2q9x4/image-01.png",
         "alt": "A blue nebula spreading across a quiet night sky",
         "fit": "cover"
       },
@@ -278,7 +278,7 @@ export const cards: CardConfig[] = [
       },
       {
         "type": "image",
-        "src": "/cards/newyear-en-k7m2q9x4/image-02.png",
+        "src": "private/cards/newyear-en-k7m2q9x4/image-02.png",
         "alt": "Soft violet light falling on a distant planet",
         "fit": "cover"
       },

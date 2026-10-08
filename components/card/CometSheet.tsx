@@ -54,6 +54,12 @@ type Props = {
   onAsked: () => void;
   onBoarded: (token?: string) => void;
   onLeave: () => void;
+  /**
+   * Watch the first-launch orbit preview again. Offered once the reader's
+   * words are aboard, under 軌道へもどる: the journey they just put something
+   * on is the one thing they will want to see again.
+   */
+  onReplayIntro?: () => void;
 };
 
 /**
@@ -72,6 +78,7 @@ export function CometSheet({
   onAsked,
   onBoarded,
   onLeave,
+  onReplayIntro,
 }: Props) {
   const t = useStrings();
   const lang = useLang();
@@ -285,6 +292,15 @@ export function CometSheet({
                 {link ? t.sheet.continue : t.sheet.toOrbit}
               </button>
             </div>
+            {onReplayIntro && comet.status === "away" ? (
+              <button
+                className="button button--plain sheet__replay"
+                onClick={onReplayIntro}
+                lang={lang}
+              >
+                {t.sheet.replayPreview}
+              </button>
+            ) : null}
           </>
         ) : null}
 

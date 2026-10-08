@@ -396,8 +396,11 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
     // there, and whether the text physically fits a cube face on a phone.
     for (const [i, face] of card.faces.entries()) {
       if (face.type !== "text") {
-        const file = `public${face.src}`;
+        const file = face.src.replace(/^\/+/, "");
         console.log(`    face ${i + 1}: image  ${face.src}`);
+        // Private, like every picture on a card: a face in public/ is served
+        // to anyone with its URL, whatever the card's password.
+        check(id(`face ${i + 1} image is private`), file.startsWith(`private/cards/${card.slug}/`), file);
         check(id(`face ${i + 1} image exists`), existsSync(file), file);
         continue;
       }
@@ -1951,6 +1954,17 @@ console.log("11b. The comet moment (spec v0.2 rev 5, \u00a78.3):");
     check("which opens the sheet that asks for words", intro.state === "nudging");
     check("a returned comet skips the intro",
       deployTo(flags({ introduced: false, returned: true })).state === "charting");
+
+    // And it can be watched again from the sheet, ending back on the sheet.
+    let again = reduceExperience(intro, { type: "replayIntro" });
+    check("the sheet replays the intro", again.state === "previewing");
+    again = reduceExperience(reduceExperience(again, { type: "previewEnd" }), { type: "zoomEnd" });
+    check("and the replay ends back on the sheet", again.state === "nudging");
+    check("a replay is refused anywhere but the sheet",
+      reduceExperience({ ...intro, state: "orbit" }, { type: "replayIntro" }).state === "orbit");
+    check("and once the comet is back",
+      reduceExperience({ ...intro, comet: { ...intro.comet, returned: true } },
+        { type: "replayIntro" }).state === "nudging");
   }
 
   // ---- the departure is watched once per cycle ---------------------------
@@ -3422,8 +3436,8 @@ console.log("29. A card's pictures follow it when the slug changes (§14.3):");
   }
   for (const face of fixed.faces ?? []) {
     if (face.type !== "image") continue;
-    check_once("face paths land in the new card's folder",
-      face.src.startsWith(`/cards/${fixed.slug}/`), face.src);
+    check_once("face paths land in the new card's private folder",
+      face.src.startsWith(`private/cards/${fixed.slug}/`), face.src);
   }
 
   /*
@@ -3442,6 +3456,32 @@ console.log("29. A card's pictures follow it when the slug changes (§14.3):");
     check("and is gone once the pictures follow",
       !goodUrl.includes("/media/private/cards/") && goodUrl.startsWith(`/c/${fixed.slug}/media/`),
       goodUrl);
+  }
+
+  // A face left in public/ from before faces were private is carried in.
+  {
+    const legacy: CardConfig = JSON.parse(JSON.stringify(cards[0]));
+    const at = legacy.faces.findIndex((face) => face.type === "image");
+    if (at >= 0) {
+      const face = legacy.faces[at];
+      if (face.type === "image") face.src = `/cards/${legacy.slug}/old-face.png`;
+      const { card: carried, moved: fromPublic } = rehomeCard(legacy);
+      const after = carried.faces[at];
+      check("a public face is moved into the private folder",
+        fromPublic.some((m) => m.where === "public") &&
+          after.type === "image" && after.src === `private/cards/${legacy.slug}/old-face.png`,
+        after.type === "image" ? after.src : "");
+    }
+  }
+
+  // And what reaches the browser is the gated route, never a file path.
+  {
+    const client = toClientCard(cards[0], new Date("2026-06-01T12:00:00Z"), { mailReady: false, cometReady: false });
+    const faceUrls = client.faces.flatMap((face) => (face.type === "image" ? [face.src] : []));
+    check("face pictures reach the browser through the gated route",
+      faceUrls.length > 0 && faceUrls.every((src) => src.startsWith(`/c/${cards[0].slug}/media/`)),
+      faceUrls.join(", "));
+    check("and nothing is left in public/cards", !existsSync("public/cards"));
   }
 
   // Idempotent: saving twice must not keep moving things.

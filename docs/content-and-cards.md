@@ -119,7 +119,7 @@ deploying. Same rules, different strictness, chosen per tool.
 
 ## Adding a card now goes through the editor
 
-v0.1 said: append an entry, drop images in `public/cards/<slug>/`, redeploy.
+v0.1 said: append an entry, drop images in a folder, redeploy.
 That still works, and the config is still a file you can edit by hand.
 
 But a v0.2 card has a slug whose random part is what protects it, a password
@@ -181,11 +181,17 @@ Three consequences worth knowing before writing one:
 
 ## Per-card images
 
-Images live in `public/cards/<slug>/`, one folder per card, and a card's face
-must reference a path inside its own folder. Nothing enforces this at runtime —
-it is a warning, not an error — but it keeps deletion safe: removing a card
-means removing its entry and its folder, with no shared-asset question to
-answer first.
+Every picture lives in `private/cards/<slug>/`, one folder per card — cube
+faces and memory photographs alike — and the config names it by that path.
+`toClientCard` turns the path into `/c/<slug>/media/<file>`, the route that
+serves a file only to someone who can open the card. Cube faces used to live in
+`public/cards/<slug>/`, served to anyone with the URL whatever the password;
+a face still pointing there is flagged, and carried across on the next save.
+
+A card's pictures must be inside its own folder. Nothing enforces this at
+runtime — it is a warning, not an error — but it keeps deletion safe: removing
+a card means removing its entry and its folder, with no shared-asset question
+to answer first, and the media route refuses anything outside the folder.
 
 `npm run verify` checks that each referenced file actually exists, which is the
 mistake this layout makes easy to catch and easy to make.

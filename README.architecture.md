@@ -194,8 +194,8 @@ browser's graphics interface. Some face text is HTML positioned in 3D.
 | Sample cards | `config/cards.config.ts` | Part of the repository and normal deployment. |
 | Editor-saved cards | `.karta/cards.local.json` | Local and gitignored. Saving in the editor does **not** publish them. |
 | Editor-issued sharing passwords | `.karta/secrets.local.json` | Local and gitignored; their hashes are stored with the corresponding card data. |
-| Cube images and signature SVGs | `public/cards/<slug>/` | Directly available by URL, independently of the card password screen. |
-| Memory photographs | `private/cards/<slug>/` | Served through the card's access-checked media route. |
+| Cube-face images and memory photographs | `private/cards/<slug>/` | Served only through the card's access-checked media route. |
+| Signatures | inside the card's data | Sent to the browser with the card, behind its password. |
 | Server settings and secrets | Environment variables; usually `.env.local` in development | Configure passwords, encryption, email, and the deployed website URL. |
 | Visit/action markers | Browser `localStorage` | Small records on that browser; these are not a shared database. |
 | Reader replies | Sender's email inbox | Sent by email rather than stored in an application database. |
