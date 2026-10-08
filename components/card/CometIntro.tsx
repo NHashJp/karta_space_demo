@@ -66,6 +66,12 @@ export function CometIntro({
   if (!comet) return null;
 
   const left = daysLeft(days, frame.run);
+  /*
+   * The promise in the sender's own words, as entered in the editor — the
+   * same line the chart and the hub caption carry — rather than a sentence
+   * of the card's own. Only a card with no promise falls back to one.
+   */
+  const promise = comet.promise?.trim() || "また会えます";
 
   return (
     <div className="comet-intro" data-out={frame.out > 0} data-started={frame.started} lang="ja">
@@ -73,8 +79,9 @@ export function CometIntro({
       <div className="comet-intro__announce" aria-hidden={frame.started}>
         <p className="chart-head__label">約束の彗星</p>
         <p className="comet-intro__count">
-          あと<span className="comet-intro__days">{days}</span>日で、また会えます
+          あと<span className="comet-intro__days">{days}</span>日
         </p>
+        <p className="comet-intro__promise">{promise}</p>
       </div>
 
       <header className="chart-head comet-intro__head" aria-hidden={!frame.started}>
@@ -84,7 +91,7 @@ export function CometIntro({
         </p>
         <p className="comet-intro__count" aria-live="polite">
           {frame.arrived ? (
-            "その朝、また会えます"
+            "また会うよ！"
           ) : (
             <>
               あと<span className="comet-intro__days">{left}</span>日

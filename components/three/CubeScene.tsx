@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientMemory } from "@/lib/clientCard";
 import { trailSeed } from "@/lib/trailColour";
 import { orbitRotation } from "@/lib/cometOrbit";
 import { trailSeedFor } from "@/lib/trailCurve";
 import { Canvas } from "@react-three/fiber";
+import type * as THREE from "three";
 import { Asteroids } from "./Asteroids";
 import { ShootingStars } from "./ShootingStars";
 import { SpeedStreaks } from "./SpeedStreaks";
@@ -25,6 +26,7 @@ import { MemoryPanel } from "./MemoryPanel";
 import { CapsuleBoarding } from "./CapsuleBoarding";
 import { CometDeparture } from "./CometDeparture";
 import { CometPreview } from "./CometPreview";
+import { Precompile } from "./Precompile";
 import { MeteorShower } from "./MeteorShower";
 import { ReplyStar } from "./ReplyStar";
 import { RocketLaunch } from "./RocketLaunch";
@@ -105,6 +107,12 @@ type Props = {
   deployMs?: number;
   /** True whenever the cube should be drawn in its satellite form. */
   deployed: boolean;
+  /**
+   * The orbit is next: the closing screen is up on a card that has one. The
+   * orbit's scene is built and compiled now, hidden, so the deployment does
+   * not have to do it in its first frames.
+   */
+  prepare?: boolean;
   onDeployEnd?: () => void;
   /** The arrival beat (r7 §11). A counter: each increment is one arrival. */
   propel?: number;
@@ -140,6 +148,7 @@ export function CubeScene({
   deploying,
   deployMs,
   deployed,
+  prepare = false,
   onDeployEnd,
   propel = 0,
   onBloom,
@@ -153,6 +162,17 @@ export function CubeScene({
    * of those should be React renders.
    */
   const presence = useRef(deployed ? 1 : 0);
+
+  /*
+   * Once prepared, the orbit's scene stays built: going back into the letter
+   * and out again should not tear it down and pay for it a second time.
+   */
+  const [primed, setPrimed] = useState(prepare || deployed);
+  useEffect(() => {
+    if (prepare || deployed) setPrimed(true);
+  }, [prepare, deployed]);
+  const staged = deployed || primed;
+  const orbitWorld = useRef<THREE.Group>(null);
 
   // The trail's shape and its colours are both seeded from the slug, so a card
   // keeps the same trail on every visit and no two cards share one.
@@ -233,67 +253,80 @@ export function CubeScene({
         sky={sky}
       />
       {/*
-        The dawn's own sky (r7 §6). Only once the card is deployed: §3 leaves
-        the landing screen, the reading and the closing screen exactly as they
-        were, and those are the three places this is not mounted.
+        Everything the orbit adds, in one group: mounted as soon as the closing
+        screen is up on a card that has an orbit, and hidden until the cube is
+        actually deployed. Building the planet, the dawn sky, the sun and the
+        comet — and compiling their shaders — used to happen in the first
+        frames of the deployment, which is exactly when the cube is turning and
+        unfolding, and it hitched. Now that work is done while the reader is
+        still looking at the closing line (`Precompile`), and pressing
+        軌道へ送り出す only has to make it visible.
       */}
-      {deployed ? <DawnSky flare={flare} /> : null}
+      <group ref={orbitWorld} visible={deployed}>
+        {/*
+          The dawn's own sky (r7 §6). Only once the card is deployed: §3 leaves
+          the landing screen, the reading and the closing screen exactly as they
+          were, and those are the three places this is not mounted.
+        */}
+        {staged ? <DawnSky flare={flare} /> : null}
 
-      {/* A card without an orbit never pays for a planet it does not have. */}
-      {deployed ? (
-        <OrbitScene
-          seed={seed}
-          returned={Boolean(returned)}
-          reducedMotion={cube.reducedMotion}
-          presence={presence}
-        />
-      ) : null}
+        {/* A card without an orbit never pays for a planet it does not have. */}
+        {staged ? (
+          <OrbitScene
+            seed={seed}
+            returned={Boolean(returned)}
+            reducedMotion={cube.reducedMotion}
+            presence={presence}
+          />
+        ) : null}
 
-      {/*
-        The sun, coming up behind the planet. In the hub only: §3 gives the
-        chart and the close-up the sky colours and the haze but no flare,
-        because a flare belongs to one framing and those are other framings.
+        {/*
+          The sun, coming up behind the planet. In the hub only: §3 gives the
+          chart and the close-up the sky colours and the haze but no flare,
+          because a flare belongs to one framing and those are other framings.
 
-        Faded rather than unmounted, like the orbiting things. The camera
-        phase becomes `orbit` the *moment* the reader asks to come back from
-        the trail, and the move back takes up to three seconds — so anything
-        mounted on the phase appears in one frame while the camera is still
-        down on the curve.
-      */}
-      {deployed ? <SunFlare reducedMotion={cube.reducedMotion} shown={inHub} /> : null}
+          Faded rather than unmounted, like the orbiting things. The camera
+          phase becomes `orbit` the *moment* the reader asks to come back from
+          the trail, and the move back takes up to three seconds — so anything
+          mounted on the phase appears in one frame while the camera is still
+          down on the curve.
+        */}
+        {staged ? <SunFlare reducedMotion={cube.reducedMotion} shown={inHub} /> : null}
 
-      {/*
-        Company (r7 §8). Mounted for the whole of the deployed scene and
-        faded out when the camera leaves the hub, rather than unmounted: the
-        set has to be the same set when the reader comes back, and its clock
-        has to have kept running while they were away.
-      */}
-      {deployed ? (
-        <Orbiters
-          seed={orbSeed}
-          trailSeed={curveSeed}
-          hasTrail={Boolean(memories?.length)}
-          reducedMotion={cube.reducedMotion}
-          visible={inHub}
-        />
-      ) : null}
+        {/*
+          Company (r7 §8). Mounted for the whole of the deployed scene and
+          faded out when the camera leaves the hub, rather than unmounted: the
+          set has to be the same set when the reader comes back, and its clock
+          has to have kept running while they were away.
+        */}
+        {staged ? (
+          <Orbiters
+            seed={orbSeed}
+            trailSeed={curveSeed}
+            hasTrail={Boolean(memories?.length)}
+            reducedMotion={cube.reducedMotion}
+            visible={inHub}
+          />
+        ) : null}
 
-      {/*
-        The comet is drawn from its dates, so it is simply *where it is* — no
-        animation, no state. It is hidden only while the departure or the
-        first-launch intro is flying it, the times something else draws it.
-      */}
-      {deployed && comet && !departing && !previewing ? (
-        <Comet
-          progress={comet.progress}
-          slug={slug}
-          releasedOn={comet.leftOn}
-          tone={comet.aboard ? "receiver" : "sender"}
-          reducedMotion={cube.reducedMotion}
-          showOrbit={showCometOrbit}
-          onSelect={comet.onSelect}
-        />
-      ) : null}
+        {/*
+          The comet is drawn from its dates, so it is simply *where it is* — no
+          animation, no state. It is hidden only while the departure or the
+          first-launch intro is flying it, the times something else draws it.
+        */}
+        {staged && comet && !departing && !previewing ? (
+          <Comet
+            progress={comet.progress}
+            slug={slug}
+            releasedOn={comet.leftOn}
+            tone={comet.aboard ? "receiver" : "sender"}
+            reducedMotion={cube.reducedMotion}
+            showOrbit={showCometOrbit}
+            onSelect={deployed ? comet.onSelect : undefined}
+          />
+        ) : null}
+      </group>
+      <Precompile target={orbitWorld} when={staged && !deployed} />
 
       {departing && comet && onDepartEnd ? (
         <CometDeparture

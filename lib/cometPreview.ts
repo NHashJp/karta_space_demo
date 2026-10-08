@@ -26,12 +26,12 @@
  */
 
 export const PREVIEW_ANNOUNCE_MS = 2400;
-export const PREVIEW_DRAW_MS = 900;
+export const PREVIEW_DRAW_MS = 1800;
 export const PREVIEW_RUN_MS = 4600;
 export const PREVIEW_ARRIVE_MS = 3000;
 
 /** Reduced motion: no run. The number, the line, then the arrival. */
-const REDUCED = { announce: 2400, draw: 0, run: 0, arrive: 2400 };
+const REDUCED = { announce: 2000, draw: 0, run: 0, arrive: 2400 };
 
 export type PreviewFrame = {
   /** The announcement is over and the path is being shown. */

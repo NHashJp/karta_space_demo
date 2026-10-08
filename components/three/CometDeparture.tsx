@@ -3,8 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_RADIUS, hubPlanet, orbitPosition } from "./framing";
-import { displayOrbitPoint, displayedProgress, toWorld } from "@/lib/cometOrbit";
+import { PLANET_RADIUS, cometAt, hubPlanet, orbitPosition } from "./framing";
 import { DEPART_MS, REDUCED_MS } from "@/lib/timing";
 
 /**
@@ -66,11 +65,15 @@ export function CometDeparture({ progress, rotation, reducedMotion, onDone }: Pr
     [],
   );
 
-  /** Where it stops: today's place on the orbit. */
-  const destination = useMemo(() => {
-    const world = toWorld(displayOrbitPoint(displayedProgress(progress)), rotation);
-    return planet.clone().add(new THREE.Vector3(world.x, world.y, world.z));
-  }, [planet, rotation, progress]);
+  /**
+   * Where it stops: today's place on the orbit — where the hub draws the
+   * comet (`cometAt`), so the departure hands over to the comet that is
+   * there from then on, rather than to a point of its own.
+   */
+  const destination = useMemo(
+    () => new THREE.Vector3(...cometAt(progress, size.width, size.height)),
+    [progress, size.width, size.height],
+  );
 
   useFrame(({ clock }) => {
     if (finished.current) return;

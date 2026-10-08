@@ -25,7 +25,7 @@ import {
   PLANET_RADIUS,
   WING_AXIS_DEG,
   cometAt,
-  hubComet,
+  hubCometAt,
   hubSun,
   hubPlanet,
   hubPlanetScreen,
@@ -1576,11 +1576,9 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
      * "Clear" is the load-bearing half: a comet crossing the hull would read
      * as hitting the thing it is supposed to be keeping company with.
      */
-    const reach = (f: number) =>
-      (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
 
     for (const f of [0.06, 0.25, 0.5, 0.75, 0.94]) {
-      const at = project(hubComet(reach(f), w, h));
+      const at = project(hubCometAt(f, w, h));
       check(`${label}: the comet at f=${f} is in the top-right`,
         at[0] >= 0.5 && at[1] <= 0.45, `${at[0].toFixed(2)},${at[1].toFixed(2)}`);
 
@@ -1604,8 +1602,8 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 
     for (let i = 0; i <= 120; i++) {
       const f = 0.02 + (0.97 * i) / 120;
-      const at = project(hubComet(reach(f), w, h));
-      const depth = camera[2] - hubComet(reach(f), w, h)[2];
+      const at = project(hubCometAt(f, w, h));
+      const depth = camera[2] - hubCometAt(f, w, h)[2];
       /*
        * The coma's radius, in the same width-fraction units as the hull.
        *
@@ -1650,7 +1648,7 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 
     for (let i = 0; i <= 120; i++) {
       const f = 0.06 + (0.94 * i) / 120;
-      const at = hubComet(reach(f), w, h);
+      const at = hubCometAt(f, w, h);
       const screen = project(at);
       const depth = camera[2] - at[2];
 
@@ -1701,7 +1699,7 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
      * the comet came home by disappearing behind the world it was returning
      * to, and the check still passed.
      */
-    const home = project(hubComet(0, w, h));
+    const home = project(hubCometAt(1, w, h));
     const homePx: [number, number] = [home[0] * w, home[1] * h];
     const planetDisc = hubPlanetScreen(w, h);
     const fromCentre = Math.hypot(homePx[0] - planetDisc.cx, homePx[1] - planetDisc.cy);

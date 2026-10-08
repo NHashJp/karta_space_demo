@@ -434,6 +434,9 @@ export function CardExperience({
           deploying={deploying}
           deployMs={deployMs}
           deployed={isDeployed(state)}
+          // The closing screen is up and the orbit is the way on: build it now,
+          // hidden, so 軌道へ送り出す starts the animation with nothing to wait for.
+          prepare={card.hasOrbit && (state === "leaving" || state === "completed")}
           onDeployEnd={onDeployEnd}
           propel={propelling}
           onBloom={onBloom}

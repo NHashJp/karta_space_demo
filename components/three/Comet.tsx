@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { hubComet, hubPose, hubProject, worldPerPixel } from "./framing";
+import { hubCometAt, hubPose, hubProject, worldPerPixel } from "./framing";
 import {
   comaFragmentShader,
   comaVertexShader,
@@ -73,12 +73,7 @@ const TAIL_SEGMENTS = 24;
  * It is constant per viewport, so one sample answers it.
  */
 function cometDepth(width: number, height: number): number {
-  return hubPose(width, height).position[2] - hubComet(0.5, width, height)[2];
-}
-
-/** 0 when the comet is home, 1 when it is as far away as it goes. */
-function reach(f: number): number {
-  return (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
+  return hubPose(width, height).position[2] - hubCometAt(0.5, width, height)[2];
 }
 
 export type CometTone = "sender" | "receiver";
@@ -127,7 +122,7 @@ export function Comet({
     const f = displayedProgress(progress);
     const point = displayOrbitPoint(f);
     return {
-      position: new THREE.Vector3(...hubComet(reach(f), size.width, size.height)),
+      position: new THREE.Vector3(...hubCometAt(f, size.width, size.height)),
       distance: point.distance,
       // The real orbital radius, which is what the tail's length is written
       // against: the displayed one is compressed so the comet stays in frame.
@@ -149,7 +144,7 @@ export function Comet({
     const points: THREE.Vector3[] = [];
     for (let i = 0; i <= LEAD_POINTS; i++) {
       const ahead = Math.min(f + (SEGMENT_AHEAD * i) / LEAD_POINTS, 1);
-      points.push(new THREE.Vector3(...hubComet(reach(ahead), size.width, size.height)));
+      points.push(new THREE.Vector3(...hubCometAt(ahead, size.width, size.height)));
     }
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     leadPositions.current = geometry.getAttribute("position").array as Float32Array;
@@ -286,7 +281,7 @@ export function Comet({
       const array = leadPositions.current;
       for (let i = 0; i <= LEAD_POINTS; i++) {
         const along = ((i + phase) / LEAD_POINTS) * SEGMENT_AHEAD;
-        const [x, y, z] = hubComet(reach(Math.min(f + along, 1)), size.width, size.height);
+        const [x, y, z] = hubCometAt(Math.min(f + along, 1), size.width, size.height);
         array[i * 3] = x;
         array[i * 3 + 1] = y;
         array[i * 3 + 2] = z;

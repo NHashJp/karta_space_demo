@@ -1,9 +1,12 @@
 /** Camera framing maths, kept out of the component so it can be checked. */
 import {
+  APHELION,
   DISPLAY_FAR,
   DISPLAY_NEAR,
+  PERIHELION,
   displayOrbitPoint,
   displayedProgress,
+  orbitPoint,
 } from "../../lib/cometOrbit.ts";
 import { BUS_HALF, DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
 import { evenU, trailControlPoints, trailPoint, trailTangent } from "../../lib/trailCurve.ts";
@@ -444,48 +447,21 @@ const COMET_FAR_SCREEN: Record<"portrait" | "landscape", [number, number]> = {
   portrait: [0.88, 0.05],
   landscape: [0.76, 0.07],
 };
-/**
- * Pushed right of the straight line, so the path reads as an arc.
- *
- * Portrait bows less: its far end is already at x = 0.88, and r6's 0.07 on top
- * of that swung the midpoint of the curve past the right edge of the frame.
- */
-const COMET_BOW: Record<"portrait" | "landscape", number> = {
-  portrait: 0.04,
-  landscape: 0.07,
-};
-
 /** How far behind the satellite the comet is staged. */
 const COMET_DEPTH = 3.4;
 
 /**
- * Where the comet is drawn in the hub, for a radius already compressed by
- * `displayRadius` (0 = home, 1 = as far as it goes).
- *
- * Staged in screen space, like the planet, and for the same reason: the hub is
- * a composition. What has to survive is the *reading* — the comet passes by in
- * the top-right, well clear of the satellite, and comes home beside the planet
- * — and screen space is where those words mean something.
- */
-/**
  * Where the comet actually is on screen, for a given day.
  *
- * The one place that answers this. `hubComet` maps a *reach* 0..1 along the
- * composition's bow; turning a date into that reach needs `displayOrbitPoint`
- * as well, and every component that wants to point at the comet needs both.
- *
- * It exists because three of them did the sum separately and two got it
- * wrong: the reply rocket flew off to its own corner of the sky, and the
+ * The one place that answers this, for every component that points at the
+ * comet. It exists because three of them did the sum separately and two got
+ * it wrong: the reply rocket flew off to its own corner of the sky, and the
  * capsule carrying the receiver's words ran up the comet's *true* ellipse —
  * which is not where the comet is drawn — and stopped 7.6 units short of it.
  * Anything aimed at the comet aims with this.
  */
-export function cometReach(f: number): number {
-  return (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
-}
-
 export function cometAt(progress: number, width: number, height: number): Vec3 {
-  return hubComet(cometReach(displayedProgress(progress)), width, height);
+  return hubCometAt(displayedProgress(progress), width, height);
 }
 
 /** How far past the comet the reply settles, in world units (mockup M8c). */
@@ -514,24 +490,77 @@ export function replyStarAt(
   ];
 }
 
-export function hubComet(u: number, width: number, height: number): Vec3 {
+/**
+ * How wide the comet's ellipse is drawn, across its long axis, relative to
+ * the orbit's own (display-compressed) proportions, and which side the way
+ * out takes. The way home is the other side of the loop.
+ */
+export const COMET_ELLIPSE = {
+  width: { portrait: 0.18, landscape: 0.7 },
+  outbound: 1 as 1 | -1,
+};
+/** Perihelion to aphelion, through the focus: the orbit's whole length. */
+const APHELION_SPAN = PERIHELION + APHELION;
+
+/**
+ * Where the comet is drawn in the hub, for a **displayed progress** `f` along
+ * its cycle (0 = leaving home, ½ = as far as it goes, 1 = home again).
+ *
+ * An **ellipse**, not an arc. The comet's dates already move it by real Kepler
+ * motion (`orbitPoint`): an orbit with the planet at one focus, crawling far
+ * out for most of the wait and swinging home fast at the end. The hub used to
+ * keep only how *far* that put it, and slid the comet along a single bowed
+ * line — so the way out and the way home were the same path, and the comet
+ * on the day it left was drawn exactly where it would be the week before it
+ * came back. Now the whole orbit point is used: it leaves along one side of
+ * the loop and comes home along the other, and its place on screen changes
+ * with the date the way a comet's does.
+ *
+ * Staged in screen space, like the planet: the long axis runs from the
+ * homecoming point beside the planet (`cometHomeScreen`) to the far point in
+ * the top-right (`COMET_FAR_SCREEN`), so the composition the checks hold the
+ * comet to — clear of the satellite, inside the frame — is still the frame's.
+ */
+export function hubCometAt(f: number, width: number, height: number): Vec3 {
   const aspect = width / height;
   const { halfV, halfH } = hubHalfTangents(aspect);
   const camera = hubPose(width, height).position;
-  const t = Math.min(Math.max(u, 0), 1);
 
   const orientation = aspect < 1 ? "portrait" : "landscape";
   const far = COMET_FAR_SCREEN[orientation];
   const near = cometHomeScreen(width, height);
 
-  // A quadratic through near → bow → far, so the path curves the way an orbit
-  // seen edge-on does rather than running straight.
-  const control: [number, number] = [
-    (near[0] + far[0]) / 2 + COMET_BOW[orientation],
-    (near[1] + far[1]) / 2,
-  ];
-  const x = (1 - t) * (1 - t) * near[0] + 2 * (1 - t) * t * control[0] + t * t * far[0];
-  const y = (1 - t) * (1 - t) * near[1] + 2 * (1 - t) * t * control[1] + t * t * far[1];
+  // The long axis, in pixels so that "across it" is a right angle on screen.
+  const ax = (far[0] - near[0]) * width;
+  const ay = (far[1] - near[1]) * height;
+  const span = Math.hypot(ax, ay) || 1;
+  const along: [number, number] = [ax / span, ay / span];
+  // Across: the outbound side is to the right of the way out.
+  const across: [number, number] = [-along[1] * COMET_ELLIPSE.outbound, along[0] * COMET_ELLIPSE.outbound];
+
+  /*
+   * The orbit point, measured from the focus with perihelion on +x:
+   * perihelion lands on `near`, aphelion on `far`. Its *shape* is the true
+   * one: a real comet's orbit is sharp at the near end and widest far out,
+   * so it slips past the satellite on the way home rather than looping
+   * round it.
+   */
+  const g = Math.min(Math.max(f, 0), 1);
+  const point = orbitPoint(g);
+  /*
+   * How far along the long axis comes from the display-compressed orbit,
+   * which climbs out of the planet's corner quickly so the comet spends its
+   * wait up in the open sky of the top-right; the width comes from the true
+   * orbit, so the loop is still sharp at the near end.
+   */
+  const shown = displayOrbitPoint(g);
+  const fromNear = ((DISPLAY_NEAR - shown.x) / (DISPLAY_NEAR + DISPLAY_FAR)) * span;
+  const side = (point.y / APHELION_SPAN) * span * COMET_ELLIPSE.width[orientation];
+
+  const px = near[0] * width + along[0] * fromNear + across[0] * side;
+  const py = near[1] * height + along[1] * fromNear + across[1] * side;
+  const x = px / width;
+  const y = py / height;
 
   const depth = camera[2] - HUB_SATELLITE[2] + COMET_DEPTH;
   return [

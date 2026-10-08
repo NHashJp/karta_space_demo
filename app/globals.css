@@ -2893,6 +2893,19 @@ body:has(.sheet-layer) .orbit-ui__reread {
   font-size: 2.6rem;
 }
 
+/* The sender's own promise, under the number: the sentence the day keeps. */
+.comet-intro__promise {
+  max-width: 22em;
+  margin-top: var(--space-1);
+  font-size: 1.25rem;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--warm);
+  text-shadow: 0 0 24px rgba(5, 7, 12, 0.9);
+  text-wrap: balance;
+}
+
 .comet-intro[data-started="true"] .comet-intro__announce {
   opacity: 0;
 }
