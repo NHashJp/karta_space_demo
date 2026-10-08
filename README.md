@@ -10,6 +10,8 @@ One Next.js app, no database. Each card is configuration on its own slug.
 
 ## Run it
 
+Requires **Node 22.6+** (`.nvmrc` pins 22; `nvm use`).
+
 ```bash
 npm install
 npm run dev        # http://localhost:3000 — in development the root lists every card
@@ -29,7 +31,7 @@ variable is explained in [deployment](./docs/deployment.md#2-environment-variabl
 | `npm run dev` | dev server |
 | `npm run build` / `npm start` | production build and serve |
 | `npm run check` | typecheck, then the verify suite — the gate before deploying |
-| `npm run verify` | the checks alone (needs Node 22.6+; on Node 20 use `npx tsx scripts/verify-*.mts`) |
+| `npm run verify` | the checks alone |
 | `npm run images <slug>` | write two placeholder face images for a card |
 
 ## Documentation

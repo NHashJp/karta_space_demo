@@ -19,16 +19,19 @@ export type Copied = { from: string; to: string; done: boolean; why?: string };
 
 export function carryMedia(moves: Relocation[], root = process.cwd()): Copied[] {
   return moves.map((move) => {
-    const from = join(root, diskPath(move.from, move.where));
+    // Editor-only (refused in production), so the bundler is told not to
+    // trace these paths; it cannot see their bounds and would otherwise ship
+    // the whole project inside the editor's route.
+    const from = join(/*turbopackIgnore: true*/ root, diskPath(move.from, move.where));
     // Every picture lands in the card's private folder (see `Relocation`).
-    const to = join(root, diskPath(move.to, "private"));
+    const to = join(/*turbopackIgnore: true*/ root, diskPath(move.to, "private"));
 
-    if (!existsSync(from)) {
+    if (!existsSync(/*turbopackIgnore: true*/ from)) {
       // The path was already wrong before this, or the file has been deleted.
       // `cardRules` reports it; there is nothing here to carry.
       return { from: move.from, to: move.to, done: false, why: "no such file" };
     }
-    if (existsSync(to)) {
+    if (existsSync(/*turbopackIgnore: true*/ to)) {
       // Already carried, on an earlier save. Nothing is overwritten: the file
       // that is there is the one the card is now pointing at, and replacing it
       // could silently swap one photograph for another.
