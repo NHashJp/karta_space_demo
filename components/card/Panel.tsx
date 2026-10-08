@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { useEffect, useRef } from "react";
 import { CloseIcon } from "./Icons";
 
@@ -33,6 +34,8 @@ type Props = {
  * panel is open, so these really are the only ways out.
  */
 export function Panel({ title, place = "bottom", divided = false, onClose, children }: Props) {
+  const t = useStrings();
+  const lang = useLang();
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,10 +74,10 @@ export function Panel({ title, place = "bottom", divided = false, onClose, child
         ref={panel}
       >
         <div className="panel__head">
-          <h2 className="panel__title" lang="ja">
+          <h2 className="panel__title" lang={lang}>
             {title}
           </h2>
-          <button className="panel__close" onClick={onClose} aria-label="閉じる">
+          <button className="panel__close" onClick={onClose} aria-label={t.common.close}>
             <CloseIcon />
           </button>
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useStrings } from "./LangContext";
 import { orbitDiagram } from "@/lib/cometOrbit";
 
 /**
@@ -41,6 +42,7 @@ export function CometTrajectory({
   returnLabel,
   returned = false,
 }: Props) {
+  const t = useStrings();
   const d = orbitDiagram(progress, WIDTH, HEIGHT, PADDING);
   const colour = tone === "receiver" ? "#f3d7a4" : "#7fd4f5";
 
@@ -56,7 +58,7 @@ export function CometTrajectory({
       className="trajectory"
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       role="img"
-      aria-label={`彗星の軌道。${returnLabel}に、あなたの星へ戻ってきます。`}
+      aria-label={t.trajectory.aria(returnLabel)}
       lang="ja"
     >
       {/* The orbit itself. Dashed, because it is a path not a wire. */}
@@ -89,7 +91,7 @@ export function CometTrajectory({
         y={d.focus.y + 4}
         textAnchor="end"
       >
-        あなたの星
+        {t.trajectory.home}
       </text>
 
       {/* 「また、ここで。」 — the tick at perihelion, the day it comes home. */}
@@ -108,7 +110,7 @@ export function CometTrajectory({
         y={d.perihelion.y + 26}
         textAnchor="middle"
       >
-        また、ここで。
+        {t.trajectory.meetHere}
       </text>
 
       {/* 「いま、ここ」 — and the comet, where today puts it. */}
@@ -120,7 +122,7 @@ export function CometTrajectory({
         y={d.comet.y + 4}
         textAnchor={onRight ? "start" : "end"}
       >
-        {returned ? "帰ってきました" : "いま、ここ"}
+        {returned ? t.trajectory.back : t.trajectory.now}
       </text>
     </svg>
   );

@@ -52,6 +52,7 @@ export async function POST(request: Request, { params }: Params) {
     message: result.value.message,
     sentAt: new Date(),
     timeZone: card.timeZone ?? DEFAULT_TIME_ZONE,
+    lang: card.lang,
   });
   if (!mail) return notFound();
 

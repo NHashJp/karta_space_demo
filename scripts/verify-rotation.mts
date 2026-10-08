@@ -72,6 +72,7 @@ import {
   shootingStars,
 } from "../lib/shootingStars.ts";
 import { cleanSignature } from "../lib/signature.ts";
+import { visualLength } from "../lib/i18n.ts";
 /** The meteor shower's own length, read from the component that plays it. */
 const SHOWER_S = Number(
   /const DURATION_S = ([\d.]+)/.exec(
@@ -327,12 +328,12 @@ console.log("4. Camera framing and on-screen text size:");
     const cssToScreen = renderedPx / panelPx;
     const longest = Math.max(
       ...cards.flatMap((card) =>
-        card.faces.filter((f) => f.type === "text").map((f) => f.body.length),
+        card.faces.filter((f) => f.type === "text").map((f) => visualLength(f.body)),
       ),
     );
     const longestSecret = Math.max(
       1,
-      ...cards.map((card) => (card.secret ?? "").trim().length),
+      ...cards.map((card) => visualLength((card.secret ?? "").trim())),
     );
     const worst = measureFace(panelPx, longest);
     const fontPx = worst.fontPx * cssToScreen;
@@ -399,7 +400,7 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
         check(id(`face ${i + 1} image exists`), existsSync(file), file);
         continue;
       }
-      const chars = face.body.length;
+      const chars = visualLength(face.body);
 
       if (face.style === "line") {
         // A line face is fitted as a beat, not as a paragraph: the question is

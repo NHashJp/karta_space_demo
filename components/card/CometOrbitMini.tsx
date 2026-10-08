@@ -1,5 +1,6 @@
 "use client";
 
+import { useStrings } from "./LangContext";
 import { orbitDiagram } from "@/lib/cometOrbit";
 
 /**
@@ -28,6 +29,7 @@ type Props = {
 };
 
 export function CometOrbitMini({ progress, tone = "sender", label }: Props) {
+  const t = useStrings();
   // The ellipse in diagram space, from the same helper the full trajectory
   // view uses — the planet at a focus, not the centre.
   const d = orbitDiagram(progress, WIDTH, HEIGHT, 8);
@@ -48,9 +50,7 @@ export function CometOrbitMini({ progress, tone = "sender", label }: Props) {
       width={WIDTH}
       height={HEIGHT}
       role="img"
-      aria-label={
-        label ? `彗星の軌道。${label}に戻ります。` : "彗星の軌道"
-      }
+      aria-label={t.trajectory.mini(label)}
     >
       <ellipse
         cx={centreX}

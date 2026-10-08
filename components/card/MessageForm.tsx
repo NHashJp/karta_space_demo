@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { useEffect, useState } from "react";
 import { countCharacters, NAME_MAX } from "@/lib/submission";
 
@@ -46,13 +47,15 @@ export function MessageForm({
   messageMax,
   submitLabel,
   sendingLabel,
-  namePlaceholder = "お名前",
-  messagePlaceholder = "メッセージ",
+  namePlaceholder,
+  messagePlaceholder,
   note,
   backLabel,
   onBack,
   onSent,
 }: Props) {
+  const t = useStrings();
+  const lang = useLang();
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [website, setWebsite] = useState("");
@@ -111,8 +114,8 @@ export function MessageForm({
   return (
     <form className="message-form" onSubmit={submit}>
       <label className="message-form__field">
-        <span className="message-form__label" lang="ja">
-          {namePlaceholder}
+        <span className="message-form__label" lang={lang}>
+          {namePlaceholder ?? t.form.name}
         </span>
         <input
           className="message-form__input"
@@ -125,8 +128,8 @@ export function MessageForm({
       </label>
 
       <label className="message-form__field">
-        <span className="message-form__label" lang="ja">
-          {messagePlaceholder}
+        <span className="message-form__label" lang={lang}>
+          {messagePlaceholder ?? t.form.message}
         </span>
         <textarea
           className="message-form__input message-form__textarea"
@@ -167,13 +170,13 @@ export function MessageForm({
         it, because "すぐに、みおに届きます" is not true at that moment.
       */}
       {state === "failed" || state === "rate-limited" ? (
-        <p className="message-form__error" role="alert" lang="ja">
+        <p className="message-form__error" role="alert" lang={lang}>
           {state === "rate-limited"
-            ? "少し時間をおいて、もう一度お試しください。"
-            : "うまく届きませんでした。もう一度お試しください。"}
+            ? t.form.rateLimited
+            : t.form.failed}
         </p>
       ) : note ? (
-        <p className="message-form__note" lang="ja">
+        <p className="message-form__note" lang={lang}>
           {note}
         </p>
       ) : null}
@@ -185,16 +188,16 @@ export function MessageForm({
             type="button"
             onClick={onBack}
             disabled={state === "sending"}
-            lang="ja"
+            lang={lang}
           >
-            {backLabel ?? "もどる"}
+            {backLabel ?? t.common.back}
           </button>
         ) : null}
         <button
           className={onBack ? "button button--wide" : "button"}
           type="submit"
           disabled={!valid || state === "sending"}
-          lang="ja"
+          lang={lang}
         >
           {state === "sending" ? sendingLabel : submitLabel}
         </button>

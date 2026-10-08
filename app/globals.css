@@ -489,7 +489,7 @@ body {
   color: #ff8a8a;
 }
 
-.notice p[lang="ja"] {
+.notice p[lang] {
   font-size: 1rem;
   line-height: 1.9;
   color: var(--asteroid);
@@ -1135,20 +1135,44 @@ body {
   position: absolute;
   top: max(80px, calc(env(safe-area-inset-top) + var(--space-3)));
   right: var(--space-3);
-  max-width: min(320px, 46vw);
+  max-width: min(400px, 46vw);
   text-align: right;
   pointer-events: none;
+  /* The sky behind is busy; the shadow keeps the larger type readable. */
+  text-shadow: 0 0 24px rgba(5, 7, 12, 0.9);
 }
 
+/* The promise, in the sender's words: the sentence the card is about. */
 .orbit-caption__promise {
-  font-size: 0.875rem;
-  line-height: 24px;
+  font-size: 1.25rem;
+  line-height: 32px;
   font-weight: 500;
+  letter-spacing: 0.04em;
   color: var(--starlight);
+  text-wrap: balance;
+  /* Break Japanese between phrases, never inside one (次のクリスマス｜に…). */
+  word-break: auto-phrase;
+}
+
+/* The countdown, on its own line and large: あと 78 日. */
+.orbit-caption__count {
+  margin-top: var(--space-1);
+  font-size: 1rem;
+  line-height: 40px;
+  letter-spacing: 0.08em;
+  color: var(--starlight);
+  font-variant-numeric: tabular-nums;
+}
+
+.orbit-caption__days {
+  margin: 0 0.12em;
+  font-size: 2.25rem;
+  font-weight: 600;
+  color: #ffd6a0;
+  text-shadow: 0 0 18px rgba(255, 196, 140, 0.4);
 }
 
 .orbit-caption__when {
-  margin-top: var(--space-half);
   font-size: 0.75rem;
   line-height: 20px;
   color: var(--lunar);
@@ -1171,7 +1195,16 @@ body {
   .orbit-caption {
     top: max(72px, calc(env(safe-area-inset-top) + var(--space-2)));
     right: var(--space-2);
-    max-width: 56vw;
+    max-width: 64vw;
+  }
+
+  .orbit-caption__promise {
+    font-size: 1.06rem;
+    line-height: 28px;
+  }
+
+  .orbit-caption__days {
+    font-size: 1.875rem;
   }
 }
 
@@ -1929,11 +1962,21 @@ body:has(.sheet-layer) .orbit-ui__reread {
  * card that starts making noise has to be silenceable from wherever the reader
  * happens to be when they notice.
  */
-.sound-toggle {
+/*
+ * The top-right controls as one group — "?" in the orbit view, then sound —
+ * so they always sit side by side, whatever width the sound control takes.
+ */
+.corner-controls {
   position: fixed;
   top: max(var(--space-2), env(safe-area-inset-top));
   right: max(var(--space-2), env(safe-area-inset-right));
   z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sound-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2974,4 +3017,98 @@ body:has(.sheet-layer) .orbit-ui__reread {
   right: var(--space-2);
   bottom: max(var(--space-3), env(safe-area-inset-bottom));
   pointer-events: auto;
+}
+
+/* ---------- what KARTA_SPACE is about: the orbit view's "?" ---------- */
+
+/* The sound control's twin, beside it in the top-right group. */
+.about-toggle {
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 1px solid rgba(176, 180, 186, 0.25);
+  border-radius: var(--radius-pill);
+  background: var(--chrome-fill);
+  backdrop-filter: blur(8px);
+  color: var(--lunar);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 200ms ease, border-color 200ms ease;
+}
+
+.about-toggle:hover,
+.about-toggle:focus-visible,
+.about-toggle[aria-pressed="true"] {
+  color: var(--starlight);
+  border-color: var(--ion);
+}
+
+.about-toggle:focus-visible {
+  outline: 2px solid var(--ion);
+  outline-offset: 3px;
+}
+
+.about-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The one sentence the product is: さようなら becomes またね. */
+.about__lead {
+  font-size: 1.25rem;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--warm);
+  text-wrap: balance;
+}
+
+.about__intro {
+  font-size: 0.875rem;
+  line-height: 24px;
+  color: var(--lunar);
+}
+
+.about__values {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about__value {
+  display: grid;
+  grid-template-columns: var(--space-4) 1fr;
+  align-items: baseline;
+}
+
+.about__index {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: var(--ion);
+  font-variant-numeric: tabular-nums;
+}
+
+.about__title {
+  font-size: 0.94rem;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--starlight);
+}
+
+.about__body {
+  margin-top: var(--space-half);
+  font-size: 0.82rem;
+  line-height: 20px;
+  color: var(--lunar);
 }

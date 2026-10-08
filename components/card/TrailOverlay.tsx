@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import type { ClientMemory } from "@/lib/clientCard";
 
@@ -20,6 +21,8 @@ type Props = {
  * dots should not quietly disagree with the camera about which way that is.
  */
 export function TrailOverlay({ memories, active, revealed, onBack }: Props) {
+  const t = useStrings();
+  const lang = useLang();
   const memory = memories[active];
   const oldest = active === memories.length - 1;
 
@@ -43,14 +46,14 @@ export function TrailOverlay({ memories, active, revealed, onBack }: Props) {
         <div className="trail-ui__memory" data-visible={revealed}>
           {memory ? (
             <>
-              <p className="trail-ui__date" lang="ja">
-                {formatFuzzyDate(memory.date, memory)}
+              <p className="trail-ui__date" lang={lang}>
+                {formatFuzzyDate(memory.date, { ...memory, lang })}
               </p>
-              <h2 className="trail-ui__title" lang="ja">
+              <h2 className="trail-ui__title" lang={lang}>
                 {memory.title}
               </h2>
               {memory.caption ? (
-                <p className="trail-ui__caption" lang="ja">
+                <p className="trail-ui__caption" lang={lang}>
                   {memory.caption}
                 </p>
               ) : null}
@@ -58,12 +61,12 @@ export function TrailOverlay({ memories, active, revealed, onBack }: Props) {
           ) : null}
         </div>
 
-        <p className="trail-ui__hint" data-visible={revealed && !oldest} lang="ja">
-          スクロールで、さらに昔へ
+        <p className="trail-ui__hint" data-visible={revealed && !oldest} lang={lang}>
+          {t.trail.further}
         </p>
 
-        <button className="button button--quiet trail-ui__back" onClick={onBack} lang="ja">
-          軌道に戻る
+        <button className="button button--quiet trail-ui__back" onClick={onBack} lang={lang}>
+          {t.trail.back}
         </button>
       </div>
     </div>

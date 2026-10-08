@@ -1,6 +1,7 @@
 import { MAIL_SINK_DIR, mailSink, notifyTo } from "./notify.ts";
 import { DEFAULT_TIME_ZONE } from "./orbitClock.ts";
 import { formatFuzzyDate } from "./fuzzyDate.ts";
+import { strings, type Lang } from "./i18n.ts";
 
 /**
  * Everything the receiver writes goes to the sender, by email (spec v0.2
@@ -144,7 +145,7 @@ export function baseUrl(): string {
 }
 
 /** "2026年9月23日 21:04", in the card's own time zone. */
-export function formatSentAt(at: Date, timeZone = DEFAULT_TIME_ZONE): string {
+export function formatSentAt(at: Date, timeZone = DEFAULT_TIME_ZONE, lang: Lang = "ja"): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -156,12 +157,13 @@ export function formatSentAt(at: Date, timeZone = DEFAULT_TIME_ZONE): string {
   }).formatToParts(at);
 
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  const date = formatFuzzyDate(`${get("year")}-${get("month")}-${get("day")}`);
+  const date = formatFuzzyDate(`${get("year")}-${get("month")}-${get("day")}`, { lang });
   return `${date} ${get("hour")}:${get("minute")}`;
 }
 
 /* -------------------------------------------------------------------------
- * The three templates (§14.8). Plain text, Japanese, and deliberately short.
+ * The three templates (§14.8). Plain text, in the card's language, and
+ * deliberately short.
  * ---------------------------------------------------------------------- */
 
 export function replyMail(input: {
@@ -171,19 +173,21 @@ export function replyMail(input: {
   message: string;
   sentAt: Date;
   timeZone?: string;
+  lang?: Lang;
 }): Mail | null {
   const to = notifyTo(input.slug);
   if (!to) return null;
+  const t = strings(input.lang).mail;
 
   return {
     to,
-    subject: `「${input.title}」に返事が届きました`,
+    subject: t.replySubject(input.title),
     text: [
-      `${input.name}さんから、返事が届きました。`,
+      t.replyLead(input.name),
       "",
       input.message,
       "",
-      `— ${formatSentAt(input.sentAt, input.timeZone)}`,
+      `— ${formatSentAt(input.sentAt, input.timeZone, input.lang)}`,
       "KARTA_SPACE",
     ].join("\n"),
   };
@@ -195,23 +199,25 @@ export function cometMail(input: {
   name: string;
   returnsOn: string;
   token: string;
+  lang?: Lang;
 }): Mail | null {
   const to = notifyTo(input.slug);
   if (!to) return null;
+  const t = strings(input.lang).mail;
 
-  const date = formatFuzzyDate(input.returnsOn);
+  const date = formatFuzzyDate(input.returnsOn, { lang: input.lang });
   return {
     to,
-    subject: `${input.name}さんの言葉が、彗星にのりました（${date}に戻ってきます）`,
+    subject: t.cometSubject(input.name, date),
     text: [
-      `「${input.title}」から、${input.name}さんが彗星に言葉をのせました。`,
-      `${date}に戻ってくるまで、中身は読めません。`,
+      t.cometLead(input.title, input.name),
+      t.cometSealed(date),
       "",
-      "彗星の行方と、戻ってきた言葉は、このリンクから:",
+      t.cometLink,
       `${baseUrl()}/comet/${input.token}`,
       "",
       // The one warning that matters, in the one place it will be read.
-      "このメールは消さずに残しておいてください。リンクがなくなると、彗星は見つけられなくなります。",
+      t.cometKeep,
       "KARTA_SPACE",
     ].join("\n"),
   };
@@ -223,22 +229,24 @@ export function cometDayMail(input: {
   label: string;
   promise: string;
   today: string;
+  lang?: Lang;
 }): Mail | null {
   const to = notifyTo(input.slug);
   if (!to) return null;
+  const t = strings(input.lang).mail;
 
   return {
     to,
-    subject: `今日は「${input.label}」です`,
+    subject: t.daySubject(input.label),
     text: [
-      `「${input.title}」の彗星が、戻ってくる日になりました。`,
+      t.dayLead(input.title),
       "",
       input.promise,
       "",
-      "相手に、連絡してみませんか。",
-      `カード: ${baseUrl()}/c/${input.slug}`,
+      t.dayNudge,
+      t.dayCard(`${baseUrl()}/c/${input.slug}`),
       "",
-      "彗星のメールが届いている場合は、今日からそのリンクで読めます。",
+      t.dayOpen,
       "KARTA_SPACE",
     ].join("\n"),
     // One reminder per card per day, whatever the scheduler does (§12.1).

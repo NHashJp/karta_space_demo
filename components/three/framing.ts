@@ -971,8 +971,10 @@ export const CAPTION_INSET = {
  * dwells just outside three lines of type still reads as sitting on them.
  */
 export const CAPTION_KEEP_OUT = {
-  portrait: { x: 0.5, y: 0.2 },
-  landscape: { x: 0.66, y: 0.25 },
+  // Taller than it was: the promise and the countdown are set larger now,
+  // with the countdown on a line of its own.
+  portrait: { x: 0.5, y: 0.27 },
+  landscape: { x: 0.66, y: 0.3 },
 };
 
 /**

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { Panel } from "./Panel";
 import { MessageForm } from "./MessageForm";
 import { RocketIcon } from "./Icons";
@@ -24,9 +25,11 @@ export function ReplyPanel({
   /** Dispatched only after the server has accepted the reply (§10.2). */
   onSent: () => void;
 }) {
+  const t = useStrings();
+  const lang = useLang();
   return (
-    <Panel title="返事を打ち上げる" place="high" divided onClose={onClose}>
-      <p className="panel__prompt" lang="ja">
+    <Panel title={t.reply.title} place="high" divided onClose={onClose}>
+      <p className="panel__prompt" lang={lang}>
         {card.replyPrompt}
       </p>
 
@@ -43,17 +46,17 @@ export function ReplyPanel({
         out along the comet's path and overtakes it, which is the whole reason
         there are two ways to send something here.
       */}
-      <p className="reply__how" lang="ja">
+      <p className="reply__how" lang={lang}>
         <RocketIcon className="reply__how-icon" />
-        あなたの言葉をのせたロケットが、彗星を追い越して{card.from}に届きます。
+        {t.reply.how(card.from)}
       </p>
 
       <MessageForm
         endpoint={`/c/${card.slug}/reply`}
         messageMax={REPLY_MAX}
-        submitLabel="ロケットを打ち上げる"
-        sendingLabel="打ち上げています…"
-        note={`彗星より先に、すぐに${card.from}へ。`}
+        submitLabel={t.reply.submit}
+        sendingLabel={t.reply.sending}
+        note={t.reply.note(card.from)}
         onSent={onSent}
       />
     </Panel>

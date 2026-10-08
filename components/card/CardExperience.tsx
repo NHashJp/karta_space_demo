@@ -16,6 +16,10 @@ import { CometIntro } from "./CometIntro";
 import { CrossroadsPanel } from "./CrossroadsPanel";
 import { TrajectoryPanel } from "./TrajectoryPanel";
 import { ReplyPanel } from "./ReplyPanel";
+import { AboutPanel } from "./AboutPanel";
+import { LangProvider } from "./LangContext";
+import { strings } from "@/lib/i18n";
+import { QuestionIcon } from "./Icons";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
 import { SoundToggle } from "./SoundToggle";
@@ -67,6 +71,9 @@ export function CardExperience({
   visitMode?: VisitMode;
 }) {
   const memoryCount = card.memories?.length ?? 0;
+  // The card's own language, for every word drawn around it (`lib/i18n.ts`).
+  const lang = card.lang ?? "ja";
+  const t = strings(lang);
 
   /*
    * What this browser has already seen of the comet (§11.5). It is read once,
@@ -389,13 +396,19 @@ export function CardExperience({
 
   useFaceNavigation(move, !acceptsInput(state), state !== "landing");
 
+  // The document speaks the card's language, for screen readers and for the
+  // browser's own line breaking.
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   if (failed) {
     return (
       <div className="screen">
         <div className="notice">
-          <p lang="ja">カードを読み込めませんでした。もう一度お試しください。</p>
-          <button className="button button--ghost" onClick={() => location.reload()} lang="ja">
-            再読み込み
+          <p lang={lang}>{t.common.loadFailed}</p>
+          <button className="button button--ghost" onClick={() => location.reload()} lang={lang}>
+            {t.common.reload}
           </button>
         </div>
       </div>
@@ -403,7 +416,8 @@ export function CardExperience({
   }
 
   return (
-    <main className="experience" data-state={state}>
+    <LangProvider lang={lang}>
+    <main className="experience" data-state={state} lang={lang}>
       <div className="experience__scene" aria-hidden={state !== "reading"}>
         <CubeScene
           faces={card.faces}
@@ -468,8 +482,8 @@ export function CardExperience({
       {state === "reading" || state === "transitioning" ? (
         <>
           <CardProgress active={activeFace} total={6} />
-          <p className="hint" data-visible={state === "reading" && activeFace === 0} lang="ja">
-            スクロール／スワイプ
+          <p className="hint" data-visible={state === "reading" && activeFace === 0} lang={lang}>
+            {t.reading.swipe}
           </p>
         </>
       ) : null}
@@ -547,6 +561,8 @@ export function CardExperience({
         />
       ) : null}
 
+      {panel === "about" ? <AboutPanel onClose={onClosePanel} /> : null}
+
       {panel === "trajectory" ? (
         <TrajectoryPanel card={card} aboard={aboard} onClose={onClosePanel} />
       ) : null}
@@ -571,24 +587,42 @@ export function CardExperience({
       {state === "inside" || state === "ascending" ? (
         <div className="screen screen--inside" data-leaving={state === "ascending"}>
           <div className="inside">
-            <p className="inside__hint" lang="ja">
-              スクロールして外へ
+            <p className="inside__hint" lang={lang}>
+              {t.inside.scrollOut}
             </p>
             <button
               className="button button--ghost"
               onClick={onReveal}
               disabled={state === "ascending"}
-              lang="ja"
+              lang={lang}
             >
-              外に戻る
+              {t.inside.back}
             </button>
           </div>
         </div>
       ) : null}
 
-      {soundAvailable && state !== "landing" ? (
-        <SoundToggle on={soundOn} onToggle={() => setSoundOn((on) => !on)} />
-      ) : null}
+      {/*
+        The top-right controls, side by side: what this is all about, in the
+        orbit view, and the sound everywhere past the landing screen. One group,
+        so the "?" sits right next to the sound control at any width.
+      */}
+      <div className="corner-controls">
+        {phase === "orbit" && state !== "deploying" && state !== "previewing" ? (
+          <button
+            className="about-toggle"
+            onClick={() => onOpenPanel("about")}
+            aria-label={t.orbit.about}
+            aria-pressed={panel === "about"}
+            title={t.orbit.about}
+          >
+            <QuestionIcon />
+          </button>
+        ) : null}
+        {soundAvailable && state !== "landing" ? (
+          <SoundToggle on={soundOn} onToggle={() => setSoundOn((on) => !on)} />
+        ) : null}
+      </div>
 
       <AmbientOverlay />
 
@@ -603,21 +637,21 @@ export function CardExperience({
         the payload at all until its date (§14.1).
       */}
       <div className="sr-only">
-        <h1 lang="ja">{card.title}</h1>
+        <h1 lang={lang}>{card.title}</h1>
         {card.faces.map((face, index) => (
-          <p key={index} lang="ja">
+          <p key={index} lang={lang}>
             {face.type === "text" ? face.body : face.alt}
           </p>
         ))}
-        {secret ? <p lang="ja">{secret}</p> : null}
+        {secret ? <p lang={lang}>{secret}</p> : null}
 
         {memories.length > 0 ? (
-          <section lang="ja">
-            <h2>航跡</h2>
+          <section lang={lang}>
+            <h2>{t.a11y.trail}</h2>
             {memories.map((memory, index) => (
               <article key={index}>
                 <h3>{memory.title}</h3>
-                <p>{formatFuzzyDate(memory.date, memory)}</p>
+                <p>{formatFuzzyDate(memory.date, { ...memory, lang })}</p>
                 {memory.caption ? <p>{memory.caption}</p> : null}
                 {memory.image ? <p>{memory.image.alt}</p> : null}
               </article>
@@ -626,13 +660,13 @@ export function CardExperience({
         ) : null}
 
         {card.comet ? (
-          <section lang="ja">
-            <h2>彗星</h2>
+          <section lang={lang}>
+            <h2>{t.a11y.comet}</h2>
             {card.comet.promise ? <p>{card.comet.promise}</p> : null}
             <p>{formatReturn(card.comet.label)}</p>
             {card.comet.message ? (
               <>
-                <p>{card.from}からの言葉</p>
+                <p>{t.a11y.fromWords(card.from)}</p>
                 <p>{card.comet.message}</p>
               </>
             ) : null}
@@ -640,5 +674,6 @@ export function CardExperience({
         ) : null}
       </div>
     </main>
+    </LangProvider>
   );
 }

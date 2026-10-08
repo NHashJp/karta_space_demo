@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { Panel } from "./Panel";
 import { ChevronRightIcon, CometIcon, RocketIcon, TrailIcon } from "./Icons";
 import type { ClientCard } from "@/lib/clientCard";
@@ -34,28 +35,30 @@ export function CrossroadsPanel({
   onTrajectory: () => void;
   onClose: () => void;
 }) {
+  const t = useStrings();
+  const lang = useLang();
   const memories = card.memories?.length ?? 0;
 
   return (
-    <Panel title="このあとは" onClose={onClose}>
+    <Panel title={t.crossroads.title} onClose={onClose}>
       <div className="crossroads">
         {card.replyAvailable ? (
-          <button className="crossroads__choice" onClick={onReply} lang="ja">
+          <button className="crossroads__choice" onClick={onReply} lang={lang}>
             <RocketIcon className="crossroads__icon" />
             <span className="crossroads__text">
-              <span className="crossroads__name">ロケットを打ち上げる</span>
-              <span className="crossroads__cost">彗星より先に、今すぐ{card.from}へ</span>
+              <span className="crossroads__name">{t.crossroads.rocket}</span>
+              <span className="crossroads__cost">{t.crossroads.rocketCost(card.from)}</span>
             </span>
             <ChevronRightIcon className="crossroads__chevron" />
           </button>
         ) : null}
 
         {memories > 0 ? (
-          <button className="crossroads__choice" onClick={onLookBack} lang="ja">
+          <button className="crossroads__choice" onClick={onLookBack} lang={lang}>
             <TrailIcon className="crossroads__icon" />
             <span className="crossroads__text">
-              <span className="crossroads__name">ふたりの航跡をたどる</span>
-              <span className="crossroads__cost">{memories}つの思い出</span>
+              <span className="crossroads__name">{t.crossroads.trail}</span>
+              <span className="crossroads__cost">{t.crossroads.memories(memories)}</span>
             </span>
             <ChevronRightIcon className="crossroads__chevron" />
           </button>
@@ -68,19 +71,19 @@ export function CrossroadsPanel({
           puts in the reader's head and then does not answer.
         */}
         {card.comet ? (
-          <button className="crossroads__choice" onClick={onTrajectory} lang="ja">
+          <button className="crossroads__choice" onClick={onTrajectory} lang={lang}>
             <CometIcon className="crossroads__icon" />
             <span className="crossroads__text">
-              <span className="crossroads__name">彗星の軌道を見る</span>
-              <span className="crossroads__cost">{card.comet.label.label}に戻ります</span>
+              <span className="crossroads__name">{t.crossroads.orbit}</span>
+              <span className="crossroads__cost">{t.crossroads.returnsAt(card.comet.label.label)}</span>
             </span>
             <ChevronRightIcon className="crossroads__chevron" />
           </button>
         ) : null}
 
         <div className="crossroads__stay">
-          <button className="button button--plain" onClick={onClose} lang="ja">
-            軌道にとどまる
+          <button className="button button--plain" onClick={onClose} lang={lang}>
+            {t.crossroads.stay}
           </button>
         </div>
       </div>

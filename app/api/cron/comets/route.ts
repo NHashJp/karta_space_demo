@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cards } from "@/config/cards.config";
 import { notifyTo } from "@/lib/notify";
 import { cometDayMail, sendMail } from "@/lib/mail";
+import { strings } from "@/lib/i18n";
 import { civilDate, DEFAULT_TIME_ZONE, isCometDay } from "@/lib/orbitClock";
 import { resolveNow } from "@/lib/devTime";
 import { firstParam } from "@/lib/devJump";
@@ -44,8 +45,9 @@ export async function GET(request: Request) {
       slug: card.slug,
       title: card.title,
       // Both are optional in the config; the email needs something to say.
-      label: card.comet.label ?? "約束の日",
-      promise: card.comet.promise ?? "また会いましょう。",
+      label: card.comet.label ?? strings(card.lang).mail.fallbackLabel,
+      promise: card.comet.promise ?? strings(card.lang).mail.fallbackPromise,
+      lang: card.lang,
       // The key that makes a second run of the same day harmless.
       today: civilDate(now, timeZone),
     });

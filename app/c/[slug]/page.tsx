@@ -8,6 +8,7 @@ import { firstParam, isVisitMode, type VisitMode } from "@/lib/devJump";
 import { cardVersion } from "@/lib/cardVersion";
 import { mailReady, cometReady } from "@/lib/notify";
 import { PasswordGate } from "@/components/access/PasswordGate";
+import { langOf } from "@/lib/i18n";
 import { CardExperience } from "@/components/card/CardExperience";
 
 export const metadata: Metadata = {
@@ -40,7 +41,7 @@ export default async function CardPage({ params, searchParams }: Props) {
     return (
       <>
         <meta name="karta-version" content={version} />
-        <PasswordGate slug={card.slug} hint={card.access?.hint} />
+        <PasswordGate slug={card.slug} hint={card.access?.hint} lang={langOf(card.lang)} />
       </>
     );
   }

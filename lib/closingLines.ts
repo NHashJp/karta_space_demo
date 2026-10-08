@@ -1,3 +1,5 @@
+import { visualLength } from "./i18n.ts";
+
 /**
  * Wrapping the closing line (spec v0.2 rev 6).
  *
@@ -41,22 +43,27 @@ function glyphSize(viewport: number, characters: number): number {
  */
 export function closingLines(closing: string, viewport: number): string[] {
   const text = closing.trim();
-  if (!text || glyphSize(viewport, text.length) >= MIN_GLYPH_PX) return [text];
+  // Measured in full-width characters, so an English line breaks where it
+  // is actually too wide rather than where it has too many letters.
+  const width = (part: string) => visualLength(part.trim());
+  if (!text || glyphSize(viewport, width(text)) >= MIN_GLYPH_PX) return [text];
 
   const breaks: number[] = [];
   for (let i = 0; i < text.length - 1; i++) {
-    if ("。、！？".includes(text[i])) breaks.push(i + 1);
+    const japanese = "。、！？".includes(text[i]);
+    // English pauses at a comma or a full stop *followed by a space*, so
+    // "3.5" or an initial does not count as one.
+    const english = ",.!?;:".includes(text[i]) && text[i + 1] === " ";
+    if (japanese || english) breaks.push(i + 1);
   }
   if (breaks.length === 0) return [text];
 
-  const best = breaks.reduce((a, b) =>
-    Math.max(b, text.length - b) < Math.max(a, text.length - a) ? b : a,
-  );
+  const longestAt = (at: number) => Math.max(width(text.slice(0, at)), width(text.slice(at)));
+  const best = breaks.reduce((a, b) => (longestAt(b) < longestAt(a) ? b : a));
 
   // Only if it actually helps: two lines cost vertical room on the screen too.
-  const longest = Math.max(best, text.length - best);
-  if (glyphSize(viewport, longest) <= glyphSize(viewport, text.length)) return [text];
+  if (glyphSize(viewport, longestAt(best)) <= glyphSize(viewport, width(text))) return [text];
 
-  return [text.slice(0, best), text.slice(best)];
+  return [text.slice(0, best).trim(), text.slice(best).trim()];
 }
 

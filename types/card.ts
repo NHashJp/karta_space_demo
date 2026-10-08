@@ -111,6 +111,11 @@ export type SocialLink = {
 
 export type CardConfig = {
   slug: string;
+  /**
+   * The language the card is written in, and that everything around it —
+   * buttons, sheets, dates, the countdown — speaks. Default "ja".
+   */
+  lang?: "ja" | "en";
   title: string;
   /** Optional one-line hint shown on the landing screen. */
   subtitle?: string;
