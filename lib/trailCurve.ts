@@ -10,9 +10,10 @@ import { hashSeed, seededUnit } from "./seed.ts";
  * can see in motion. One source, evaluated the same way by both.
  *
  * The shape: it starts just behind the orbit ring and recedes to z ≈ −70,
- * well inside the nebula's sphere of radius 90, curving gently — never more
- * than about 4 units sideways, so the trail reads as a path rather than a
- * scribble. Seeded from the slug, so each card's trail bends its own way.
+ * well inside the nebula's sphere of radius 90, curving gently — the control
+ * points never more than about 4 units sideways — and then, past the first
+ * few memories, in long slow bends (`meander`), so the trail reads as a path
+ * rather than a scribble, and never as a ruled line. Seeded from the slug, so each card's trail bends its own way.
  */
 
 export const TRAIL_POINTS = 7;
@@ -64,6 +65,9 @@ export function straightestTrail(): Point3[] {
     const t = i / (TRAIL_POINTS - 1);
     points.push([0, 1.1 * t, TRAIL_NEAR_Z + (TRAIL_FAR_Z - TRAIL_NEAR_Z) * t * t]);
   }
+  // The bound is the curve with no bends at all, so it is not given the
+  // meander either — a bend only ever lengthens a trail.
+  UNBENT.add(points);
   return points;
 }
 
@@ -103,9 +107,63 @@ export function trailPoint(points: Point3[], u: number): Point3 {
   const p2 = points[i + 1];
   const p3 = points[Math.min(i + 2, points.length - 1)];
 
-  return [0, 1, 2].map((axis) =>
-    catmullRom(p0[axis], p1[axis], p2[axis], p3[axis], t),
-  ) as Point3;
+  const [mx, my] = meander(points, clamped);
+  return [
+    catmullRom(p0[0], p1[0], p2[0], p3[0], t) + mx,
+    catmullRom(p0[1], p1[1], p2[1], p3[1], t) + my,
+    catmullRom(p0[2], p1[2], p2[2], p3[2], t),
+  ];
+}
+
+/**
+ * The far meander: long, slow S-bends past the first few memories.
+ *
+ * The control points are far apart at the far end — the trail is spaced so it
+ * compresses towards the horizon — so the seeded wander, a few units over
+ * segments twenty units long, left the whole far half reading as a straight
+ * line into the dark. These bends are what keep it a path someone travelled.
+ *
+ * Added here, at the one function every part of the scene reads the curve
+ * through, rather than to the control points: the ribbon, the memory panels,
+ * the arc-length spacing and the camera's moves between memories all pick it
+ * up identically, and the first stretch — the hub's composition — is exactly
+ * as it was built, because the bends ease in only after it.
+ */
+export const MEANDER = { across: 2.2, up: 0.8, from: 0.42, to: 0.62, turns: 2.2 };
+
+/** Curves that are deliberately left straight: `straightestTrail`'s. */
+const UNBENT = new WeakSet<Point3[]>();
+
+function meander(points: Point3[], u: number): [number, number] {
+  if (UNBENT.has(points)) return [0, 0];
+  const m = smoothstep(MEANDER.from, MEANDER.to, u);
+  if (m === 0) return [0, 0];
+  // Each card's bends start at their own phase, read off its own curve so
+  // that every caller handed the same points gets the same bends.
+  const phase = fract(points[1][0] * 12.9898 + points[2][1] * 78.233) * Math.PI * 2;
+  const bend = (u - MEANDER.from) * MEANDER.turns * Math.PI * 2;
+  /*
+   * Sideways, the bends swing between the trail's own line and its left —
+   * never right of it. Seen from the hub the far trail sits in the top-left
+   * corner of the frame, and a bend that could go either way pushed it out
+   * of that corner towards the satellite on a phone. One-sided, it still
+   * snakes, and the composition holds.
+   */
+  return [
+    -m * MEANDER.across * 0.5 * (1 - Math.cos(bend + phase * 0.25)),
+    // And up and down only *down* from it, for the same reason at the top:
+    // the far end must stay clear of the title.
+    -m * MEANDER.up * 0.5 * (1 - Math.cos(bend * 0.7 + phase)),
+  ];
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function fract(x: number): number {
+  return x - Math.floor(x);
 }
 
 function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): number {
@@ -139,7 +197,22 @@ export function trailTangent(points: Point3[], u: number): Point3 {
  */
 const SAMPLES = 256;
 
+/**
+ * Cached against the points array itself.
+ *
+ * `useStagedTrail` memoises the curve per seed and viewport, so in practice
+ * this is built once and read from for the life of the view. It used to be
+ * rebuilt on every call — 256 curve evaluations — which was fine when the
+ * only callers were placing memories once, and is not now that the camera
+ * asks for it every frame while it travels. A weak key means a trail that
+ * goes out of scope takes its table with it.
+ */
+const arcTables = new WeakMap<Point3[], number[]>();
+
 function arcTable(points: Point3[]): number[] {
+  const cached = arcTables.get(points);
+  if (cached) return cached;
+
   const table = [0];
   let previous = trailPoint(points, 0);
   let total = 0;
@@ -151,6 +224,7 @@ function arcTable(points: Point3[]): number[] {
     previous = at;
   }
 
+  arcTables.set(points, table);
   return table;
 }
 
@@ -191,6 +265,27 @@ export function memoryU(points: Point3[], index: number, count: number): number 
   const from = arcFractionAt(points, MEMORY_START_U);
   const to = arcFractionAt(points, MEMORY_END_U);
   return uAtArc(points, from + ((to - from) * index) / (count - 1));
+}
+
+/**
+ * The `u` that is fraction `f` of the **distance** from `from` to `to`.
+ *
+ * The trail is a uniform Catmull-Rom over control points that are not evenly
+ * spaced — its depth progression is quadratic, so at the far end one step of
+ * `u` is nearly ten times the length of one at the near end. Anything that
+ * *travels* the curve by stepping `u` at a constant rate therefore surges and
+ * slows, with a kick as it crosses each control point. `memoryU` already
+ * spaces the memories by distance for exactly this reason; this does the same
+ * for the journey between them.
+ *
+ * It does not change what any `u` means. `evenU(points, a, b, 0)` is `a` and
+ * `evenU(points, a, b, 1)` is `b`, exactly — only the pacing in between
+ * changes, so a move still starts and ends precisely where it did.
+ */
+export function evenU(points: Point3[], from: number, to: number, f: number): number {
+  const a = arcFractionAt(points, from);
+  const b = arcFractionAt(points, to);
+  return uAtArc(points, a + (b - a) * Math.min(Math.max(f, 0), 1));
 }
 
 /** The inverse of `uAtArc`: how much of the curve's length is behind `u`. */

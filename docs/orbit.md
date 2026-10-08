@@ -182,7 +182,7 @@ It plays **only after the server has accepted the message**. The animation is a
 confirmation, never a guess — if the send fails there is nothing to confirm,
 and the panel says so instead.
 
-## Composition (revision 6)
+## Composition (revision 6, and what revision 7.1 changes)
 
 | Object | Where |
 |---|---|
@@ -218,6 +218,283 @@ Two consequences worth recording:
 The planet turns once every two minutes rather than §22's twenty. Twenty
 minutes is right for a planet you are standing on and wrong for one you look at
 for ninety seconds — at that rate nothing visibly moves.
+
+## Dawn, and company (revision 7.1)
+
+Revision 6 got the composition right and the feeling wrong. One dark object,
+holding still, in a cold empty sky, after something had ended: every line of
+it correct and the whole of it reading as *after*. A card whose entire subject
+is two people looking forward to meeting again cannot look like that.
+
+Revision 7.1 fixes it with **light** and **company**, and — this is the part
+worth copying — by changing almost nothing that already worked. The satellite
+keeps its design, its place on screen and its small drift. The contrail keeps
+its geometry, colour and head. For those two, **the build is the reference**,
+even where it differs from the earlier documents. What changed is the light
+falling on them, and what else is up there with them.
+
+### The countdown is the sunrise
+
+`lib/dawn.ts` turns the comet's progress into one number, `p`, from 0.2 to 1,
+and everything in the scene is a function of it: the key light's colour and
+intensity, the sky's gradient, the warm haze, the width of the planet's
+crescent, the height of the sun, the brightness of the orbiting things, and
+the cutoff of the ambient chord.
+
+Two properties make it a countdown rather than decoration.
+
+- **It is never night.** `p ≥ 0.2` from the first visit, so nobody ever opens
+  the card to revision 6's cold sky.
+- **It accelerates.** `p = 0.2 + 0.8·f^2.2` puts most of the change into the
+  last quarter of the wait — which is exactly what the comet's own Kepler
+  motion does. Two visits in the first month look nearly identical; two visits
+  in the final fortnight do not.
+
+It is a function of a *date*, not of motion, so reduced motion still computes
+it in full. The sky a reader opens is the sky of the day they open it.
+
+### The limb is the planet
+
+The most dramatic thing in the orbit view is a line about two pixels wide.
+
+§6 draws the planet's air three times over — a haze 0.03R wide, a tight glow,
+and a 1.2 px line — with a **conic gradient** about the sunrise: cream-white
+where the sun is coming up, through gold, into cyan, out to the deep blue of
+atmosphere seen at a shallow angle. That one arc is what makes a mostly-black
+disc read as a world rather than as a hole in the sky, and it is what the eye
+goes to first.
+
+Revision 6 drew the air as a fresnel shell — a slightly larger sphere, back
+faces, additive. That can produce one soft band of one colour and nothing
+else: the gradient would have to be recovered from a surface normal near the
+silhouette, where that normal is least reliable, and a shell 14% thicker than
+the planet cannot draw a line a pixel wide at any viewport.
+
+So the air is a **ring facing the camera**, in the disc's own plane, in planet
+radii. The conic gradient is then a bearing from the centre, which is exactly
+how §6 writes it; the three passes are three Gaussians on one radius; and the
+aurora can stand off the limb on the night side, where it actually is. It is
+drawn at the planet's depth with depth testing on, so the satellite still
+passes in front of it.
+
+### The panels catch the light
+
+Revision 6 gave the solar arrays a specular glint and expected the sun's own
+drift to sweep it across them every couple of minutes. It never fired once.
+The satellite holds station, the sun's wobble is ±3°, and a `pow(·, 68)` lobe
+is a few degrees wide — the angles essentially never line up, so the arrays
+were dark glass for the whole visit.
+
+So r7 §5's sweep is **driven**. A narrow pulse crosses the six panels in turn
+on a nine-second cycle: each flashes for about a third of a second, and there
+are four seconds of quiet before it comes round again. It is capped at
+`0.06 + 0.14 · p` and added rather than substituted, so the cell grid is
+still there underneath — §5 is explicit that it must never wash a panel out.
+
+Each panel needs its own place in the queue, so the six share every uniform
+holder except `uIndex`, and that index is the panel's position *across* the
+satellite rather than the order the wings are built in: light sweeps across a
+thing, and the outer panel of the left wing is the leftmost of the six, not
+the third.
+
+It is the only thing in the hub that is briefly, deliberately bright, and it
+is what stops the satellite reading as a dead object. Hardware in sunlight
+catches the light; a thing that never catches the light is a thing that is
+not there.
+
+### The planet is lit from a point on its own limb
+
+The usual way to light a sphere is N·L against a sun direction, and it cannot
+draw this picture. The sun sits *on the visible limb*, and the arc of this
+planet the composition shows is the same arc the sun is on — so hemisphere
+lighting lights all of it, and you get a daylit ball, which is the image r7
+exists to replace. §6 does not describe hemisphere lighting. It describes a
+radial wash from a point on the limb, widening as the sun rises.
+
+So `planetSunDisc` returns a **position on the disc**, in planet radii, and
+the shader works in the disc's own screen space: the night radial, the
+crescent wash, the city lights that fade where it is already day. The
+coastlines are still under it, dark, to put the cities on.
+
+The crescent is **composited, not added**, and that one word is the whole
+look. Adding it lifts the entire visible arc towards grey — because the sun
+sits on the limb, almost all of the planet you can see is inside the wash —
+and the result is a pale ball. Mixing towards the wash colour instead leaves
+the night side at the night colour and lights only the sliver at the
+sunrise, which is the high-contrast reading the scene is composed for.
+
+This is the same move the rest of the composition already made — see *the
+scene is composed backwards from the screen* — applied to shading.
+
+### Company, on real orbits
+
+`lib/orbiters.ts` puts thirty small things around あなたの星: tiny satellites
+blinking, a station catching the sun, tumbling rocks and a far moonlet. Three
+decisions carry the effect.
+
+§8.1 also lists a **paper set** — a paper crane and two paper planes — and it
+is not in the build. r7 calls it "the playful one" and makes it switchable
+precisely because it is a different kind of object from everything else up
+here: the rest are spacecraft and rocks, on orbits, in vacuum, and origami is
+a thing from the other world entirely. Next to the satellite, which *is* the
+letter, it read as decoration rather than as company — which is the one thing
+R30 is trying not to be. Dropped rather than switched off, so there is no
+dead shape code waiting to be re-enabled by accident.
+
+**The orbits are real Kepler ellipses**, seen nearly edge-on. That means every
+object *slows and turns* out in the sky where you can see it and *falls away
+fast* past the planet. A thing moving at constant speed across a frame reads
+as a sprite on a path; a thing that hangs, turns over and drops reads as being
+in orbit. It is the only reason the module solves Kepler's equation instead of
+interpolating an ellipse.
+
+**The apoapsis is picked on screen first**, and the orbit is solved through
+it. An orbit chosen in space puts its slow, legible part wherever the geometry
+happens to — usually outside the frame.
+
+**Nothing darts.** Periods are 7 to 14 minutes, so the median speed on screen
+is about 5 px/s. You cannot watch one of these move; you can look away and
+look back and find it somewhere else, which is the pace of a sky.
+
+Each card's set is seeded from its slug, so two cards are visibly different
+skies and one card is the same sky every time.
+
+Depth does one job and only one. Each object is placed on the hub camera's ray
+through its pixel and pushed along that ray to a depth — so the depth never
+changes *where* it appears or how big it is, only *what covers it*. No sorting
+code, no render-order tricks.
+
+**Nothing passes in front of the planet or the satellite.** §8.4 allowed both:
+the near leg of each orbit crossed in front of the planet, and the closest
+orbits crossed the satellite as well. Both fail for the same reason. A cubesat
+eleven pixels across, or a rock of five, drifting over a planet that fills a
+corner of the frame or a satellite that spans a third of it does not read as
+*nearer* — it reads as a small thing stuck to the glass, because nothing else
+in the picture supports that scale. The foreground is the letter and the world
+it circles; the company is always beyond them.
+
+What replaces it is better anyway. Things now pass behind the planet's limb
+and out the other side, which is what moons do, and the planet is the one
+occluder left out in the sky — so it is the thing that makes the orbits read
+as orbits rather than as a flat field of drifting specks.
+
+It costs **one** depth rather than three, and that falls out of the
+composition rather than being arranged. The planet is staged much closer to
+the lens than the satellite is — on a desktop it occupies depths 0.5 to 4.9
+and the satellite 5.2 to 7.7 — so a single depth past the back of the
+satellite's hull is past the planet as well, and the depth buffer does the
+rest. Past the *back* of the hull, not its near face: the hull is a long thin
+thing on a diagonal, and an orbiter tucked between its front and back would
+be hidden in some places and not others as it drifted, which reads as
+flickering rather than as depth.
+
+It also costs objects. Hiding everything over the planet's disc rather than
+half of it thinned the visible sky from a median of eleven to nine, under the
+density §15 measures for — so the mix gained a cubesat and three rocks to make
+it back up. What that check is really protecting is how full the sky looks,
+not how many things are in it, so the right answer to taking visibility away
+was to put objects back.
+
+All thirty are drawn in **three meshes**, rebuilt on the CPU each
+frame — about nine hundred vertices, which is nothing — rather than in three
+hundred little ones, which would cost more draw calls than the rest of the
+scene put together.
+
+### Portrait is its own composition
+
+r6 drew the satellite at 0.81 of the width, tip to tip, on a phone. That is
+inside every margin the checks ask for and still too much: the hull spanned
+16% to 79% of the width, its panel corners a finger's width from both edges,
+and everything else in the scene — the planet, the comet, the things in orbit
+— had to fit in what was left.
+
+It is 0.74 now. The satellite is still unmistakably the subject and there is
+sky around it for the rest of the view to be in. Landscape is untouched;
+this is a portrait decision, made looking at the two side by side at phone
+size. The kept-as-built check (§31 in the verify suite) caught the change,
+which is exactly what it is for — the right response was to decide it rather
+than to discover it later.
+
+### Coming back from the trail is one move
+
+The return from a memory to the hub is the longest camera move in the product
+— up to three seconds — and the only one that changes kind half way through:
+it walks back along the trail's curve, then pulls out to the orbit pose. Four
+separate things made it read as a lurch rather than a journey.
+
+**It stopped in the middle.** Each half had its own ease-in-out, so the camera
+decelerated to a complete standstill at 72% of the way home and then
+accelerated out of it. (The branch also ignored the eased parameter the rig
+had already computed, so the move had no overall easing either.) The two
+motions overlap now: the walk runs the full length of the move and the
+pull-out blends in over the tail with a smoothstep — zero slope at both ends,
+so the second motion arrives without a corner and the first never has to stop
+for it.
+
+**It kicked as it crossed the curve.** The trail is a uniform Catmull-Rom over
+control points that are not evenly spaced — its depth progression is
+quadratic, so at the far end one step of `u` is nearly ten times the length of
+one at the near end. Walking `u` at a constant rate therefore surges and slows.
+`memoryU` already spaced the memories by distance for exactly this reason;
+`evenU` now does the same for the journey between them. It changes nothing
+about what any `u` *means*, so the memories and the ribbon are where they
+were — only the pacing in between.
+
+**Three things appeared out of nowhere.** The camera phase becomes `orbit` the
+*moment* the reader asks to come back, not when they arrive — so anything
+mounted on that phase popped into existence while the camera was still down on
+the curve. The trail's sway snapped from nothing to full in one frame, and the
+sun and the signal pulses blinked on. The sway ramps over about a second now,
+and the sun and the pulses fade like the orbiting things already did.
+
+The shape of the move lives in `retracePose` in `framing.ts` rather than inside
+the rig, so the verify suite can sample it: §32 walks the path at 400 steps and
+asserts the camera never stalls and never kicks. Reverting either fix fails it
+— the two-ease version scores 0% on the stall check at both viewports.
+
+### The bar is one row
+
+Four pills on two rows was a phone decision that had leaked onto every screen:
+the row was capped narrower than the viewport so that it would break at the
+same place on every handset rather than at whatever width the labels happened
+to reach. That cap is right on a phone and wrong everywhere else — on a
+desktop it turned a single quiet strip under the scene into a two-storey block
+of chrome in the bottom of the frame. The cap now applies below 600 px only.
+
+### What revision 7.1 found already broken
+
+Two defects that §14's step 0 asks to fix before anything is added, both of
+which had survived because every check measured the *intention* rather than
+the thing on screen.
+
+- **The planet was drawn in the wrong place.** `OrbitScene` positioned it at
+  `hubPlanet(w, h)` and `Planet` then positioned itself at `PLANET_CENTRE` as
+  well, so it was drawn at the sum: about 40% further out and a third of the
+  size the composition asks for. Nothing caught it, because the framing checks
+  all projected `hubPlanet` — where the planet is *meant* to be. Revision 7.1
+  is what made it matter: the sun, the crescent, the city lights, the aurora,
+  the signal pulses and every orbiting thing are placed from the planet's
+  screen disc.
+- **The comet read as a pale oval.** Its head was floored at about forty
+  pixels so it could be found among fifteen hundred stars, and §10's tail is
+  forty-nine pixels long for most of the year — so the tail spent eleven
+  months inside the head. There is now always a tail, and a tail is a far
+  better way to find a comet than a bigger blob, so the head went back to
+  about a third of the tail's length.
+
+Moving the planet to where it belongs also pushed the comet's homecoming
+*inside* the disc, so the comet came home by disappearing behind the world it
+was returning to — and the check that was supposed to catch that was written
+as two hand-picked fractions, which no longer meant "beside the planet". It is
+now measured against the disc itself.
+
+### The human check
+
+§16 asks for one: show the orbit view to three people who have not seen it,
+without explanation, and ask for one word. None should say "lonely", "sad" or
+"empty".
+
+> Not yet run. Record the three words here when it is.
 
 ## The satellite leaves as one object
 

@@ -179,7 +179,11 @@ than listing each, here is what each group is *for*:
 | 28 | that a full trail still has room between its photographs |
 | 29 | that a card's pictures follow it when its slug changes |
 | 30 | that every shooting star actually crosses the frame |
+| 9, 9b | the dawn curve, and the light it produces (rev 7.1) |
+| 31 | the two things rev 7.1 promises not to move: the satellite and the contrail |
+| 32 | that coming back from the trail is one continuous move |
 | `verify-spacing` | the 8-point grid, across CSS and inline styles |
+| `verify-orbiters` | the company in orbit, over two simulated hours (rev 7.1) |
 
 Sections 20–28 are all **rev 6**, and they share a shape worth noticing: each
 one asserts something that is only visible in motion, by checking the number
@@ -523,3 +527,146 @@ Also checked:
   the hold fails the build instead of quietly letting an ordinary streak cross
   the one day that was supposed to be special. With the hold cut to 3 s the
   check fails, so the margin is real.
+
+
+## 31. The dawn is a countdown, the sky keeps its company, and two things do not move
+
+Revision 7.1 added two scripts' worth of checks and one new script. They cover
+the two things in r7 that a screenshot cannot settle.
+
+### The dawn (section 9)
+
+`lib/dawn.ts` is a single curve, and the whole revision hangs off it, so it is
+checked against §3's table directly: f = 0, 0.25, 0.5, 0.75, 0.9, 1 must give
+p = 0.20, 0.24, 0.37, 0.62, 0.83, 1.00 to within 0.01. Plus: it only ever
+rises; it never goes below 0.2, so the sky is never night; a returned comet is
+1 and a kept one is 0.7; and the sun's disc clears the horizon at p ≈ 0.47 in
+both orientations.
+
+That last one is the check that makes the exponent load-bearing rather than
+decorative. With the curve linear, the sun would clear the limb around the
+halfway mark of the wait and the final month would look like the first. At
+`f^2.2` it clears in the last half, which is why a visit in the final fortnight
+looks different from the one before it.
+
+### The light (section 9b)
+
+The key light is now the dawn, so what is asserted is the two ends and the
+continuity between them: at blue hour the colour is within 25% of `#9fb8ff`,
+on the day within 5% of `#ffe2b8`, the day is at least 1.6× as bright, and
+stepping p across a thousand samples never moves the colour by more than 1%.
+
+The **fill is never zero**, at any p, and always points exactly opposite the
+key. That is the check standing in for a whole class of bug: a low, bright sun
+with no fill turns the satellite's shadow side black, and a black satellite in
+a warm sky is precisely the "one dark object" reading r7 exists to remove.
+
+The three screens r7 leaves alone — landing, reading, closing — still get r5's
+light, and the old assertions about it are unchanged. `keyLight` without a
+`Dawn` *is* r5's function.
+
+### The company (`verify-orbiters`)
+
+Mostly about **time**, because a still frame says nothing about whether the sky
+is still populated ten minutes later.
+
+- **Two simulated hours**, sampled every ten seconds, across twelve seeds:
+  the median number of visible objects must be at least 10 on a desktop and 6
+  on a phone, and the tenth percentile at least 6 and 3. Without this, a set
+  that looks generous on arrival can quietly empty out while someone reads a
+  sheet.
+- **Nothing darts.** The fastest on-screen speed, over twenty minutes of
+  motion per seed, and the worst move in a tenth of a second.
+- **Nothing passes through the planet**: every periapsis is at least 1.06
+  radii, which is a property of the eccentricity draw rather than something
+  clamped afterwards.
+- **Nothing dwells on the satellite or under the caption**, checked at the
+  apoapsis — the point each object spends most of its period near.
+- **Every craft is in clear view at t = 0**, so the sky is never empty on
+  arrival, and rocks are *not* checked that way, because their uniform phase is
+  what keeps minute ten looking like second one.
+- **Things still pass behind the planet.** It is the only occluder left out
+  in the sky, so if nothing ever goes behind it the orbits have stopped
+  reading as orbits.
+- **Nothing is ever drawn in front of the planet or the satellite.** What is
+  checked is the *relationship* — one depth, past the far side of both hulls —
+  because the depth and both hulls are all solved from the composition, so a
+  change to the satellite's scale or to how the planet is staged per aspect
+  ratio would move them without touching anything in the orbiter files. Paired
+  with it, a check that the rule is doing work rather than being vacuously
+  true: over two hours per seed, objects land over the satellite about 37,000
+  times and over the planet about 12,000.
+- **The same seed gives the same set, and forty seeds give forty sets.**
+
+One number in §15 is deliberately not taken literally. The speed limit of
+12 px/s was measured in a mockup that draws the planet at 0.495 of the width;
+this build draws it at 0.55, and an orbiter's screen speed is proportional to
+the planet's screen radius, because the orbit is measured in planet radii. The
+limit is scaled by that ratio rather than the period being changed — the
+document's constants win over the mockup, and this is the one figure in §15
+that is derived from the mockup's own composition.
+
+### What these two added to section 11
+
+The framing checks grew three assertions, all of which failed when first
+written, and all for the same underlying reason — the planet was being drawn
+at `hubPlanet + PLANET_CENTRE` rather than at `hubPlanet`:
+
+- the comet's **whole tail**, sampled along its length, never reaches the
+  satellite's hull. r7 points the tails away from the *sun*, which comes up
+  behind the limb at the bottom right, so they now sweep up and to the left —
+  which is where the satellite is;
+- the sun, flare and all, is inside the frame on the day;
+- the comet comes home **outside the planet's limb** and close to it, measured
+  against the disc rather than against two hand-picked fractions. The old
+  assertion went on passing while the comet came home behind the planet.
+
+### Pinning what must not change (section 31)
+
+Revision 7.1 is otherwise a licence to rework the whole orbit view, and it is
+explicit that two things in it are finished: the satellite's place on screen
+and its small movement, and the contrail. For those, *the build is the
+reference*, even where it differs from revisions 5 and 6.
+
+So section 31 is a **snapshot**, not a derivation: the satellite's body centre
+and the contrail's whole polyline, in pixels, at the five framing sizes,
+recorded at §14 step 0 and asserted to within a pixel. It is the only check in
+the suite whose correct response to a failure is to ask whether the change
+should have happened, rather than to update the numbers.
+
+It was checked against a real change rather than assumed to work: nudging the
+landscape composition's body centre from 0.47 to 0.48 fails it by 12.8 to 15.1
+pixels across the three landscape framings. (Moving `HUB_SATELLITE` itself does
+*not* fail it, and should not: `hubPose` solves the camera from that constant,
+so the satellite's screen position is invariant under it. What the snapshot
+pins is the composition as rendered, which is what the document is talking
+about.)
+
+
+## 32. Coming back from the trail is one move
+
+The longest camera move in the product, and the only one that changes kind
+half way through: it walks back along the trail's curve and then pulls out to
+the orbit pose. That is exactly the move most likely to read as two moves
+stuck together, and for a long time it was one — each half had its own
+ease-in-out, so the camera stopped dead at the join and set off again.
+
+Neither a screenshot nor a typecheck can show that. The path can: §32 samples
+`retracePose` at 400 steps, differentiates it twice, and asserts two things
+about the interior.
+
+- **It never stalls** — the slowest step is more than a tenth of the fastest.
+  The two-ease version scores 0% here, at both viewports, because the camera
+  genuinely reaches zero velocity twice.
+- **It never kicks** — no step differs from the one before it by more than 5%
+  of the fastest. This is the check that the walk is paced by *arc length*:
+  stepping the curve parameter at a constant rate instead puts a 10% jolt in
+  as the camera crosses a control point, because the control points are not
+  evenly spaced.
+
+Both were confirmed against the old implementation rather than assumed:
+restoring it fails the stall check at 0% and the kick check at 14.4% on a
+phone and 7.9% on a desktop.
+
+The check is only possible because the *shape* of the move was moved out of
+`CameraRig` into `framing.ts`. What stayed in the rig is how long it takes.

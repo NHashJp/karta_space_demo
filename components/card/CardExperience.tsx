@@ -12,6 +12,7 @@ import { CardProgress } from "./CardProgress";
 import { CompletionState } from "./CompletionState";
 import { OrbitOverlay } from "./OrbitOverlay";
 import { CometSheet } from "./CometSheet";
+import { CometIntro } from "./CometIntro";
 import { CrossroadsPanel } from "./CrossroadsPanel";
 import { TrajectoryPanel } from "./TrajectoryPanel";
 import { ReplyPanel } from "./ReplyPanel";
@@ -29,6 +30,7 @@ import {
   type CometVisit,
 } from "@/lib/cometVisit";
 import { lightSeed } from "@/lib/sceneLight";
+import { dawn as dawnOf } from "@/lib/dawn";
 import { elapsedDays, skyFor } from "@/lib/skyAge";
 import { DEPLOY_MS, replayed } from "@/lib/timing";
 import { orbitRotation, progress as cometProgress } from "@/lib/cometOrbit";
@@ -127,7 +129,16 @@ export function CardExperience({
   const onReveal = useCallback(() => dispatch({ type: "reveal" }), []);
   const onDeploy = useCallback(() => dispatch({ type: "deploy" }), []);
   const onDeployEnd = useCallback(() => dispatch({ type: "deployEnd" }), []);
-  const onLaunchEnd = useCallback(() => dispatch({ type: "launchEnd" }), []);
+  /*
+   * The reply has just overtaken the comet. Distinct from `launched`, which
+   * stays true forever: this is the *moment*, and it is what the toast and
+   * the bloom are hung on (r7 §11, §13).
+   */
+  const [overtook, setOvertook] = useState(false);
+  const onLaunchEnd = useCallback(() => {
+    setOvertook(true);
+    dispatch({ type: "launchEnd" });
+  }, []);
   const onOpenChart = useCallback(() => dispatch({ type: "openChart" }), []);
   const onLeaveChart = useCallback(() => dispatch({ type: "leaveChart" }), []);
   const onDock = useCallback(() => dispatch({ type: "dock" }), []);
@@ -209,6 +220,28 @@ export function CardExperience({
   }, [remember]);
 
   const onBoardEnd = useCallback(() => dispatch({ type: "boardEnd" }), []);
+  /*
+   * The intro's moment at zero: the scene shows the reunion morning — the
+   * warm light and the meteors the card really has that day — and the one
+   * bright sound in the palette. Off again as it rewinds to today.
+   */
+  const [introDay, setIntroDay] = useState(false);
+  const onIntroDay = useCallback(
+    (day: boolean) => {
+      setIntroDay(day);
+      if (day && card.sound !== false) sound.cue("returned");
+    },
+    [card.sound],
+  );
+  useEffect(() => {
+    if (state !== "previewing") setIntroDay(false);
+  }, [state]);
+
+  const onPreviewEnd = useCallback(() => {
+    // Once per cycle, like the departure it stands in for.
+    remember({ introduced: true, departed: true });
+    dispatch({ type: "previewEnd" });
+  }, [remember]);
 
   /*
    * The invite has been shown. Written the first time the sheet offers to
@@ -306,12 +339,48 @@ export function CardExperience({
     if (!card.comet) return undefined;
     return {
       progress: cometProgress(card.comet.leftOn, card.comet.returnsOn, card.today),
+      // The dawn follows this, not the raw progress: a comet held at
+      // perihelion is past its day, and the sky should say so (r7 §3).
+      status: card.comet.status,
       leftOn: card.comet.leftOn,
       aboard,
       onSelect: () => dispatch({ type: "openChart" }),
     };
   }, [card.comet, card.today, aboard]);
   const atRest = breathesAtRest(state);
+
+  /*
+   * The ambient bed opens with the dawn (r7 §12). Computed here rather than
+   * in the scene because it is a fact about the card's dates, and the sound
+   * module knows nothing about cards.
+   */
+  useEffect(() => {
+    if (!soundAvailable || !comet) return;
+    sound.setDawn(introDay ? 1 : dawnOf(comet.progress, comet.status).p);
+  }, [soundAvailable, comet, introDay]);
+
+  /** Three bells as the reply goes past the comet (§12). */
+  const onBloom = useCallback(() => {
+    if (soundAvailable) sound.cue("bloom");
+  }, [soundAvailable]);
+
+  /*
+   * Propel (r7 §11): the arrival beat, the first time the hub opens in this
+   * visit and on every arrival from the deployment or from the chart. Held in
+   * state rather than derived, because what triggers it is an *edge* — the
+   * moment `orbit` is reached — and the camera phase alone cannot see one.
+   */
+  const [propelling, setPropelling] = useState(0);
+  const propelledFrom = useRef<string | null>(null);
+  useEffect(() => {
+    const arrived = state === "orbit";
+    const from = propelledFrom.current;
+    propelledFrom.current = state;
+    if (!arrived) return;
+    if (from !== "deploying" && from !== "homing" && from !== null) return;
+    setPropelling((n) => n + 1);
+    if (soundAvailable) sound.cue("dawn");
+  }, [state, soundAvailable]);
 
   // The cube owns the deployment animation and says when it is done; this
   // only tells it which way to run (spec v0.2 §8.2).
@@ -345,7 +414,7 @@ export function CardExperience({
           cameraPhase={phase}
           cameraLeg={activeMemory}
           seed={seed}
-          returned={returned}
+          returned={returned || introDay}
           sky={sky}
           atRest={atRest}
           memories={card.memories}
@@ -359,12 +428,18 @@ export function CardExperience({
           onLaunchEnd={onLaunchEnd}
           departing={state === "departing"}
           onDepartEnd={onDepartEnd}
+          previewing={state === "previewing"}
           boarding={state === "boarding"}
           onBoardEnd={onBoardEnd}
           deploying={deploying}
           deployMs={deployMs}
           deployed={isDeployed(state)}
+          // The closing screen is up and the orbit is the way on: build it now,
+          // hidden, so 軌道へ送り出す starts the animation with nothing to wait for.
+          prepare={card.hasOrbit && (state === "leaving" || state === "completed")}
           onDeployEnd={onDeployEnd}
+          propel={propelling}
+          onBloom={onBloom}
           secret={secret}
           within={isWithinCube(state)}
           revealSecret={revealsSecret(state)}
@@ -414,7 +489,7 @@ export function CardExperience({
         />
       ) : null}
 
-      {phase === "orbit" && state !== "deploying" ? (
+      {phase === "orbit" && state !== "deploying" && state !== "previewing" ? (
         <OrbitOverlay
           card={card}
           panel={panel}
@@ -426,6 +501,18 @@ export function CardExperience({
           onDock={onDock}
           onEnterSatellite={onEnterSatellite}
           hasSecret={Boolean(secret)}
+          onFindReply={onOpenChart}
+          overtook={overtook}
+        />
+      ) : null}
+
+      {/* The first time the comet leaves, what it is for — before it asks. */}
+      {state === "previewing" ? (
+        <CometIntro
+          card={card}
+          reducedMotion={reducedMotion}
+          onDay={onIntroDay}
+          onDone={onPreviewEnd}
         />
       ) : null}
 

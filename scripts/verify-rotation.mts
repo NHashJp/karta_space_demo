@@ -25,8 +25,13 @@ import {
   PLANET_RADIUS,
   WING_AXIS_DEG,
   cometAt,
-  hubComet,
+  hubCometAt,
+  hubSun,
   hubPlanet,
+  hubPlanetScreen,
+  hubProject,
+  retracePose,
+  trailScreen,
   hubLabel,
   hubPose,
   hubTargets,
@@ -56,6 +61,7 @@ import { serializeCards } from "../lib/cardsFile.ts";
 import { allProblems, cardProblems, MEMORY_MAX } from "../lib/cardRules.ts";
 import { rehomeCard, strayMedia } from "../lib/cardMedia.ts";
 import {
+  APPEAR,
   MEAN_GAP_S,
   POOL as STAR_POOL,
   QUIET_AFTER_S,
@@ -65,6 +71,7 @@ import {
   shootingStarSeed,
   shootingStars,
 } from "../lib/shootingStars.ts";
+import { cleanSignature } from "../lib/signature.ts";
 /** The meteor shower's own length, read from the component that plays it. */
 const SHOWER_S = Number(
   /const DURATION_S = ([\d.]+)/.exec(
@@ -79,6 +86,7 @@ import {
   DISPLAY_FAR,
   DISPLAY_NEAR,
   PERIHELION,
+  comaPixels,
   comaSize,
   displayOrbitPoint,
   cometCycle,
@@ -88,14 +96,22 @@ import {
   orbitPoint,
   orbitRotation,
   solveEccentricAnomaly,
-  tailLength,
+  tailPixels,
   toWorld,
   ECCENTRICITY,
 } from "../lib/cometOrbit.ts";
 import { PALETTE, trailColour, trailSeed } from "../lib/trailColour.ts";
 import { returnLabel } from "../lib/returnLabel.ts";
 import { RAMP_SIZE } from "../components/three/shaders/ribbon.ts";
-import { BREATH_DISTANCE, cameraBreath, keyLight, lightSeed } from "../lib/sceneLight.ts";
+import {
+  BLUE_HOUR_COLOUR,
+  BREATH_DISTANCE,
+  GOLDEN_COLOUR,
+  cameraBreath,
+  keyLight,
+  lightSeed,
+} from "../lib/sceneLight.ts";
+import { DAWN_FLOOR, DAWN_KEPT, dawn, sunVisibility } from "../lib/dawn.ts";
 import { landingNote, toClientCard } from "../lib/clientCard.ts";
 import { cometDayMail, cometMail, formatSentAt, replyMail } from "../lib/mail.ts";
 import { COMET_MAX, NAME_MAX, REPLY_MAX, validate } from "../lib/submission.ts";
@@ -110,6 +126,7 @@ import {
   TRAIL_NEAR_Z,
   memoryU,
   trailControlPoints,
+  MEANDER,
   trailPoint,
   trailSeedFor,
 } from "../lib/trailCurve.ts";
@@ -176,6 +193,7 @@ import {
   FACE_ORIENTATIONS,
   ROTATION_PRESETS,
   REDUCED_MOTION_PRESET,
+  easeInOutQuint,
   orientationAt,
 } from "../components/three/rotationPresets.ts";
 
@@ -191,6 +209,17 @@ const check = (label: string, ok: boolean, detail = "") => {
 };
 
 /** For checks inside a long loop: report the first failure only. */
+/** The worst per-channel difference between two hex colours, 0..1. */
+function distance(a: string, b: string): number {
+  return Math.max(
+    ...[1, 3, 5].map((i) =>
+      Math.abs(
+        Number.parseInt(a.slice(i, i + 2), 16) - Number.parseInt(b.slice(i, i + 2), 16),
+      ) / 255,
+    ),
+  );
+}
+
 const reported = new Set<string>();
 const check_once = (label: string, ok: boolean, detail = "") => {
   if (ok || reported.has(label)) return;
@@ -398,22 +427,18 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
       check(id(`face ${i + 1} readable on phone`), fit.fontPx >= 14, `${fit.fontPx}px`);
     }
 
-    // A signature that is configured but not there would simply not draw, and
-    // nothing on the closing screen would say so — hence a check, not a note.
+    /*
+     * The signature is kept in the card, like its words, and never as a file
+     * anyone can fetch without the password (lib/signature.ts). One that is
+     * configured but does not survive `cleanSignature` would simply not draw,
+     * and nothing on the closing screen would say so — hence a check.
+     */
     if (card.signature) {
-      /*
-       * The editor's signature pad appends `?v=<timestamp>` so the browser
-       * reloads the drawing after it is redrawn. That is a URL, not a path —
-       * `existsSync` was being handed it whole and failing on every card
-       * whose signature had ever been edited.
-       */
-      const file = `public${card.signature.split("?")[0]}`;
-      const there = existsSync(file);
-      check(id("signature file exists"), there, file);
-      if (there) {
-        const svg = readFileSync(file, "utf8");
-        console.log(`    signature: ${card.signature}`);
-        check(id("signature is an SVG"), svg.includes("<svg"));
+      const svg = cleanSignature(card.signature);
+      check(id("signature is kept in the card, not a public file"),
+        !card.signature.trimStart().startsWith("/"), card.signature.slice(0, 40));
+      check(id("signature is a drawing the closing screen can use"), Boolean(svg));
+      if (svg) {
         // It is drawn by walking a dash along each path; a signature made of
         // filled shapes would simply appear, which is not the same thing.
         check(id("signature is made of stroked paths"), /<path[\s>]/.test(svg));
@@ -628,7 +653,11 @@ console.log("6. v0.2 foundations (spec v0.2 §17):");
   check("f=0 is perihelion", Math.abs(q - PERIHELION) < 1e-9, q.toFixed(9));
   check("f=1 is perihelion", Math.abs(back - PERIHELION) < 1e-9, back.toFixed(9));
   check("f=0.5 is aphelion", Math.abs(far - APHELION) < 1e-9, far.toFixed(9));
-  console.log(`  comet orbit: q=${q.toFixed(2)} Q=${far.toFixed(2)} tail at q=${tailLength(q).toFixed(2)}u`);
+  console.log(
+    `  comet orbit: q=${q.toFixed(2)} Q=${far.toFixed(2)} ` +
+      `tail ${tailPixels(far, false).toFixed(0)}px at aphelion, ` +
+      `${tailPixels(q, false).toFixed(0)}px at perihelion`,
+  );
 
   let worstKepler = 0;
   for (let i = 0; i <= 2000; i++) {
@@ -651,7 +680,19 @@ console.log("6. v0.2 foundations (spec v0.2 §17):");
   check("distance grows on the way out", outward);
   check("distance falls on the way back", inward);
   check("a just-released comet is already away", displayedProgress(0.001) >= 0.06);
-  check("no tail beyond 25 units", tailLength(25) === 0);
+  /*
+   * r7 §10 replaces r6's "no tail beyond 25 units" outright: there is always
+   * a tail, because a comet without one is a star, and the tail is the only
+   * thing that says which of the fifteen hundred lights up there is the one
+   * coming back. What has to hold instead is that it *grows* — monotonically,
+   * and by a lot — as the day comes near.
+   */
+  check("there is always a tail", tailPixels(far, false) >= 40, `${tailPixels(far, false)}px`);
+  check("it is five times as long at the meeting point",
+    tailPixels(q, false) >= 5 * tailPixels(far, false),
+    `${tailPixels(far, false).toFixed(0)} -> ${tailPixels(q, false).toFixed(0)}px`);
+  check("portrait is three quarters of it",
+    Math.abs(tailPixels(q, true) - 0.75 * tailPixels(q, false)) < 1e-9);
 
   const restarted = cometCycle(
     { leftOn: "2025-12-25", returnsOn: "2026-12-25", yearly: true },
@@ -1072,7 +1113,7 @@ console.log("8. Orbit, trail and panels (spec v0.2 §6):");
 
   // ---- the reveal rules hold over every new state too ---------------------
   const v02 = [
-    "deploying", "orbit", "undeploying", "departing", "charting", "nudging",
+    "deploying", "orbit", "undeploying", "departing", "previewing", "charting", "nudging",
     "boarding", "homing", "rewinding", "remembering", "drifting",
     "resurfacing", "launching",
   ] as const;
@@ -1154,7 +1195,65 @@ console.log("8. Orbit, trail and panels (spec v0.2 §6):");
   console.log(`  ?at= reaches all ${JUMP_TARGETS.length} preview targets`);
 }
 
-console.log("9. The moving sun and the camera's breath (spec v0.2 §23.3):");
+console.log("9. The dawn (spec v0.2 rev 7.1 §3, §15):");
+{
+  /*
+   * The curve is the countdown. These six numbers are §3's table, and they
+   * are checked rather than eyeballed because the whole of r7 hangs off them:
+   * if the dawn is linear, the last fortnight stops looking different from
+   * the first month and the scene goes back to being a picture of waiting.
+   */
+  const TABLE: [number, number][] = [
+    [0, 0.2],
+    [0.25, 0.24],
+    [0.5, 0.37],
+    [0.75, 0.62],
+    [0.9, 0.83],
+    [1, 1.0],
+  ];
+  for (const [f, want] of TABLE) {
+    const got = dawn(f, "away").p;
+    check(`dawn(${f}) = ${want}`, Math.abs(got - want) <= 0.01, got.toFixed(3));
+  }
+
+  let monotonic = true;
+  let previous = -Infinity;
+  for (let i = 0; i <= 1000; i++) {
+    const p = dawn(i / 1000, "away").p;
+    if (p < previous - 1e-12) monotonic = false;
+    previous = p;
+  }
+  check("the dawn only ever rises", monotonic);
+  check("it is never night", dawn(0, "away").p >= DAWN_FLOOR, `${DAWN_FLOOR}`);
+  check("the day is full sunrise", dawn(0, "returned").p === 1);
+  check("a kept comet holds at 0.7", dawn(0.3, "kept").p === DAWN_KEPT);
+
+  // The sun's disc clears the horizon at p ~ 0.47, in both orientations.
+  for (const portrait of [false, true]) {
+    let crossed = -1;
+    for (let i = 0; i <= 1000; i++) {
+      const d = dawn(i / 1000, "away", { portrait });
+      if (d.sunElevation >= 0) {
+        crossed = d.p;
+        break;
+      }
+    }
+    check(
+      `${portrait ? "portrait" : "landscape"}: the sun rises at p ~ 0.47`,
+      Math.abs(crossed - 0.47) < 0.02,
+      crossed.toFixed(3),
+    );
+  }
+
+  check("below the horizon the sun is invisible", sunVisibility(dawn(0, "away")) === 0);
+  // Not 1, and deliberately: on the day the disc has cleared the limb but is
+  // still low in a sunrise, which is what the flare's (0.25 + 0.75 vis) term
+  // is shaped for. A sun at noon would be a different picture entirely.
+  check("on the day the disc has cleared the limb", sunVisibility(dawn(1, "away")) > 0.8,
+    sunVisibility(dawn(1, "away")).toFixed(3));
+}
+
+console.log("9b. The moving sun and the camera's breath (spec v0.2 §23.3, rev 7.1 §5):");
 {
   const seed = lightSeed("2026-newyear-7k2m");
 
@@ -1167,7 +1266,7 @@ console.log("9. The moving sun and the camera's breath (spec v0.2 §23.3):");
   let nan = false;
 
   const angles = (t: number) => {
-    const { dir } = keyLight(t, seed, false);
+    const { dir } = keyLight(t, seed);
     const [x, y, z] = dir;
     if (![x, y, z].every(Number.isFinite)) nan = true;
     return {
@@ -1198,30 +1297,70 @@ console.log("9. The moving sun and the camera's breath (spec v0.2 §23.3):");
   check("the sun actually moves", maxAzimuth - minAzimuth > 4,
     (maxAzimuth - minAzimuth).toFixed(2));
 
-  const unit = keyLight(31.7, seed, false).dir;
+  const unit = keyLight(31.7, seed).dir;
   check("the direction is a unit vector",
     Math.abs(Math.hypot(...unit) - 1) < 1e-9, Math.hypot(...unit).toFixed(12));
 
-  // ---- the returned day is warmer, but only a little ---------------------
-  const plain = keyLight(12, seed, false);
-  const warm = keyLight(12, seed, true);
+  // ---- the screens r7 leaves alone are still r5's light -------------------
+  const plain = keyLight(12, seed, undefined, { returned: false });
+  const warm = keyLight(12, seed, undefined, { returned: true });
   check("the returned day changes the colour", plain.color !== warm.color, warm.color);
   check("the returned day does not move the sun",
     plain.dir.every((v, i) => v === warm.dir[i]));
-  const shift = Math.max(
-    ...[1, 3, 5].map((i) => {
-      const a = Number.parseInt(plain.color.slice(i, i + 2), 16);
-      const b = Number.parseInt(warm.color.slice(i, i + 2), 16);
-      return Math.abs(a - b) / 255;
-    }),
-  );
+  const shift = distance(plain.color, warm.color);
   check("the warm shift is at most 10%", shift <= 0.1 + 1e-6, `${(shift * 100).toFixed(1)}%`);
+
+  /*
+   * ---- and the orbit scene's light is the dawn (rev 7.1 §5, §15) --------
+   *
+   * The two ends are what matter. At blue hour the light has to read as cold
+   * — that is the whole premise of a scene that then warms up — and on the
+   * day it has to be unmistakably golden, because that is the payoff the
+   * reader has been watching approach for months.
+   */
+  const blueHour = keyLight(12, seed, dawn(0, "away"));
+  const golden = keyLight(12, seed, dawn(1, "away"));
+  check("at blue hour the light is blue hour",
+    distance(blueHour.color, BLUE_HOUR_COLOUR) <= 0.25,
+    `${(distance(blueHour.color, BLUE_HOUR_COLOUR) * 100).toFixed(1)}% off`);
+  check("on the day the light is golden",
+    distance(golden.color, GOLDEN_COLOUR) <= 0.05,
+    `${(distance(golden.color, GOLDEN_COLOUR) * 100).toFixed(1)}% off`);
+  check("the day is brighter than blue hour",
+    golden.intensity > blueHour.intensity * 1.6,
+    `${blueHour.intensity.toFixed(2)} -> ${golden.intensity.toFixed(2)}`);
+
+  // Continuous in p as well as in t: the dawn creeps, it does not step.
+  let worstColourStep = 0;
+  let previousColour = keyLight(0, seed, dawn(0, "away")).color;
+  for (let i = 1; i <= 1000; i++) {
+    const colour = keyLight(0, seed, dawn(i / 1000, "away")).color;
+    worstColourStep = Math.max(worstColourStep, distance(colour, previousColour));
+    previousColour = colour;
+  }
+  check("the colour never steps", worstColourStep < 0.01, `${(worstColourStep * 100).toFixed(2)}%`);
+
+  // The fill is never zero: no face of the satellite is ever black (§5).
+  let weakestFill = Infinity;
+  for (let i = 0; i <= 100; i++) {
+    const light = keyLight(i * 0.7, seed, dawn(i / 100, "away"));
+    weakestFill = Math.min(weakestFill, light.fill.intensity);
+    check_once("the fill points the other way",
+      light.fill.dir.every((v, k) => Math.abs(v + light.dir[k]) < 1e-12));
+  }
+  check("the fill is never zero", weakestFill > 0, weakestFill.toFixed(3));
+
+  // The hub's sun is wherever the composition puts it, not on r5's arc.
+  const staged = keyLight(3, seed, dawn(0.5, "away"), { toSun: [0, 0, 1] });
+  check("a staged sun is followed",
+    staged.dir[2] > 0.99 && Math.abs(staged.dir[0]) < 0.06,
+    staged.dir.map((v) => v.toFixed(3)).join(", "));
 
   // ---- intensity breathes, gently ----------------------------------------
   let minI = Infinity;
   let maxI = -Infinity;
   for (let i = 0; i <= 600; i++) {
-    const { intensity } = keyLight(i * 0.1, seed, false);
+    const { intensity } = keyLight(i * 0.1, seed);
     minI = Math.min(minI, intensity);
     maxI = Math.max(maxI, intensity);
   }
@@ -1229,9 +1368,9 @@ console.log("9. The moving sun and the camera's breath (spec v0.2 §23.3):");
     `${minI.toFixed(3)}..${maxI.toFixed(3)}`);
 
   // ---- reduced motion is a still, lit picture ----------------------------
-  const still = keyLight(0, seed, false, { reducedMotion: true });
+  const still = keyLight(0, seed, undefined, { reducedMotion: true });
   for (const t of [0, 7.5, 61, 500]) {
-    const at = keyLight(t, seed, false, { reducedMotion: true });
+    const at = keyLight(t, seed, undefined, { reducedMotion: true });
     check(`reduced motion freezes the sun at t=${t}`,
       at.dir.every((v, i) => v === still.dir[i]) && at.intensity === still.intensity);
   }
@@ -1239,7 +1378,7 @@ console.log("9. The moving sun and the camera's breath (spec v0.2 §23.3):");
 
   // ---- two cards are lit from different points in the same sweep ---------
   const other = lightSeed("thanks-sample-3f9q");
-  check("two cards differ", keyLight(0, seed, false).dir[0] !== keyLight(0, other, false).dir[0]);
+  check("two cards differ", keyLight(0, seed).dir[0] !== keyLight(0, other).dir[0]);
 
   // ---- the camera breathes, except where text is being read --------------
   let worstBreath = 0;
@@ -1427,7 +1566,9 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
       }
     }
     const area = inside / (samples * samples);
-    check(`${label}: the planet covers 8-15% of the frame`, area >= 0.08 && area <= 0.15,
+    // 7%, not 8%: the dawn mockup's own desktop planet (rev 7.1) is 7.8%,
+    // and the hub is staged to match it.
+    check(`${label}: the planet covers 7-15% of the frame`, area >= 0.07 && area <= 0.15,
       `${(area * 100).toFixed(1)}%`);
 
     /*
@@ -1435,11 +1576,9 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
      * "Clear" is the load-bearing half: a comet crossing the hull would read
      * as hitting the thing it is supposed to be keeping company with.
      */
-    const reach = (f: number) =>
-      (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
 
     for (const f of [0.06, 0.25, 0.5, 0.75, 0.94]) {
-      const at = project(hubComet(reach(f), w, h));
+      const at = project(hubCometAt(f, w, h));
       check(`${label}: the comet at f=${f} is in the top-right`,
         at[0] >= 0.5 && at[1] <= 0.45, `${at[0].toFixed(2)},${at[1].toFixed(2)}`);
 
@@ -1463,10 +1602,17 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 
     for (let i = 0; i <= 120; i++) {
       const f = 0.02 + (0.97 * i) / 120;
-      const at = project(hubComet(reach(f), w, h));
-      const depth = camera[2] - hubComet(reach(f), w, h)[2];
-      // The coma's radius, in the same width-fraction units as the hull.
-      const radius = comaSize(displayOrbitPoint(f).distance) / (2 * tanH * depth);
+      const at = project(hubCometAt(f, w, h));
+      const depth = camera[2] - hubCometAt(f, w, h)[2];
+      /*
+       * The coma's radius, in the same width-fraction units as the hull.
+       *
+       * `comaPixels` rather than `comaSize`: r7 §14 step 0 shrinks the drawn
+       * head so the tail is no longer inside it, and what has to clear the
+       * satellite is what is drawn.
+       */
+      const radius = comaPixels(orbitPoint(f).distance, w < h) / w;
+      void depth;
 
       const centre = Math.min(
         ...hull.map((p) => Math.hypot(p[0] - at[0], (p[1] - at[1]) * (h / w))),
@@ -1482,11 +1628,89 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
     check(`${label}: and stays inside the frame`, worstEdge >= 0,
       `${worstEdge.toFixed(0)}px`);
 
-    // Home again, it sits beside the planet at the right edge (§3.1).
-    const home = project(hubComet(0, w, h));
-    check(`${label}: the returned comet is beside the planet`,
-      home[0] >= 0.8 && home[1] >= 0.55 && home[1] <= 0.78,
-      `${home[0].toFixed(2)},${home[1].toFixed(2)}`);
+    /*
+     * ---- and so does the tail (rev 7.1 §10, §15) -----------------------
+     *
+     * This is the check the new aphelion exists for. In r7 the tails point
+     * away from the **sun**, which comes up behind the planet's limb at the
+     * bottom right — so they now sweep up and to the left, which is where
+     * the satellite is. r7 moves the comet's far end from (0.81, 0.19) to
+     * (0.76, 0.07) rather than moving the satellite, because r7 withdraws
+     * R23 and the satellite stays exactly where it is built.
+     *
+     * The whole tail is sampled, not just its tip: a tail that misses at
+     * both ends can still lie across a wing in the middle.
+     */
+    const sunAt = hubSun(w, h, dawn(1, "away", { portrait: w < h }).sunElevation);
+    const sunScreen = project(sunAt);
+    let worstTail = Infinity;
+    let worstTailAt = "";
+
+    for (let i = 0; i <= 120; i++) {
+      const f = 0.06 + (0.94 * i) / 120;
+      const at = hubCometAt(f, w, h);
+      const screen = project(at);
+      const depth = camera[2] - at[2];
+
+      // Away from the sun, measured on screen, which is where the clearance
+      // question is actually asked.
+      let dx = screen[0] - sunScreen[0];
+      let dy = (screen[1] - sunScreen[1]) / (h / w);
+      const length = Math.hypot(dx, dy) || 1;
+      dx /= length;
+      dy /= length;
+
+      // The ion tail is the longer of the two: 1.1 x the base length.
+      const pixels = tailPixels(orbitPoint(f).distance, w < h) * 1.1;
+      const reachW = (pixels / w) * 1;
+      void depth;
+
+      for (let k = 0; k <= 24; k++) {
+        const u = (k / 24) * reachW;
+        const px = screen[0] + dx * u;
+        const py = screen[1] + (dy * u) / (w / h);
+        const gap =
+          Math.min(...hull.map((q) => Math.hypot(q[0] - px, (q[1] - py) * (h / w)))) * w;
+        if (gap < worstTail) {
+          worstTail = gap;
+          worstTailAt = `f=${f.toFixed(2)}`;
+        }
+      }
+    }
+
+    check(`${label}: the tail never reaches the satellite`, worstTail >= 8,
+      `${worstTail.toFixed(0)}px at ${worstTailAt}`);
+
+    // And the sun itself, flare and all, is inside the frame on the day.
+    const flareReach = (PLANET_RADIUS * (0.22 + 0.4) * 1.0) / (2 * tanH * (camera[2] - sunAt[2]));
+    check(`${label}: the sun is in the frame on the day`,
+      sunScreen[0] - flareReach < 1 && sunScreen[1] - flareReach < 1 &&
+      sunScreen[0] + flareReach > 0 && sunScreen[1] + flareReach > 0,
+      `${sunScreen[0].toFixed(2)},${sunScreen[1].toFixed(2)}`);
+
+    /*
+     * Home again, it sits beside the planet at the right edge (§3.1, r7 §4).
+     *
+     * Checked against the planet's actual disc rather than against a pair of
+     * hand-picked fractions. "Beside the planet" means *outside its limb and
+     * close to it*, and the fractions that expressed that in r6 stopped doing
+     * so once the planet was drawn at the size the composition asks for
+     * (r7 §14 step 0): the old homecoming point ended up inside the disc, so
+     * the comet came home by disappearing behind the world it was returning
+     * to, and the check still passed.
+     */
+    const home = project(hubCometAt(1, w, h));
+    const homePx: [number, number] = [home[0] * w, home[1] * h];
+    const planetDisc = hubPlanetScreen(w, h);
+    const fromCentre = Math.hypot(homePx[0] - planetDisc.cx, homePx[1] - planetDisc.cy);
+    const aboveLimb = fromCentre - planetDisc.r;
+
+    check(`${label}: the returned comet is outside the planet's limb`,
+      aboveLimb > 8, `${aboveLimb.toFixed(0)}px above it`);
+    check(`${label}: and still beside it, not out in the sky`,
+      aboveLimb < 0.2 * planetDisc.r, `${aboveLimb.toFixed(0)}px`);
+    check(`${label}: in the lower right of the frame`,
+      home[0] >= 0.7 && home[1] >= 0.5, `${home[0].toFixed(2)},${home[1].toFixed(2)}`);
 
     /*
      * The trail leaves from the top-left, and clears the satellite (rev 6 §4.5).
@@ -1528,7 +1752,7 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
       `  ${label.padEnd(19)} body ${centre[0].toFixed(2)},${centre[1].toFixed(2)} ` +
       `tip ${(tip * 100).toFixed(0)}% axis ${axis.toFixed(0)}deg ` +
       `margin ${(margin * 100).toFixed(0)}% planet ${(area * 100).toFixed(0)}% ` +
-      `trail ${nearestTrail.toFixed(0)}px`,
+      `trail ${nearestTrail.toFixed(0)}px tail ${worstTail.toFixed(0)}px`,
     );
   }
 
@@ -1569,7 +1793,9 @@ console.log("10. Orbit and trail framing (spec v0.2 §8.3, §9.3, §17):");
 
     check("the trail is always a real point", !nan);
     check("the trail always recedes", recedes);
-    check("the trail stays near its axis", worstLateral <= TRAIL_LATERAL * 1.25,
+    // The seeded wander and the far meander together (lib/trailCurve.ts).
+    check("the trail stays near its axis",
+      worstLateral <= TRAIL_LATERAL * 1.25 + Math.hypot(MEANDER.across, MEANDER.up),
       `${worstLateral.toFixed(2)}u`);
 
     const near = trailPoint(points, 0);
@@ -1682,6 +1908,7 @@ console.log("11b. The comet moment (spec v0.2 rev 5, \u00a78.3):");
   const flags = (patch: Partial<typeof NO_COMET_FLAGS> = {}) => ({
     ...NO_COMET_FLAGS,
     exists: true,
+    introduced: true,
     ...patch,
   });
   const card = (comet: typeof NO_COMET_FLAGS, hasCrossroads = true) =>
@@ -1704,6 +1931,25 @@ console.log("11b. The comet moment (spec v0.2 rev 5, \u00a78.3):");
     deployTo(flags({ departed: true })).state === "orbit");
   check("returned: every deployment ends at the comet",
     deployTo(flags({ departed: true, returned: true })).state === "charting");
+
+  // ---- the first time it becomes a satellite, the intro plays -------------
+  {
+    let intro = deployTo(flags({ introduced: false, capsuleOpen: true }));
+    check("a first deployment plays the intro", intro.state === "previewing");
+    check("the intro stays in the orbit pose", cameraPhase(intro.state) === "orbit");
+    check("the intro keeps the satellite deployed", isDeployed(intro.state));
+    check("the intro ignores input",
+      !acceptsInput(intro.state) &&
+      reduceExperience(intro, { type: "move", direction: 1 }) === intro);
+    intro = reduceExperience(intro, { type: "previewEnd" });
+    check("and then goes to the chart", intro.state === "charting");
+    check("marking it played, and the departure with it",
+      intro.comet.introduced && intro.comet.departed);
+    intro = reduceExperience(intro, { type: "zoomEnd" });
+    check("which opens the sheet that asks for words", intro.state === "nudging");
+    check("a returned comet skips the intro",
+      deployTo(flags({ introduced: false, returned: true })).state === "charting");
+  }
 
   // ---- the departure is watched once per cycle ---------------------------
   let exp = deployTo(flags());
@@ -1938,6 +2184,9 @@ console.log("13. The comet in the sky (spec v0.2 §11.2):");
   const span = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.97, 1].map((f) => ({
     f,
     distance: displayOrbitPoint(displayedProgress(f)).distance,
+    // The true radius as well: r7 §10 measures the tail against that, not
+    // against the compressed radius the comet is drawn at.
+    trueDistance: orbitPoint(displayedProgress(f)).distance,
   }));
   // Note these are *drawn* positions, so f = 0 is already the 0.06 floor:
   // a comet sent today is shown on its way out, not sitting on the planet.
@@ -1958,18 +2207,23 @@ console.log("13. The comet in the sky (spec v0.2 §11.2):");
   check("the comet never leaves the frame", span.every((s) => s.distance <= DISPLAY_FAR + 1e-9),
     Math.max(...span.map((s) => s.distance)).toFixed(2));
 
-  // The tail only exists near home, which is what makes its growth the signal.
-  check("no tail at aphelion", tailLength(span[3].distance) === 0);
-  check("a tail in the last stretch", tailLength(span[6].distance) > 0,
-    tailLength(span[6].distance).toFixed(2));
+  // There is always a tail (r7 §10); what carries the signal is its growth.
+  check("the tail is shortest out at aphelion",
+    tailPixels(span[3].trueDistance, false) < 60,
+    `${tailPixels(span[3].trueDistance, false).toFixed(0)}px`);
+  check("and much longer in the last stretch",
+    tailPixels(span[6].trueDistance, false) > 2 * tailPixels(span[3].trueDistance, false),
+    `${tailPixels(span[3].trueDistance, false).toFixed(0)} -> ` +
+      `${tailPixels(span[6].trueDistance, false).toFixed(0)}px`);
   let previousTail = 0;
   let growing = true;
+  // Over the last tenth, which is the stretch anyone is watching.
   for (let i = 90; i <= 100; i++) {
-    const t = tailLength(displayOrbitPoint(displayedProgress(i / 100)).distance);
+    const t = tailPixels(orbitPoint(displayedProgress(i / 100)).distance, false);
     if (t < previousTail - 1e-9) growing = false;
     previousTail = t;
   }
-  check("the tail only grows as it comes home", growing);
+  check("the tail only ever grows as it comes home", growing);
 
   /*
    * The seeded rotation is now bounded (rev 6 §4.1). It used to be a full
@@ -2603,7 +2857,7 @@ console.log("22. Looking into the satellite lands where 中をのぞく lands (r
     hasCrossroads: true,
     comet: {
       exists: true, returned: false, kept: false,
-      capsule: false, capsuleOpen: false, departed: true,
+      capsule: false, capsuleOpen: false, departed: true, introduced: true,
     },
   };
 
@@ -3226,7 +3480,7 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
 
   let missed = 0;
   let tested = 0;
-  let startedOnFrame = 0;
+  let startedLow = 0;
   let shortest = Infinity;
   let longest = 0;
 
@@ -3237,18 +3491,18 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
         const star = shootingStar(seed, index, aspect);
         tested++;
         if (!crossesFrame(star, aspect)) missed++;
-        // It must arrive from outside: one that blinks into existence inside
-        // the frame reads as a glitch rather than as something passing.
-        if (Math.abs(star.from[0]) <= aspect && Math.abs(star.from[1]) <= 1) startedOnFrame++;
+        // It appears in the open upper sky, as the dawn mockup's do — never
+        // down where the planet rises and the controls sit.
+        if (star.from[1] < 1 - APPEAR.bottom * 2 - 1e-9) startedLow++;
         shortest = Math.min(shortest, star.duration);
         longest = Math.max(longest, star.duration);
       }
     }
   }
 
-  check("every shooting star crosses the frame", missed === 0, `${missed} of ${tested}`);
-  check("and none of them begins on it", startedOnFrame === 0, String(startedOnFrame));
-  check("they are over in about a second", shortest >= 0.8 && longest <= 2,
+  check("every shooting star is seen in the frame", missed === 0, `${missed} of ${tested}`);
+  check("and every one appears in the upper sky", startedLow === 0, String(startedLow));
+  check("they are over in a second and a half or so", shortest >= 1.2 && longest <= 2,
     `${shortest.toFixed(2)}-${longest.toFixed(2)}s`);
 
   /*
@@ -3260,7 +3514,7 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
   check("a star begins and ends invisible",
     brightness(0) < 1e-6 && brightness(1) < 1e-6,
     `${brightness(0).toExponential(1)} / ${brightness(1).toExponential(1)}`);
-  check("and is brightest in flight", brightness(0.3) > 0.9, brightness(0.3).toFixed(2));
+  check("and is brightest in flight", brightness(0.5) > 0.99, brightness(0.5).toFixed(2));
 
   /*
    * The timetable, and the one thing that must not happen: the returned
@@ -3338,6 +3592,159 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
     });
     if (clean) console.log(`  ${local.length} card(s), nothing to report.`);
   }
+}
+
+console.log("31. Kept exactly as built (spec v0.2 rev 7.1 §15):");
+{
+  /*
+   * The two things revision 7.1 promises **not** to change: where the
+   * satellite sits on screen, and the line the contrail runs along.
+   *
+   * r7 is otherwise a licence to rework the whole orbit view, and the single
+   * most valuable thing this suite can do about that is pin the two objects
+   * the document says are finished. For these, *the build is the reference* —
+   * so this is a snapshot, recorded at §14 step 0, rather than a derivation
+   * from the spec. If a future change moves either of them, the right
+   * response is to ask whether it should have, not to update the numbers.
+   *
+   * Only the light on them is allowed to change, and light is not in here.
+   *
+   * The two **portrait** rows have been re-recorded once since, deliberately:
+   * `PORTRAIT.tip` went from 0.81 to 0.74 so that a phone has sky around the
+   * satellite for everything else in the scene to be in. That is a change
+   * this check is supposed to catch, and it did — the right response was to
+   * decide it, not to discover it. The landscape rows are untouched.
+   */
+  const SNAPSHOT: Record<string, { body: [number, number]; trail: [number, number][] }> = {
+  "390x844": {
+    body: [171.6, 464.2],
+    trail: [[117, 286.96], [100.08, 273.08], [157.28, 221.75], [88.77, 167.7], [114.09, 144.29], [154.35, 117.81], [101.42, 120.51]],
+  },
+  "430x932": {
+    body: [189.2, 512.6],
+    trail: [[129, 316.88], [110.33, 301.56], [173.42, 244.91], [97.82, 185.24], [125.76, 159.36], [170.19, 130.11], [111.75, 133.08]],
+  },
+  "1280x699": {
+    body: [601.6, 349.5],
+    trail: [[409.6, 293.58], [392.97, 257.48], [466.44, 172.21], [398.57, 103.31], [427.35, 75.87], [465.95, 49.46], [419.23, 51.02]],
+  },
+  "1440x810": {
+    body: [676.8, 405],
+    trail: [[460.8, 340.2], [441.55, 298.94], [525.12, 200.78], [446.94, 120.78], [479.88, 88.51], [524.38, 57.6], [470.35, 59.12]],
+  },
+  "1512x945": {
+    body: [710.64, 472.5],
+    trail: [[483.84, 396.9], [461.63, 351.13], [552.76, 239.41], [463.68, 145.52], [500.44, 105.88], [551.3, 68.45], [488.78, 68.94]],
+  },
+  };
+
+  const keptSeed = trailSeedFor("kept-as-built");
+
+  for (const [label, want] of Object.entries(SNAPSHOT)) {
+    const [w, h] = label.split("x").map(Number);
+
+    const body = hubProject(HUB_SATELLITE, w, h);
+    const moved = Math.hypot(body.x - want.body[0], body.y - want.body[1]);
+    check(`${label}: the satellite is where it was built`, moved <= 1,
+      `${moved.toFixed(2)}px`);
+
+    const trail = trailScreen(keptSeed, w, h);
+    check(`${label}: the contrail has the same number of points`,
+      trail.length === want.trail.length, `${trail.length}`);
+    const worstPoint = Math.max(
+      ...trail.map(([x, y], i) =>
+        Math.hypot(x - (want.trail[i]?.[0] ?? x), y - (want.trail[i]?.[1] ?? y)),
+      ),
+    );
+    check(`${label}: and runs where it ran`, worstPoint <= 1, `${worstPoint.toFixed(2)}px`);
+  }
+
+  console.log(`  satellite and contrail pinned across ${Object.keys(SNAPSHOT).length} framings`);
+}
+
+console.log("32. Coming back from the trail is one move (rev 6 §9.3):");
+{
+  /*
+   * The return from a memory to the hub is the longest camera move in the
+   * product — up to three seconds — and the only one that changes *kind*
+   * half way through: it walks back along the trail's curve, then pulls out
+   * to the orbit pose. That is exactly the move most likely to read as two
+   * moves stuck together, and for a long time it did: each half had its own
+   * ease-in-out, so the camera came to a complete stop at the join and set
+   * off again.
+   *
+   * A screenshot cannot show that and neither can a typecheck. What can is
+   * the path itself: sample it, differentiate it twice, and assert that the
+   * camera never stalls and never jerks.
+   */
+  const SIZES: [number, number][] = [[390, 844], [1440, 810]];
+  const MEMORIES = 5;
+
+  for (const [w, h] of SIZES) {
+    const label = `${w}x${h}`;
+    const seed = trailSeedFor("retrace-sample");
+    const trail = stagedTrail(seed, w, h);
+    const distance = memoryViewDistance(w, h);
+    const hub = hubPose(w, h);
+
+    // From the furthest memory, which is the longest version of the move.
+    const fromU = memoryU(trail, MEMORIES - 1, MEMORIES);
+
+    /*
+     * Sampled evenly in `t` — the *shape* of the move, with its timing left
+     * out. The rig eases `t` before handing it over, so the ends are supposed
+     * to be slow; what has to be true of the shape is that nothing in the
+     * middle of it stops or corners.
+     */
+    const STEPS = 400;
+    const at = (i: number) =>
+      retracePose(trail, fromU, hub, distance, i / STEPS).position;
+
+    const steps: number[] = [];
+    for (let i = 1; i <= STEPS; i++) {
+      const a = at(i - 1);
+      const b = at(i);
+      steps.push(Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
+    }
+
+    const fastest = Math.max(...steps);
+    const from = Math.floor(STEPS * 0.08);
+    const until = Math.ceil(STEPS * 0.92);
+    let slowest = Infinity;
+    let worstJerk = 0;
+    for (let i = from; i < until; i++) {
+      slowest = Math.min(slowest, steps[i]);
+      if (i > from) worstJerk = Math.max(worstJerk, Math.abs(steps[i] - steps[i - 1]) / fastest);
+    }
+
+    /*
+     * No stall. With the two-ease version this was 0% — the camera stopped
+     * dead twice, once at the end of each leg's own ease.
+     */
+    check(`${label}: the camera never stalls on the way back`,
+      slowest > fastest * 0.1,
+      `slowest ${((slowest / fastest) * 100).toFixed(0)}% of fastest`);
+
+    /*
+     * And no corner. This is the check that pacing by arc length is actually
+     * happening: stepping `u` at a constant rate instead puts a 10% kick in
+     * as the camera crosses a control point, because the curve's control
+     * points are not evenly spaced.
+     */
+    check(`${label}: and never kicks as it crosses the curve`, worstJerk < 0.05,
+      `${(worstJerk * 100).toFixed(1)}% of a step`);
+
+    // It still ends exactly on the hub pose, or the hand-over itself snaps.
+    const landed = retracePose(trail, fromU, hub, distance, 1).position;
+    const miss = Math.hypot(
+      landed[0] - hub.position[0],
+      landed[1] - hub.position[1],
+      landed[2] - hub.position[2],
+    );
+    check(`${label}: and lands exactly on the orbit pose`, miss < 1e-9, miss.toExponential(1));
+  }
+
+  console.log(`  retrace sampled at 400 steps across ${SIZES.length} framings`);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

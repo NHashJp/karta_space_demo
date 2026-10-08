@@ -24,6 +24,7 @@ export type ExperienceState =
   | "orbit" // the hub: satellite, the comet, the trail behind
   | "undeploying" // the reverse, back to the closing screen
   | "departing" // the comet comes round the planet and heads out (§8.4)
+  | "previewing" // its way home, dashed, counted down to the day it returns
   | "charting" // the camera closes on the comet, holds, pulls back to the chart
   | "nudging" // at rest on the chart, the comet sheet open (§8.6)
   | "boarding" // the receiver's words run up the orbit line to the comet
@@ -52,6 +53,8 @@ export type CometFlags = {
   capsuleOpen: boolean;
   /** The departure has already been watched this cycle. */
   departed: boolean;
+  /** The first-launch intro has already played this cycle. */
+  introduced: boolean;
 };
 
 export const LAST_FACE = 5;
@@ -113,6 +116,8 @@ export type ExperienceEvent =
   | { type: "dock" }
   | { type: "deployEnd" }
   | { type: "departEnd" }
+  /** The first-launch explanation has played, or was skipped. */
+  | { type: "previewEnd" }
   /** Tap the comet, or 彗星 in the bottom bar. */
   | { type: "openChart" }
   /** Dispatched only once the server has accepted the words (§14.5). */
@@ -158,6 +163,7 @@ export const NO_COMET_FLAGS: CometFlags = {
   returned: false,
   capsuleOpen: false,
   departed: false,
+  introduced: false,
 };
 
 /** A card with nothing past the closing screen: v0.1 behaviour, exactly. */
@@ -272,6 +278,19 @@ function transition(current: Experience, event: ExperienceEvent): Experience {
       // The departure is watched once per cycle, then the chart draws.
       return { ...current, state: "charting", comet: { ...current.comet, departed: true } };
 
+    /*
+     * The intro stands in for the departure — it shows the same journey, and
+     * all of it — so it marks both, and goes on to the chart and the sheet
+     * that asks for words.
+     */
+    case "previewEnd":
+      if (state !== "previewing") return current;
+      return {
+        ...current,
+        state: "charting",
+        comet: { ...current.comet, departed: true, introduced: true },
+      };
+
     case "openChart":
       if (state !== "orbit" || !current.comet.exists) return current;
       if (panel !== null && panel !== "crossroads") return current;
@@ -325,7 +344,8 @@ function transition(current: Experience, event: ExperienceEvent): Experience {
 
     case "launch":
       if (state !== "orbit" || panel !== "reply") return current;
-      return { ...current, state: "launching" };
+      // The form has done its job: close it so the flight has the screen.
+      return { ...current, state: "launching", panel: null };
 
     case "launchEnd":
       if (state !== "launching") return current;
@@ -397,6 +417,15 @@ function afterDeploy(current: Experience): Experience {
 
   if (!comet.exists) return { ...current, state: "orbit" };
 
+  /*
+   * The first time the cube becomes a satellite, before anything else: how
+   * many days until the comet is back, and its whole way home played fast
+   * while that number counts down. Only then is the reader asked for words.
+   */
+  if (!comet.introduced && !comet.returned) {
+    return { ...current, state: "previewing", chartVia: "deploy" };
+  }
+
   // Not yet watched leave, and not back yet: watch it go.
   if (!comet.departed && !comet.returned) {
     return { ...current, state: "departing", chartVia: "deploy" };
@@ -450,6 +479,7 @@ export function cameraPhase(state: ExperienceState): CameraPhase {
     state === "deploying" ||
     state === "orbit" ||
     state === "departing" ||
+    state === "previewing" ||
     state === "launching" ||
     state === "resurfacing" ||
     state === "homing"
@@ -508,6 +538,7 @@ export function isDeployed(state: ExperienceState): boolean {
     state === "orbit" ||
     state === "undeploying" ||
     state === "departing" ||
+    state === "previewing" ||
     state === "charting" ||
     state === "nudging" ||
     state === "boarding" ||

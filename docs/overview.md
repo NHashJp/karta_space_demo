@@ -1,26 +1,17 @@
-# KARTA_SPACE in one page
-
-A plain explanation of what this project is and how it works. Everything here
-is deliberately shallow — each section links to the document that goes deep.
-If you need to explain this project to someone, read this and nothing else.
+# KARTA_SPACE SUMMARY
 
 ## What it is
 
-A farewell card you open in a web browser. It is a cube floating in space with
-a message on each of its six sides. You scroll to turn it. When you reach the
-end, the cube unfolds into a satellite and flies into orbit, and the card keeps
-going: old photographs strung out behind it, and a comet carrying a sealed
-message that comes back on a date the sender chose.
+A farewell card you open in a web browser. It is a cube floating in space with a message on each of its six sides. You scroll to turn it. When you reach the end, the cube unfolds into a satellite and flies into orbit, and the card keeps going: old photographs strung out behind it, and a comet carrying a sealed message that comes back on a date the sender chose.
 
-One person writes it. One person reads it. There are no accounts, no database,
-and no feed.
+One person writes it. One person reads it. There are no accounts, no database, and no feed.
 
 ## The two people
 
-| | |
-|---|---|
-| **The sender** writes the card | Edits a config file, usually through the built-in editor at `/editor`. Deploys it. Sends the link. |
-| **The receiver** reads the card | Opens the link, types a password if there is one, and reads. Can write back. |
+|                                 |                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **The sender** writes the card  | Edits a config file, usually through the built-in editor at `/editor`. Deploys it. Sends the link. |
+| **The receiver** reads the card | Opens the link, types a password if there is one, and reads. Can write back.                       |
 
 The receiver never signs in and never gives an email address. Anything they
 write is emailed straight to the sender and stored nowhere.
@@ -47,7 +38,7 @@ Steps 4–8 are all optional. A card with none of them ends at step 3.
 ## The ideas worth knowing
 
 **The card is a file.** No database. `config/cards.config.ts` holds two sample
-cards and is committed; a *real* card lives in `.karta/cards.local.json`, which
+cards and is committed; a _real_ card lives in `.karta/cards.local.json`, which
 is gitignored, because a real card is a letter to one person and should not be
 in a repository's history. The editor saves there.
 → [Content and cards](./content-and-cards.md)
@@ -62,7 +53,7 @@ return to zero, so however showy the path, the face ends exactly facing you.
 
 **The comet's position is the countdown.** There is no number ticking down.
 The comet is far away for most of the wait and swings home at the end; where it
-is in the sky *is* how long is left.
+is in the sky _is_ how long is left.
 → [The orbit](./orbit.md)
 
 **The sky is how long ago it was sent.** The gas thins and cools as the card
@@ -160,7 +151,7 @@ Anything aiming at the comet must use `cometAt`, not the orbital maths.
 ## What the checks cannot tell you
 
 `npm run verify` proves arithmetic. It renders nothing, so it cannot tell you
-whether the scene *looks* right — whether a fade reads as one object leaving,
+whether the scene _looks_ right — whether a fade reads as one object leaving,
 whether a drift feels alive or twitchy, whether a line is large enough to read
 as handwriting. Those are decided by looking, on a real screen, and
 [Testing](./testing.md) is the list of what to look at.

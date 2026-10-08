@@ -5,6 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { starsFragmentShader, starsVertexShader } from "./shaders/stars";
 import { skyTurn } from "@/lib/sceneLight";
+import { hubUnproject } from "./framing";
 
 const COUNT = 1500;
 const INNER_RADIUS = 28;
@@ -128,5 +129,85 @@ export function Starfield({
         toneMapped={false}
       />
     </points>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * 七夕 — Vega and Altair (rev 7.1 §4, R29)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Whether the Tanabata stars are shown.
+ *
+ * Off, deliberately, and kept as a constant so turning them on is one edit.
+ *
+ * R29 calls them optional, and the reason to leave them off by default is
+ * that they are the only thing in the sky that *means* something specific.
+ * Vega and Altair are the two lovers of 七夕, separated by the Milky Way and
+ * allowed to meet one night a year — which is so exactly this card's subject
+ * that putting them in uninvited would be the card explaining its own
+ * metaphor. A sender who wants that reference can have it; it should be
+ * their choice and not the default.
+ */
+export const TANABATA = false;
+
+/** Where they sit, as fractions of the viewport (§4). */
+const TANABATA_AT = {
+  portrait: { vega: [0.62, 0.1], altair: [0.12, 0.36] },
+  landscape: { vega: [0.44, 0.12], altair: [0.1, 0.42] },
+} as const;
+
+/** How far out they are staged — the same shell the other bright stars use. */
+const TANABATA_DEPTH = 46;
+
+export function TanabataStars({ reducedMotion }: { reducedMotion: boolean }) {
+  const size = useThree((state) => state.size);
+  const group = useRef<THREE.Group>(null);
+  const stars = useRef<(THREE.Mesh | null)[]>([]);
+
+  /*
+   * Screen-placed, like everything else r7 composes: they sit on either side
+   * of the Milky Way band, and the band is given in viewport fractions.
+   */
+  const at = useMemo(() => {
+    const where = TANABATA_AT[size.width < size.height ? "portrait" : "landscape"];
+    return ([where.vega, where.altair] as const).map(([x, y]) =>
+      hubUnproject(x * size.width, y * size.height, TANABATA_DEPTH, size.width, size.height),
+    );
+  }, [size.width, size.height]);
+
+  useFrame(({ clock, camera }) => {
+    // The far distance travels with the camera, as the rest of the sky does.
+    group.current?.position.copy(camera.position);
+    const t = reducedMotion ? 0 : clock.elapsedTime;
+    stars.current.forEach((star, i) => {
+      if (!star) return;
+      const material = star.material as THREE.Material & { opacity: number };
+      material.opacity = 0.85 + 0.15 * Math.sin(t * 0.7 + i * 2.1);
+    });
+  });
+
+  return (
+    <group ref={group} renderOrder={-4}>
+      {at.map((position, i) => (
+        <mesh
+          key={i}
+          ref={(node) => {
+            stars.current[i] = node;
+          }}
+          position={position}
+          raycast={() => null}
+        >
+          <sphereGeometry args={[0.22, 10, 10]} />
+          <meshBasicMaterial
+            color="#ffffff"
+            transparent
+            opacity={0.9}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+    </group>
   );
 }

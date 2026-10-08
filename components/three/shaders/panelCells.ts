@@ -8,9 +8,26 @@
  * six, with a hairline gap and a very low emissive, is where hardware starts.
  *
  * The other half of it is the glint. A real panel is glass over silicon: it is
- * nearly black until the sun's angle lines up, and then it flares. Because the
- * sun here moves (§23.3), that flare sweeps across the four panels in turn on
- * its own, every couple of minutes, and nobody has to animate it.
+ * nearly black until the sun's angle lines up, and then it flares.
+ *
+ * Revision 6 left that to the specular term alone, and in practice it never
+ * fired. The idea was that the sun's own drift would sweep the flare across
+ * the panels every couple of minutes — but the satellite holds station, the
+ * sun's wobble is ±3°, and a `pow(·, 68)` lobe is a few degrees wide: the
+ * angles essentially never line up, so the arrays were simply dark glass for
+ * the whole visit.
+ *
+ * So r7 §5's sweep is **driven**, not hoped for. A narrow pulse runs across
+ * the six panels in turn on a nine-second cycle, each one flashing for about
+ * a third of a second, with four seconds of quiet before it comes round
+ * again. It is the one thing in the hub that is briefly, deliberately bright,
+ * and it is what stops the satellite reading as a dead object: hardware in
+ * sunlight catches the light, and a thing that never catches the light is a
+ * thing that is not there.
+ *
+ * The cap is §5's: at most `0.06 + 0.14 · p`, and added rather than replacing,
+ * so a panel is never washed out. The specular is kept underneath it for the
+ * rare moments the angles really do line up.
  */
 
 export const panelCellsVertexShader = /* glsl */ `
@@ -34,12 +51,26 @@ export const panelCellsFragmentShader = /* glsl */ `
   uniform vec3 uSun;
   uniform vec3 uSunColor;
   uniform float uOpacity;
+  /** Seconds. Frozen under reduced motion, which stills the sweep. */
+  uniform float uTime;
+  /** The dawn, 0.2..1: the sweep is brighter the nearer the day (r7 §5). */
+  uniform float uDawn;
+  /** Which of the six panels this is, left to right across the satellite. */
+  uniform float uIndex;
 
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vView;
 
   const vec2 CELLS = vec2(6.0, 16.0);
+
+  /** One sweep every nine seconds, the six panels 0.12 of a phase apart. */
+  const float SWEEP_S = 9.0;
+  const float SWEEP_SPAN = 1.8;
+  const float SWEEP_LEAD = 0.35;
+  const float SWEEP_STAGGER = 0.12;
+  /** Variance of the pulse. 0.004 is about a third of a second per panel. */
+  const float SWEEP_WIDTH = 0.004;
 
   /*
    * The array as the mockups draw it (M5, M12a, M14b): dark glass with a pale
@@ -75,10 +106,24 @@ export const panelCellsFragmentShader = /* glsl */ `
     vec3 color = mix(plate, wire, line);
 
     // Glass over silicon: almost nothing until the angle lines up, then a
-    // flare. The sun moves on its own, so this sweeps the panels in turn.
+    // flare. Kept for the rare moments it really does line up.
     vec3 halfway = normalize(uSun + vView);
     float glint = pow(max(dot(normal, halfway), 0.0), 68.0);
     color += uSunColor * glint * 0.55;
+
+    /*
+     * And the sweep (r7 §5). A narrow pulse crossing the six panels in turn:
+     * this one's moment arrives uIndex * SWEEP_STAGGER into the run, and
+     * lasts about a third of a second.
+     *
+     * Leaned on the facing term, but only gently. Gating it on N·L outright
+     * would put it back where revision 6 left it — invisible whenever the
+     * geometry did not cooperate — and the point of §5's sweep is that it is
+     * something the reader can count on seeing.
+     */
+    float phase = fract(uTime / SWEEP_S) * SWEEP_SPAN - SWEEP_LEAD - uIndex * SWEEP_STAGGER;
+    float sweep = exp(-(phase * phase) / SWEEP_WIDTH) * (0.06 + 0.14 * uDawn);
+    color += vec3(1.0, 0.925, 0.824) * sweep * (0.55 + 0.45 * ndl);
 
     // A faint fresnel along the edge, so the plate has a thickness the eye can
     // find against a dark sky.

@@ -11,12 +11,19 @@
 /**
  * The closing screen holds as an ending before it offers a continuation.
  *
- * Only the orbit offer waits. The invitation to look inside the cube used to
- * wait longer still, so the two would not arrive together — but the cube is
- * already on the screen, so that offer is no surprise to hold back, and it is
- * now there from the first frame.
+ * The orbit offer waits this long. The invitation to look inside the cube
+ * comes **last of all** (`SECRET_AFTER_MS`): after the closing line and the
+ * signature have finished writing and after the orbit offer, so the screen
+ * reads as the ending first and every way onward arrives after it.
  */
 export const ORBIT_HINT_MS = 3500;
+
+/**
+ * How long after everything else the cube's "inside" invitation arrives —
+ * enough for the orbit offer's own 1.4 s fade to finish first, so the two are
+ * never seen arriving together.
+ */
+export const SECRET_AFTER_MS = 1600;
 
 /** Cube to satellite, and back. `CameraRig` must not outlast this. */
 export const DEPLOY_MS = 3600;
@@ -29,7 +36,19 @@ export const RESURFACE_MS = 1600;
 /** One memory to the next. */
 export const DRIFT_MS = 1100;
 
-export const LAUNCH_MS = 3000;
+/**
+ * The reply's flight (rev 7.1 §11, §17).
+ *
+ * Three and a half seconds rather than three, because r7 opens a bloom at
+ * 62% of the way through and then lets the reply star settle out of it. At
+ * 3000 the bloom and the landing were the same moment and neither read.
+ */
+export const LAUNCH_MS = 3400;
+/** Where in that flight the rocket overtakes the comet, and blooms. */
+export const LAUNCH_BLOOM_AT = 0.62;
+
+/** How long "返事は、彗星より先に届きました。" stays up (§13, §17). */
+export const REPLY_TOAST_MS = 4000;
 
 /** The comet moment (spec v0.2 rev 5, §8.4-§8.7). */
 export const DEPART_MS = 3600;

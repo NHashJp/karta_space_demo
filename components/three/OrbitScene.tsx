@@ -5,6 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { Planet } from "./Planet";
 import { FOV, HUB_SATELLITE, hubPlanet, hubPose } from "./framing";
+import { PROPEL_FLARE, PROPEL_HEADING, PROPEL_NUDGE_PX } from "./CameraRig";
 import { deploymentAt, SAT_SCALE } from "@/lib/deployment";
 import { stationKeeping } from "@/lib/sceneLight";
 
@@ -41,8 +42,33 @@ export function OrbitScene({ seed, returned, reducedMotion, presence }: Props) {
    */
   const at = useMemo(() => hubPlanet(size.width, size.height), [size.width, size.height]);
 
+  /*
+   * The planet is staged *between* the camera and the satellite — it is close
+   * and large, which is how it fills the corner of the hub. In the hub the two
+   * never overlap on screen, so that costs nothing. But while the cube unfolds
+   * and rises (or folds and sinks back) it is still full size and the camera is
+   * further out, and on a phone its wings sweep across the planet's disc and
+   * would vanish behind it. For that stretch the planet stops writing depth
+   * and draws first, so the satellite is always in front of it.
+   */
+  const behind = useRef<boolean | null>(null);
+
   useFrame(() => {
-    planet.current?.position.set(...at);
+    const group = planet.current;
+    if (!group) return;
+    group.position.set(...at);
+
+    const transit = presence.current < 1;
+    if (behind.current === transit) return;
+    behind.current = transit;
+    group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const material = object.material as THREE.Material;
+      object.userData.renderOrder ??= object.renderOrder;
+      object.userData.depthWrite ??= material.depthWrite;
+      object.renderOrder = transit ? -0.5 : object.userData.renderOrder;
+      material.depthWrite = transit ? false : object.userData.depthWrite;
+    });
   });
 
   return (
@@ -72,11 +98,18 @@ export function SatelliteCarrier({
   returned = false,
   stowed = false,
   seed = 0,
+  propel,
   children,
 }: {
   presence: React.RefObject<number>;
   reducedMotion: boolean;
   returned?: boolean;
+  /**
+   * The Propel beat, 0 → 0.35 → 0, written by `CameraRig` (rev 7.1 §11).
+   * Shared rather than recomputed so the camera's zoom, the sky's haze and
+   * this nudge are one beat and cannot drift a frame apart.
+   */
+  propel?: React.RefObject<number>;
   /**
    * The satellite is not drawn on the trail (§9.3). The cube fades itself out,
    * but this light is the carrier's, not the cube's — and a point light two
@@ -89,6 +122,8 @@ export function SatelliteCarrier({
 }) {
   const group = useRef<THREE.Group>(null);
   const halo = useRef<THREE.PointLight>(null);
+  const thruster = useRef<THREE.PointLight>(null);
+  const ion = useRef<THREE.PointLight>(null);
   const size = useThree((state) => state.size);
 
   useFrame(({ clock }) => {
@@ -115,18 +150,53 @@ export function SatelliteCarrier({
     const span = Math.abs(pose.position[2] - HUB_SATELLITE[2]);
     const scale = span * 2 * Math.tan((FOV * Math.PI) / 360);
 
+    /*
+     * The arrival nudge (rev 7.1 §11). Six pixels on a desktop, four on a
+     * phone, up and to the right, and back. Revision 7.0 asked for sixteen
+     * and ten, and that read as the satellite being shoved; this is small
+     * enough to feel like thrust and too small to look like a move.
+     *
+     * In pixels, so it converts through the frame's own width at this
+     * distance the same way the station-keeping drift does.
+     */
+    const beat = propel ? propel.current / PROPEL_FLARE : 0;
+    const nudgePx = size.width < size.height
+      ? PROPEL_NUDGE_PX.portrait
+      : PROPEL_NUDGE_PX.landscape;
+    const heading = Math.hypot(PROPEL_HEADING[0], PROPEL_HEADING[1]);
+    const nudge = (beat * nudgePx) / size.width;
+
     carrier.position.set(
-      HUB_SATELLITE[0] * rise + station.offsetX * scale * rise,
-      HUB_SATELLITE[1] * rise + station.offsetY * scale * rise,
+      HUB_SATELLITE[0] * rise +
+        (station.offsetX + (nudge * PROPEL_HEADING[0]) / heading) * scale * rise,
+      HUB_SATELLITE[1] * rise +
+        (station.offsetY - (nudge * PROPEL_HEADING[1]) / heading) * scale * rise,
       HUB_SATELLITE[2] * rise,
     );
     carrier.rotation.z = station.roll * rise;
     carrier.scale.setScalar(1 + (SAT_SCALE - 1) * rise);
+
+    /*
+     * The thruster: a warm core and an ion halo, a cube and a half behind
+     * the body along the heading. Two lights rather than a sprite, so what
+     * the reader sees is the satellite's own panels and edges catching it.
+     */
+    if (thruster.current && ion.current) {
+      const back = 1.5 * SAT_SCALE;
+      const bx = (-PROPEL_HEADING[0] / heading) * back;
+      const by = (PROPEL_HEADING[1] / heading) * back;
+      thruster.current.position.set(bx, by, 0);
+      ion.current.position.set(bx, by, 0);
+      thruster.current.intensity = beat * 3.4 * rise;
+      ion.current.intensity = beat * 1.8 * rise;
+    }
   });
 
   return (
     <group ref={group}>
       <pointLight ref={halo} intensity={0} distance={7} color="#ffd8a0" />
+      <pointLight ref={thruster} intensity={0} distance={3.2} color="#ffd2a0" />
+      <pointLight ref={ion} intensity={0} distance={4.6} color="#00aeef" />
       {children}
     </group>
   );

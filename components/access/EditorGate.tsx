@@ -30,7 +30,7 @@ export function EditorGate() {
       >
         <p className="landing__brand">KARTA_SPACE</p>
         <h1 className="gate__title" lang="ja">
-          エディタはパスワードで保護されています
+          Editorはパスワードで保護されています
         </h1>
         <p className="gate__hint" lang="ja">
           カードのパスワードではなく、<code>EDITOR_PASSWORD</code> に設定したものです。

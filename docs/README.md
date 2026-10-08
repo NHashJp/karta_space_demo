@@ -34,6 +34,7 @@ Everything below goes deep on one part of it.
 | [Deployment](./deployment.md) | The checklist before going live on Vercel, and what breaks without each variable |
 | [Spec v0.2 「またね」](./spec-v0.2.md) | The specification being implemented: the letter becomes a satellite, and something comes back |
 | [Revision 6](./spec-v0.2-r6-orbit.md) | The orbit composition, which overrides the spec where the two disagree |
+| [Revision 7.1 (dawn)](./spec-v0.2-r7-dawn.md) | Revision 7.1 (dawn) changes the orbit scene's light, adds things in orbit, and keeps the satellite and the contrail as built; see the table in §0. The live [mockup](./mockups/orbit-dawn.html) shows the look. |
 
 ## The seven mechanisms worth understanding
 
@@ -103,3 +104,10 @@ this project actually gates on is the type checker and the verify suite.
   they share code and nothing else — not content, not passwords, not cookies.
 - Revision 6 overrides §8.2, §8.4, §8.9, §8.10, §9.1, §10.3–10.4, §11.2,
   §12.2, §16, §17, §18, §22 and §23 where stated.
+- Revision 7.1 overrides revisions 5 and 6 where the two disagree: the light
+  (§23.3), the planet (§23.4), the sky (§23.2), the comet's framing (§8.9,
+  rev 6 §4.1), principles 6, 11 and 12, the sound (§12.2) and the orbit copy
+  (§21). A comment that says *r7 §8* means
+  [revision 7.1](./spec-v0.2-r7-dawn.md). It keeps the satellite and the
+  contrail exactly as built — for those two, **the build is the reference**,
+  even where it differs from the earlier documents.

@@ -118,11 +118,12 @@ export function jumpEvents(target: string | undefined): ExperienceEvent[] | null
       // Stops mid-flight: the departure is the thing being previewed.
       return TO_ORBIT;
     case "chart":
-      return [...TO_ORBIT, { type: "departEnd" }, { type: "zoomEnd" }];
+      return [...TO_ORBIT, { type: "departEnd" }, { type: "previewEnd" }, { type: "zoomEnd" }];
     case "crossroads":
       return [
         ...TO_ORBIT,
         { type: "departEnd" },
+        { type: "previewEnd" },
         { type: "zoomEnd" },
         { type: "leaveChart" },
         { type: "zoomEnd" },

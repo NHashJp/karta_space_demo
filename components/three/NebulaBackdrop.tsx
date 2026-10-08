@@ -5,6 +5,15 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { nebulaFragmentShader, nebulaVertexShader } from "./shaders/nebula";
 import { sky as freshSky, type Sky } from "@/lib/skyAge";
+import { useDawn } from "./DawnProvider";
+
+/**
+ * How far the gas drifts, and over what (rev 7.1 §4). ±0.8% of a turn is
+ * about ±2.9°, on two periods chosen not to beat against each other.
+ */
+const NEBULA_SWAY = 0.008 * Math.PI * 2;
+const NEBULA_SWAY_A_S = 60;
+const NEBULA_SWAY_B_S = 71;
 
 /** Coloured dust on the inside of a sphere that encloses the whole scene. */
 type Props = {
@@ -17,8 +26,11 @@ type Props = {
 
 export function NebulaBackdrop({ reducedMotion, dimmed, sky = freshSky(0) }: Props) {
   const material = useRef<THREE.ShaderMaterial>(null);
+  const { d, active } = useDawn();
   const shell = useRef<THREE.Mesh>(null);
-  const lowDetail = useThree((state) => state.size.width) < 700;
+  const size = useThree((state) => state.size);
+  const dpr = useThree((state) => state.viewport.dpr);
+  const lowDetail = size.width < 700;
 
   const uniforms = useMemo(
     () => ({
@@ -46,6 +58,10 @@ export function NebulaBackdrop({ reducedMotion, dimmed, sky = freshSky(0) }: Pro
        */
       uGas: { value: 1 },
       uWarmth: { value: 1 },
+      // The dawn (rev 7.1 §6). Off everywhere but the orbit scene.
+      uDawnOn: { value: 0 },
+      uDawn: { value: 0.2 },
+      uResolution: { value: new THREE.Vector2(1, 1) },
     }),
     [],
   );
@@ -62,15 +78,35 @@ export function NebulaBackdrop({ reducedMotion, dimmed, sky = freshSky(0) }: Pro
     uniforms.uWarmth.value = sky.warmth;
   }, [uniforms, sky]);
 
+  // The sky gradient is written in screen fractions, so the shader needs to
+  // know how big the frame is in device pixels.
+  useEffect(() => {
+    uniforms.uResolution.value.set(size.width * dpr, size.height * dpr);
+  }, [uniforms, size.width, size.height, dpr]);
+
   useFrame(({ clock, camera }, delta) => {
     // The gas is the far distance, so its sphere travels with the camera. The
     // trail runs out to z = -70 inside a sphere of radius 90; left at the
     // origin, the near wall would be 20 units away by the end of it.
     shell.current?.position.copy(camera.position);
 
+    /*
+     * A sway of ±0.8% on two periods that do not divide into each other
+     * (rev 7.1 §4, §17). Revision 7.0 wanted the whole world sliding past;
+     * 7.1 withdrew that, and this is what is left of it — far too small to
+     * catch, and enough that the gas is not a painted backdrop.
+     */
+    if (shell.current && !reducedMotion) {
+      const t = clock.elapsedTime;
+      shell.current.rotation.y = NEBULA_SWAY * Math.sin((2 * Math.PI * t) / NEBULA_SWAY_A_S);
+      shell.current.rotation.x = NEBULA_SWAY * Math.sin((2 * Math.PI * t) / NEBULA_SWAY_B_S);
+    }
+
     const shader = material.current;
     if (!shader) return;
     if (!reducedMotion) shader.uniforms.uTime.value = clock.elapsedTime;
+    shader.uniforms.uDawnOn.value = active ? 1 : 0;
+    shader.uniforms.uDawn.value = d.p;
     shader.uniforms.uIntensity.value = THREE.MathUtils.damp(
       shader.uniforms.uIntensity.value,
       dimmed ? 0.34 : 1.15,

@@ -4,11 +4,13 @@ import { useState } from "react";
 import { SignaturePad } from "../SignaturePad";
 import type { SectionProps } from "../shared";
 import { CLOSING_MAX, SECRET_MAX } from "@/lib/cardRules";
+import { cleanSignature, signaturePreview } from "@/lib/signature";
 
 /** The last screen: the line, the signature, and what is inside (§15.4). */
 export function ClosingSection({ card, edit }: SectionProps) {
   const [drawing, setDrawing] = useState(false);
   const closingLength = card.closing.trim().length;
+  const signature = cleanSignature(card.signature);
 
   return (
     <div className="editor__section">
@@ -30,11 +32,16 @@ export function ClosingSection({ card, edit }: SectionProps) {
 
       <div className="field">
         <span>Signature</span>
-        {card.signature ? (
+        {signature ? (
           <div className="editor__signature">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={card.signature} alt="" />
+            <img src={signaturePreview(signature)} alt="" />
           </div>
+        ) : card.signature ? (
+          <span className="editor__hint">
+            The saved signature is an old public file. Draw it again to keep it
+            with the card instead.
+          </span>
         ) : (
           <span className="editor__hint">
             None. The closing line will stand alone.

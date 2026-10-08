@@ -135,7 +135,10 @@ export type CardConfig = {
   writtenAt?: FuzzyDate;
   /** IANA zone, default "Asia/Tokyo". Every date comparison uses it. */
   timeZone?: string;
-  /** Path to an SVG of the sender's handwriting. */
+  /**
+   * The sender's handwriting, as SVG markup kept in the card itself — not a
+   * path, and never a file in `public/` (see `lib/signature.ts`).
+   */
   signature?: string;
   /** Default true; false removes sound entirely for this card. */
   sound?: boolean;

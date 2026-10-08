@@ -1,12 +1,15 @@
 /** Camera framing maths, kept out of the component so it can be checked. */
 import {
+  APHELION,
   DISPLAY_FAR,
   DISPLAY_NEAR,
+  PERIHELION,
   displayOrbitPoint,
   displayedProgress,
+  orbitPoint,
 } from "../../lib/cometOrbit.ts";
-import { DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
-import { trailControlPoints, trailPoint, trailTangent } from "../../lib/trailCurve.ts";
+import { BUS_HALF, DEPLOYED_SPAN, hullPoints } from "../../lib/satelliteGeometry.ts";
+import { evenU, trailControlPoints, trailPoint, trailTangent } from "../../lib/trailCurve.ts";
 import { SAT_SCALE, displayDirection } from "../../lib/deployment.ts";
 
 export const FOV = 45;
@@ -192,13 +195,30 @@ type HubTargets = {
  */
 const PORTRAIT: HubTargets = {
   centre: [0.44, 0.55],
-  tip: 0.81,
+  /*
+   * Tip to tip, as a fraction of the width.
+   *
+   * Revision 6 asked for 0.81 and this was 0.81. On a phone that left the
+   * hull spanning 16% to 79% of the width — inside the margin the checks
+   * ask for, and still too much: the satellite's panel corners came within a
+   * finger's width of both edges, and everything else in the scene had to
+   * fit in what was left. The reference mockup draws it at about 0.70 on a
+   * phone, and the difference is the whole feeling of the view: at 0.74 the
+   * satellite is unmistakably the subject and there is sky around it for the
+   * planet, the comet and the things in orbit to be *in*.
+   *
+   * Landscape is untouched. This is a portrait composition decision, made
+   * after looking at the two side by side on a phone-sized frame.
+   */
+  tip: 0.74,
   planet: { centre: [1.21, 1.22], radius: 1.07 },
 };
 const LANDSCAPE: HubTargets = {
   centre: [0.47, 0.5],
   tip: 0.36,
-  planet: { centre: [1.11, 1.44], radius: 0.55 },
+  // The dawn mockup's desktop planet (rev 7.1): a little smaller and further
+  // in, so more of the lit limb — and the sunrise on it — is in the frame.
+  planet: { centre: [1.06, 1.45], radius: 0.495 },
 };
 
 export function hubTargets(aspect: number): HubTargets {
@@ -359,47 +379,89 @@ export function hubPlanet(width: number, height: number): Vec3 {
  * Where the comet's path runs on screen: perihelion beside the planet at the
  * bottom-right, aphelion up in the top-right, bowing outward in between.
  */
-const COMET_NEAR_SCREEN: [number, number] = [0.9, 0.66];
+/**
+ * Where the comet comes home, on screen (§4): a little above the limb, on the
+ * far side of the planet from the satellite.
+ *
+ * Solved from the planet's own disc rather than written down, because it has
+ * to be *outside* it. Revision 6 fixed it at (0.9, 0.66), which was clear of
+ * the planet as the build then drew it — a third of the size it was supposed
+ * to be, because of the double offset §14 step 0 asks to fix. With the planet
+ * where the composition actually puts it, that point is well inside the disc,
+ * and the comet would come home by disappearing behind the world it was
+ * coming home to.
+ */
+const COMET_HOME_X = { landscape: 0.8 };
+const COMET_HOME_LIFT = { landscape: 26 };
+
+/**
+ * Revision 6's point, kept for portrait (§4's own numbers do not survive this
+ * build's phone composition — see `cometHomeScreen`).
+ */
+const COMET_HOME_PORTRAIT: [number, number] = [0.9, 0.66];
+
+function cometHomeScreen(width: number, height: number): [number, number] {
+  /*
+   * On a phone, r6's point stands.
+   *
+   * §4 gives "20 px above the limb where x = 0.74", and on a phone that lands
+   * the comet — and, worse, the whole near half of its path — across the
+   * satellite's upper wing. The satellite is four fifths of the width in
+   * portrait and r7 withdraws R23, so it is not allowed to move; §17's check
+   * that the comet never comes within 24 px of the hull therefore wins over
+   * §4's number. r6's point is already clear of the planet's disc on a phone
+   * (by about 70 px), because the portrait planet is placed differently, so
+   * the problem §4 is solving does not arise there.
+   */
+  if (width < height) return COMET_HOME_PORTRAIT;
+
+  const disc = hubPlanetScreen(width, height);
+  const x = COMET_HOME_X.landscape * width;
+  const dx = x - disc.cx;
+  const y = disc.cy - Math.sqrt(Math.max(0, disc.r * disc.r - dx * dx));
+
+  // Out along the planet's own radius, so the gap is a gap above the horizon
+  // rather than a gap in whichever direction the frame happens to run.
+  const length = Math.hypot(dx, y - disc.cy) || 1;
+  const lift = COMET_HOME_LIFT.landscape;
+  return [
+    (x + (dx / length) * lift) / width,
+    (y + ((y - disc.cy) / length) * lift) / height,
+  ];
+}
+
 /**
  * The far end sits where §3.1 puts the sample comet, around (0.82, 0.22): the
  * sample is already most of the way out, so "as far as it goes" is barely
  * beyond where it is today.
  */
-const COMET_FAR_SCREEN: [number, number] = [0.81, 0.19];
-/** Pushed right of the straight line, so the path reads as an arc. */
-const COMET_BOW = 0.07;
-
+/**
+ * Revision 7.1 §4 moves it: the far end was (0.81, 0.19), which ran the comet
+ * and its tail across the satellite's upper wing at the build position. The
+ * satellite is not allowed to move (r7 drops R23), so the comet does.
+ *
+ * Portrait takes its own number for the same reason: on a phone the satellite
+ * is four fifths of the width, so the only clear sky is the top-right corner.
+ */
+const COMET_FAR_SCREEN: Record<"portrait" | "landscape", [number, number]> = {
+  portrait: [0.88, 0.05],
+  landscape: [0.76, 0.07],
+};
 /** How far behind the satellite the comet is staged. */
 const COMET_DEPTH = 3.4;
 
 /**
- * Where the comet is drawn in the hub, for a radius already compressed by
- * `displayRadius` (0 = home, 1 = as far as it goes).
- *
- * Staged in screen space, like the planet, and for the same reason: the hub is
- * a composition. What has to survive is the *reading* — the comet passes by in
- * the top-right, well clear of the satellite, and comes home beside the planet
- * — and screen space is where those words mean something.
- */
-/**
  * Where the comet actually is on screen, for a given day.
  *
- * The one place that answers this. `hubComet` maps a *reach* 0..1 along the
- * composition's bow; turning a date into that reach needs `displayOrbitPoint`
- * as well, and every component that wants to point at the comet needs both.
- *
- * It exists because three of them did the sum separately and two got it
- * wrong: the reply rocket flew off to its own corner of the sky, and the
+ * The one place that answers this, for every component that points at the
+ * comet. It exists because three of them did the sum separately and two got
+ * it wrong: the reply rocket flew off to its own corner of the sky, and the
  * capsule carrying the receiver's words ran up the comet's *true* ellipse —
  * which is not where the comet is drawn — and stopped 7.6 units short of it.
  * Anything aimed at the comet aims with this.
  */
-export function cometReach(f: number): number {
-  return (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
-}
-
 export function cometAt(progress: number, width: number, height: number): Vec3 {
-  return hubComet(cometReach(displayedProgress(progress)), width, height);
+  return hubCometAt(displayedProgress(progress), width, height);
 }
 
 /** How far past the comet the reply settles, in world units (mockup M8c). */
@@ -428,26 +490,77 @@ export function replyStarAt(
   ];
 }
 
-export function hubComet(u: number, width: number, height: number): Vec3 {
+/**
+ * How wide the comet's ellipse is drawn, across its long axis, relative to
+ * the orbit's own (display-compressed) proportions, and which side the way
+ * out takes. The way home is the other side of the loop.
+ */
+export const COMET_ELLIPSE = {
+  width: { portrait: 0.18, landscape: 0.7 },
+  outbound: 1 as 1 | -1,
+};
+/** Perihelion to aphelion, through the focus: the orbit's whole length. */
+const APHELION_SPAN = PERIHELION + APHELION;
+
+/**
+ * Where the comet is drawn in the hub, for a **displayed progress** `f` along
+ * its cycle (0 = leaving home, ½ = as far as it goes, 1 = home again).
+ *
+ * An **ellipse**, not an arc. The comet's dates already move it by real Kepler
+ * motion (`orbitPoint`): an orbit with the planet at one focus, crawling far
+ * out for most of the wait and swinging home fast at the end. The hub used to
+ * keep only how *far* that put it, and slid the comet along a single bowed
+ * line — so the way out and the way home were the same path, and the comet
+ * on the day it left was drawn exactly where it would be the week before it
+ * came back. Now the whole orbit point is used: it leaves along one side of
+ * the loop and comes home along the other, and its place on screen changes
+ * with the date the way a comet's does.
+ *
+ * Staged in screen space, like the planet: the long axis runs from the
+ * homecoming point beside the planet (`cometHomeScreen`) to the far point in
+ * the top-right (`COMET_FAR_SCREEN`), so the composition the checks hold the
+ * comet to — clear of the satellite, inside the frame — is still the frame's.
+ */
+export function hubCometAt(f: number, width: number, height: number): Vec3 {
   const aspect = width / height;
   const { halfV, halfH } = hubHalfTangents(aspect);
   const camera = hubPose(width, height).position;
-  const t = Math.min(Math.max(u, 0), 1);
 
-  // A quadratic through near → bow → far, so the path curves the way an orbit
-  // seen edge-on does rather than running straight.
-  const control: [number, number] = [
-    (COMET_NEAR_SCREEN[0] + COMET_FAR_SCREEN[0]) / 2 + COMET_BOW,
-    (COMET_NEAR_SCREEN[1] + COMET_FAR_SCREEN[1]) / 2,
-  ];
-  const x =
-    (1 - t) * (1 - t) * COMET_NEAR_SCREEN[0] +
-    2 * (1 - t) * t * control[0] +
-    t * t * COMET_FAR_SCREEN[0];
-  const y =
-    (1 - t) * (1 - t) * COMET_NEAR_SCREEN[1] +
-    2 * (1 - t) * t * control[1] +
-    t * t * COMET_FAR_SCREEN[1];
+  const orientation = aspect < 1 ? "portrait" : "landscape";
+  const far = COMET_FAR_SCREEN[orientation];
+  const near = cometHomeScreen(width, height);
+
+  // The long axis, in pixels so that "across it" is a right angle on screen.
+  const ax = (far[0] - near[0]) * width;
+  const ay = (far[1] - near[1]) * height;
+  const span = Math.hypot(ax, ay) || 1;
+  const along: [number, number] = [ax / span, ay / span];
+  // Across: the outbound side is to the right of the way out.
+  const across: [number, number] = [-along[1] * COMET_ELLIPSE.outbound, along[0] * COMET_ELLIPSE.outbound];
+
+  /*
+   * The orbit point, measured from the focus with perihelion on +x:
+   * perihelion lands on `near`, aphelion on `far`. Its *shape* is the true
+   * one: a real comet's orbit is sharp at the near end and widest far out,
+   * so it slips past the satellite on the way home rather than looping
+   * round it.
+   */
+  const g = Math.min(Math.max(f, 0), 1);
+  const point = orbitPoint(g);
+  /*
+   * How far along the long axis comes from the display-compressed orbit,
+   * which climbs out of the planet's corner quickly so the comet spends its
+   * wait up in the open sky of the top-right; the width comes from the true
+   * orbit, so the loop is still sharp at the near end.
+   */
+  const shown = displayOrbitPoint(g);
+  const fromNear = ((DISPLAY_NEAR - shown.x) / (DISPLAY_NEAR + DISPLAY_FAR)) * span;
+  const side = (point.y / APHELION_SPAN) * span * COMET_ELLIPSE.width[orientation];
+
+  const px = near[0] * width + along[0] * fromNear + across[0] * side;
+  const py = near[1] * height + along[1] * fromNear + across[1] * side;
+  const x = px / width;
+  const y = py / height;
 
   const depth = camera[2] - HUB_SATELLITE[2] + COMET_DEPTH;
   return [
@@ -539,6 +652,394 @@ export function stagedTrail(seed: number, width: number, height: number): Vec3[]
 
 /** The old name, kept so nothing has to change twice. */
 export const orbitPose = hubPose;
+
+/* ---------------------------------------------------------------------------
+ * Coming back from the trail (rev 6 §9.3)
+ * ------------------------------------------------------------------------- */
+
+/** Where in a retrace the pull-out to the orbit pose begins to blend in. */
+export const RETRACE_SHARE = 0.72;
+
+/**
+ * The camera's pose part-way back from a memory to the hub.
+ *
+ * `t` is already eased by the caller: this is the *shape* of the move, not
+ * its timing.
+ *
+ * The walk back along the curve and the pull-out to the orbit pose
+ * **overlap**, and that is the whole of what makes this read as one move.
+ * It used to be two: walk the curve for the first 72% of the time, then
+ * dolly out for the last 28%, each with its own ease-in-out. Two eases butted
+ * together means the camera decelerates to a complete stop three quarters of
+ * the way home and then accelerates out of it — a hitch, at exactly the
+ * moment the reader is being handed back to the hub.
+ *
+ * Here the walk runs the full length of the move and the pull-out is blended
+ * in over the tail with a smoothstep: zero slope at both ends, so the second
+ * motion arrives without a corner and the first never has to stop for it.
+ *
+ * Pure, and exported, so the verify suite can sample the path and assert the
+ * camera never stalls in the middle of it — which is not a thing a screenshot
+ * can show.
+ */
+export function retracePose(
+  points: Vec3[],
+  fromU: number,
+  to: Pose,
+  distance: number,
+  t: number,
+): Pose {
+  // Paced by arc length, so the walk home is steady rather than surging as
+  // it crosses the curve's control points (`evenU`).
+  const along = trailPose(points, evenU(points, fromU, 0, t), distance);
+  const out = smoothstepBetween(RETRACE_SHARE, 1, t);
+  if (out <= 0) return along;
+  return {
+    position: mixVec(along.position, to.position, out),
+    lookAt: mixVec(along.lookAt, to.lookAt, out),
+  };
+}
+
+function smoothstepBetween(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function mixVec(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/* ---------------------------------------------------------------------------
+ * The hub in screen pixels (rev 7.1 §4, §8.3)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Revision 7.1 composes three new things — the sun, the dawn haze and the
+ * things in orbit — entirely in screen space, the way §4's table is written.
+ * It can, because the hub camera is solved from the composition and looks
+ * straight down −Z: a pixel plus a depth is a world point, and nothing else
+ * about the camera has to be known.
+ *
+ * Everything below is that one idea, applied. `hubUnproject` is the primitive;
+ * the rest name the particular pixels r7 cares about.
+ */
+
+/** A circle on screen, in device-independent pixels. */
+export type ScreenDisc = { cx: number; cy: number; r: number };
+
+/** The planet's disc on screen. Unchanged from r6 — only its light changes. */
+export function hubPlanetScreen(width: number, height: number): ScreenDisc {
+  const target = hubTargets(width / height);
+  return {
+    cx: target.planet.centre[0] * width,
+    cy: target.planet.centre[1] * height,
+    // The radius is a fraction of the *width* in both orientations, which is
+    // what makes the planet the same size relative to the satellite on a
+    // phone as on a desktop.
+    r: target.planet.radius * width,
+  };
+}
+
+/**
+ * A screen pixel, at `depth` in front of the hub camera, as a world point.
+ *
+ * The inverse of `hubProject`. Both exist because r7 places things by where
+ * they land in the frame and then chooses a depth for them separately — the
+ * depth decides only what covers what (§8.4).
+ */
+export function hubUnproject(
+  px: number,
+  py: number,
+  depth: number,
+  width: number,
+  height: number,
+): Vec3 {
+  const aspect = width / height;
+  const { halfV, halfH } = hubHalfTangents(aspect);
+  const camera = hubPose(width, height).position;
+  return [
+    camera[0] + (px / width - 0.5) * 2 * halfH * depth,
+    camera[1] - (py / height - 0.5) * 2 * halfV * depth,
+    camera[2] - depth,
+  ];
+}
+
+/** A world point as the hub camera sees it: pixels, plus how far away it is. */
+export function hubProject(
+  point: Vec3,
+  width: number,
+  height: number,
+): { x: number; y: number; depth: number } {
+  const aspect = width / height;
+  const { halfV, halfH } = hubHalfTangents(aspect);
+  const camera = hubPose(width, height).position;
+  const depth = camera[2] - point[2];
+  return {
+    x: width * (0.5 + (point[0] - camera[0]) / (2 * halfH * depth)),
+    y: height * (0.5 - (point[1] - camera[1]) / (2 * halfV * depth)),
+    depth,
+  };
+}
+
+/** How many world units one pixel covers, at a given depth from the camera. */
+export function worldPerPixel(depth: number, height: number): number {
+  return (2 * depth * Math.tan(((FOV * Math.PI) / 180) / 2)) / height;
+}
+
+/* -------------------------------------------------------------- the sun --- */
+
+/**
+ * Where along the limb the sun comes up (§4).
+ *
+ * Not a free choice. It has to be far enough round the planet's visible arc
+ * that the flare is inside the frame at p = 1, and far enough from the
+ * bottom-right corner that the crescent it lights reads as a crescent rather
+ * than as a bright corner.
+ */
+const SUN_LIMB_X = { portrait: 0.9, landscape: 0.915 };
+
+/** The angle, from the planet's centre, at which the sun sits. */
+export function hubSunAngle(width: number, height: number): number {
+  const disc = hubPlanetScreen(width, height);
+  const x = SUN_LIMB_X[width < height ? "portrait" : "landscape"] * width;
+  const dx = x - disc.cx;
+  // The limb above the centre, which is the arc the frame actually shows.
+  const y = disc.cy - Math.sqrt(Math.max(0, disc.r * disc.r - dx * dx));
+  return Math.atan2(y - disc.cy, dx);
+}
+
+/**
+ * The sun on screen, for a given elevation in planet radii (`Dawn.sunElevation`).
+ *
+ * It climbs **along the planet's own radius** rather than straight up: the
+ * horizon it is rising over is the limb, and a sun that rose vertically would
+ * walk off the limb and read as a lamp hanging beside the planet.
+ */
+export function hubSunScreen(
+  width: number,
+  height: number,
+  sunElevation: number,
+): [number, number] {
+  const disc = hubPlanetScreen(width, height);
+  const angle = hubSunAngle(width, height);
+  const distance = disc.r * (1 + sunElevation);
+  return [disc.cx + Math.cos(angle) * distance, disc.cy + Math.sin(angle) * distance];
+}
+
+/**
+ * The sun in the world, staged at the planet's depth.
+ *
+ * At the planet's depth rather than at infinity because the key light is a
+ * direction *from the satellite towards the sun* (§5), and the satellite is
+ * much nearer the camera than the planet is: putting the sun on the far plane
+ * would flatten that direction to "straight ahead" and the rim on the
+ * satellite would stop agreeing with the crescent on the planet.
+ */
+export function hubSun(width: number, height: number, sunElevation: number): Vec3 {
+  const [x, y] = hubSunScreen(width, height, sunElevation);
+  const camera = hubPose(width, height).position;
+  const depth = camera[2] - hubPlanet(width, height)[2];
+  return hubUnproject(x, y, depth, width, height);
+}
+
+/**
+ * Where the sun sits **on the planet's disc** (§6), in planet radii from its
+ * centre, in screen axes with y up.
+ *
+ * This is what lights the planet, and it is a 2D vector rather than a 3D
+ * direction on purpose. The usual way to light a sphere — N·L against a sun
+ * direction — cannot draw §6's picture. The sun sits *on the visible limb*,
+ * and the arc of this planet the composition shows is the same arc the sun is
+ * on, so any hemisphere lighting lights the whole of what you can see: a
+ * daylit ball, which is exactly the image revision 7.1 replaces. §6 does not
+ * describe hemisphere lighting. It describes a radial wash from a point on
+ * the limb, widening as the sun rises, and this is that point.
+ */
+export function planetSunDisc(
+  width: number,
+  height: number,
+  sunElevation: number,
+): [number, number] {
+  const angle = hubSunAngle(width, height);
+  const distance = 1 + sunElevation;
+  // Screen y is down; the shader works in a disc whose y is up.
+  return [Math.cos(angle) * distance, -Math.sin(angle) * distance];
+}
+
+/** The unit direction from the satellite towards the sun (§5). */
+export function hubSunDirection(
+  width: number,
+  height: number,
+  sunElevation: number,
+): Vec3 {
+  const sun = hubSun(width, height, sunElevation);
+  const dx = sun[0] - HUB_SATELLITE[0];
+  const dy = sun[1] - HUB_SATELLITE[1];
+  const dz = sun[2] - HUB_SATELLITE[2];
+  const length = Math.hypot(dx, dy, dz) || 1;
+  return [dx / length, dy / length, dz / length];
+}
+
+/* ------------------------------------------------- the satellite on screen - */
+
+/**
+ * The satellite's span on screen: the line through both wing tips, and the
+ * body's half-edge in pixels.
+ *
+ * Orbiting things keep clear of this line (§8.3) — of the *line*, not of a
+ * box, because the satellite is a long thin thing on a diagonal and a bounding
+ * box around it would blank out a quarter of the sky.
+ */
+export function satelliteSpanScreen(
+  width: number,
+  height: number,
+): { a: [number, number]; b: [number, number]; kSat: number } {
+  const half = (DEPLOYED_SPAN / 2) * SAT_SCALE;
+  const tips = ([1, -1] as const).map((side) => {
+    const [dx, dy, dz] = displayDirection([side, 0, 0]);
+    return hubProject(
+      [
+        HUB_SATELLITE[0] + dx * half,
+        HUB_SATELLITE[1] + dy * half,
+        HUB_SATELLITE[2] + dz * half,
+      ],
+      width,
+      height,
+    );
+  });
+
+  // The body's half-edge, measured the same way: project the bus corner.
+  const body = hubProject(HUB_SATELLITE, width, height);
+  const edge = hubProject(
+    [HUB_SATELLITE[0] + BUS_HALF * SAT_SCALE, HUB_SATELLITE[1], HUB_SATELLITE[2]],
+    width,
+    height,
+  );
+
+  return {
+    a: [tips[0].x, tips[0].y],
+    b: [tips[1].x, tips[1].y],
+    kSat: Math.abs(edge.x - body.x),
+  };
+}
+
+/** The satellite's whole deployed hull, as screen points. */
+export function satelliteHullScreen(width: number, height: number): [number, number][] {
+  return satelliteHull().map((point) => {
+    const { x, y } = hubProject(
+      [
+        HUB_SATELLITE[0] + point[0],
+        HUB_SATELLITE[1] + point[1],
+        HUB_SATELLITE[2] + point[2],
+      ],
+      width,
+      height,
+    );
+    return [x, y] as [number, number];
+  });
+}
+
+/** The contrail, as a screen polyline — what orbiters start clear of (§8.3). */
+export function trailScreen(
+  seed: number,
+  width: number,
+  height: number,
+): [number, number][] {
+  return stagedTrail(seed, width, height).map((point) => {
+    const { x, y } = hubProject(point, width, height);
+    return [x, y] as [number, number];
+  });
+}
+
+/* ----------------------------------------------------------- the caption -- */
+
+/**
+ * The promise caption's corner (§4, §10), in CSS pixels from the top-right.
+ *
+ * Exported from here rather than written into the overlay's stylesheet so that
+ * the orbiter placement and the framing checks read the same numbers the
+ * caption is actually drawn at.
+ */
+export const CAPTION_INSET = {
+  portrait: { right: 16, top: 72 },
+  landscape: { right: 24, top: 80 },
+};
+
+/**
+ * The region orbiters may not put an apoapsis in, because the caption is over
+ * it (§4). Deliberately bigger than the caption's own box: an object that
+ * dwells just outside three lines of type still reads as sitting on them.
+ */
+export const CAPTION_KEEP_OUT = {
+  portrait: { x: 0.5, y: 0.2 },
+  landscape: { x: 0.66, y: 0.25 },
+};
+
+/**
+ * How far in front of the hub camera the orbiting things are drawn (§8.4).
+ *
+ * One depth for all of them, past the **back** of the satellite's hull.
+ *
+ * Past the back rather than the near face because the hull is a long thin
+ * thing on a diagonal: an orbiter tucked between its front and back would be
+ * hidden in some places and not others as it drifted, which reads as
+ * flickering rather than as depth.
+ *
+ * And one depth rather than three because of a quirk of this composition that
+ * does all the work for free. The planet is staged much closer to the lens
+ * than the satellite is — on a desktop it occupies depths 0.5 to 4.9 and the
+ * satellite 5.2 to 7.7 — so anything behind the satellite is behind the
+ * planet too. Both of the things that must never be crossed are handled by
+ * the depth buffer, with no sorting and no per-object decision.
+ *
+ * It lives here rather than in the renderer because what matters is a
+ * *relationship*: this has to clear both hulls, and both of them are solved
+ * from the composition. Left as a constant beside the draw call it would
+ * quietly stop being true the first time the satellite's scale or the
+ * camera's distance moved. `verify-orbiters` checks it.
+ */
+export function orbiterDepth(width: number, height: number): number {
+  const camera = hubPose(width, height).position;
+  const back = Math.min(...satelliteHull().map(([, , z]) => z));
+  return camera[2] - back + 0.4;
+}
+
+/* -------------------------------------------------------- the orbit frame - */
+
+/**
+ * Everything `makeOrbiters` needs to know about this hub, in pixels (§8.3).
+ *
+ * The orbiter module is pure and knows nothing about three.js, the camera or
+ * the composition; this is the one place the two meet. Building it here means
+ * `lib/orbiters.ts` can be checked by the verify suite without a renderer.
+ */
+export type OrbitFrame = {
+  width: number;
+  height: number;
+  phone: boolean;
+  planet: ScreenDisc;
+  satellite: { a: [number, number]; b: [number, number]; kSat: number };
+  trail: [number, number][];
+  caption: { x: number; y: number };
+};
+
+export function orbitFrame(
+  trailSeed: number,
+  width: number,
+  height: number,
+  hasTrail = true,
+): OrbitFrame {
+  const phone = width < height;
+  return {
+    width,
+    height,
+    phone,
+    planet: hubPlanetScreen(width, height),
+    satellite: satelliteSpanScreen(width, height),
+    trail: hasTrail ? trailScreen(trailSeed, width, height) : [],
+    caption: CAPTION_KEEP_OUT[phone ? "portrait" : "landscape"],
+  };
+}
 
 /* ---------------------------------------------------------------------------
  * The trail (spec v0.2 §9.2, §9.3)

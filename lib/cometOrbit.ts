@@ -241,8 +241,57 @@ export function orbitDiagram(
 
 export const HUB_ORBIT_HEADING = (-62 * Math.PI) / 180;
 
-/** The next 6% of the orbit, drawn dotted ahead of the comet (§4.1). */
-export const SEGMENT_AHEAD = 0.06;
+/**
+ * How much of the orbit is drawn dotted ahead of the comet (r6 §4.1).
+ *
+ * Revision 7.1 §10 lengthens it from 6% to 14%, and fades it out along its
+ * length. Six per cent was a stub beside the comet; fourteen reaches far
+ * enough across the frame to read as *the way it is going*, which is the
+ * whole job of the thing.
+ */
+export const SEGMENT_AHEAD = 0.14;
+
+/**
+ * The tail on screen, in CSS pixels (rev 7.1 §10).
+ *
+ * The length is a fact about the picture, not about the world. r6 measured it
+ * in world units from the displayed radius and then floored it at a minimum
+ * pixel size, which meant that for most of the year the floor was the only
+ * thing deciding how long the tail was — so it did not grow, and a tail that
+ * does not grow says nothing about a day getting nearer.
+ *
+ * `r` is the comet's **true** orbital distance: perihelion 4.2, aphelion just
+ * under 56.2, so `near` runs 0 at the far end to 1 at the meeting point.
+ */
+export function tailPixels(r: number, portrait: boolean): number {
+  return (40 + 180 * cometNear(r) * cometNear(r)) * (portrait ? 0.75 : 1);
+}
+
+/** 0 out at aphelion, 1 at the meeting point. Shared by the tail and the coma. */
+export function cometNear(r: number): number {
+  return Math.min(1, Math.max(0, 1 - (r - PERIHELION) / 52));
+}
+
+/**
+ * The coma as it is **drawn**, in CSS pixels (rev 7.1 §14 step 0).
+ *
+ * r7's step 0 asks for one thing about the comet to be fixed before anything
+ * is added to it: "the comet's tail — it reads as a pale oval". This is why
+ * it did. `comaSize` floors the glow at 0.36 world units, which is about
+ * forty pixels, and §10's tail is forty-nine for most of the year — so the
+ * tail spent eleven months entirely inside the head, and what was left on
+ * screen was an oval.
+ *
+ * The floor existed for a good reason: a comet that cannot be found among
+ * fifteen hundred stars may as well not be drawn. r7 replaces that reason
+ * with a better one — there is now always a tail, and a tail is a far better
+ * way to find a comet than a bigger blob. So the head goes back to the size
+ * the mockup draws it at, three times smaller than the tail at every point
+ * on the orbit.
+ */
+export function comaPixels(r: number, portrait: boolean): number {
+  return (12 + 18 * cometNear(r)) * (portrait ? 0.85 : 1);
+}
 
 /** The orbit plane in world space: tilted, then rotated by the comet's own seed. */
 export function toWorld(point: OrbitPoint, rotation: number, tilt = ORBIT_TILT) {

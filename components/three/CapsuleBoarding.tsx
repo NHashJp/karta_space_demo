@@ -3,9 +3,10 @@
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_CENTRE, PLANET_RADIUS, cometAt } from "./framing";
+import { PLANET_RADIUS, cometAt, hubPlanet } from "./framing";
 import { displayOrbitPoint, displayedProgress, toWorld } from "@/lib/cometOrbit";
 import { BOARD_MS, REDUCED_MS } from "@/lib/timing";
+import type { BloomRequest } from "./Bloom";
 
 /**
  * The receiver's words, going aboard (spec v0.2 rev 5, §8.7).
@@ -26,17 +27,33 @@ type Props = {
   progress: number;
   rotation: number;
   reducedMotion: boolean;
+  /** Opens the warm bloom; the scene owns it, so it outlives this flight. */
+  onBloom?: (bloom: BloomRequest) => void;
   onDone: () => void;
 };
 
-export function CapsuleBoarding({ progress, rotation, reducedMotion, onDone }: Props) {
+export function CapsuleBoarding({
+  progress,
+  rotation,
+  reducedMotion,
+  onBloom,
+  onDone,
+}: Props) {
   const size = useThree((state) => state.size);
   const spark = useRef<THREE.Mesh>(null);
   const light = useRef<THREE.PointLight>(null);
   const startedAt = useRef<number | null>(null);
   const finished = useRef(false);
 
-  const planet = useMemo(() => new THREE.Vector3(...PLANET_CENTRE), []);
+  /*
+   * Where the planet actually is on screen, not where `PLANET_CENTRE` puts it
+   * in the world: the hub stages it per aspect ratio (`hubPlanet`), and a
+   * capsule that leaves from the world constant leaves from empty sky.
+   */
+  const planet = useMemo(
+    () => new THREE.Vector3(...hubPlanet(size.width, size.height)),
+    [size.width, size.height],
+  );
 
   /**
    * The path is the orbit line itself, from perihelion out to the comet — not
@@ -97,6 +114,12 @@ export function CapsuleBoarding({ progress, rotation, reducedMotion, onDone }: P
     );
   }, []);
 
+  /*
+   * A warm bloom where it arrives (rev 7.1 §11). Quieter than the reply's —
+   * the flash only, sixty pixels across, no sparks — because the two mean
+   * different things: the reply *overtook* something, and this is a parcel
+   * being put safely aboard. Then the warm strand lights, as before.
+   */
   useFrame(({ clock }, delta) => {
     if (finished.current) return;
     if (startedAt.current === null) startedAt.current = clock.elapsedTime;
@@ -136,6 +159,12 @@ export function CapsuleBoarding({ progress, rotation, reducedMotion, onDone }: P
 
     if (t >= 1) {
       finished.current = true;
+      onBloom?.({
+        at: [position.x, position.y, position.z],
+        reachPx: 60,
+        sparks: false,
+        color: "#f3d7a4",
+      });
       onDone();
     }
   });

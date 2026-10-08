@@ -3,22 +3,32 @@
 import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_CENTRE, PLANET_RADIUS, orbitPosition, replyStarAt } from "./framing";
-import { LAUNCH_MS, REDUCED_MS } from "@/lib/timing";
+import { cometAt, hubProject, hubUnproject, orbitPosition, replyStarAt } from "./framing";
+import { LAUNCH_BLOOM_AT, LAUNCH_MS, REDUCED_MS } from "@/lib/timing";
+import type { BloomRequest } from "./Bloom";
 
 /**
  * The reply, on its way (spec v0.2 §10.3).
  *
- * A point of light lifts off the planet's limb, rises on an arc to the orbit
- * ring, **pauses beside the satellite for a moment** and then goes on out
+ * A point of light enters from the far edge of the screen, crosses on an arc
+ * to the orbit ring, **pauses beside the satellite for a moment** and then goes on out
  * along the comet's path, overtaking it, and settles as a star just beyond it
  * (spec §10.3; mockups M8b, M8c).
  *
  * That pause is the whole animation. Without it this is a thing being fired
  * into space; with it, the reply visibly *meets* the letter that prompted it
- * before going on its way. There is no shake, no flash and no particle burst —
- * the message has already arrived by the time this plays, and the animation's
- * only job is to say so gently.
+ * before going on its way. There is still no shake and no screen flash.
+ *
+ * Revision 7.1 §11 adds one thing: a **bloom** at the moment the reply passes
+ * the comet. Principle 6 used to forbid it outright and r7 amends it to
+ * "joyful, not loud" — and this is the beat the amendment was written for.
+ * The whole card is a race between a letter that takes months and an answer
+ * that takes seconds, and the instant the answer goes past is the only time
+ * the scene ever gets to say so.
+ *
+ * The timeline is retimed around it (§17): the rise and the pause are
+ * compressed into the first half, the overtaking lands on 0.62, and the last
+ * 38% is the star settling out of the sparks.
  *
  * **Where it goes matters as much as the pause.** The card offers two ways to
  * send something and the only difference between them is speed, so the rocket
@@ -30,9 +40,16 @@ import { LAUNCH_MS, REDUCED_MS } from "@/lib/timing";
  * that is where the comet is.
  */
 
-/** Where in the timeline the meeting happens, and how long it lasts. */
-const MEET_AT = 0.62;
-const MEET_UNTIL = 0.74;
+/**
+ * Where in the timeline the meeting with the satellite happens, and how long
+ * it lasts. Earlier than r6's 0.62/0.74, to make room for the overtaking at
+ * 0.62 and for the settle after it (§11).
+ */
+const MEET_AT = 0.4;
+const MEET_UNTIL = 0.5;
+
+/** Where the reply passes the comet, which is where the bloom opens (§17). */
+const OVERTAKE_AT = LAUNCH_BLOOM_AT;
 
 const TRAIL_POINTS = 28;
 
@@ -43,15 +60,23 @@ type Props = {
    */
   cometProgress: number;
   reducedMotion: boolean;
+  /**
+   * Opens the bloom. Owned by the scene rather than by this component,
+   * because this one unmounts the instant the flight is over and the bloom
+   * outlives it by a second — the sparks are the *end* of the beat, and they
+   * should still be settling when the reply star appears.
+   */
+  onBloom?: (bloom: BloomRequest) => void;
   onDone: () => void;
 };
 
-export function RocketLaunch({ cometProgress, reducedMotion, onDone }: Props) {
+export function RocketLaunch({ cometProgress, reducedMotion, onBloom, onDone }: Props) {
   const size = useThree((state) => state.size);
   const spark = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.PointLight>(null);
   const startedAt = useRef<number | null>(null);
   const finished = useRef(false);
+  const bloomed = useRef(false);
 
   /** Built once, here, rather than as JSX: `<line>` is also SVG's tag. */
   const trail = useMemo(() => {
@@ -74,11 +99,6 @@ export function RocketLaunch({ cometProgress, reducedMotion, onDone }: Props) {
 
   /** Lift-off point, the satellite's meeting point, and where the star settles. */
   const path = useMemo(() => {
-    const planet = new THREE.Vector3(...PLANET_CENTRE);
-    // The planet's visible limb, up and slightly right of its centre.
-    const from = planet
-      .clone()
-      .add(new THREE.Vector3(0.55, 0.83, 0.1).normalize().multiplyScalar(PLANET_RADIUS));
     const meet = new THREE.Vector3(...orbitPosition(0.9));
 
     /*
@@ -87,8 +107,37 @@ export function RocketLaunch({ cometProgress, reducedMotion, onDone }: Props) {
      * the star will sit afterwards, so the arc cannot end anywhere else.
      */
     const to = new THREE.Vector3(...replyStarAt(cometProgress, size.width, size.height));
+    // The comet itself: the point the reply goes *past*, and where the bloom
+    // opens. `cometAt` is the one answer to where the comet is drawn, so the
+    // bloom cannot land anywhere the comet is not.
+    const past = new THREE.Vector3(...cometAt(cometProgress, size.width, size.height));
 
-    return { from, meet, to };
+    /*
+     * It enters from beyond the far side of the screen — opposite where it
+     * ends — so the flight crosses the whole frame rather than starting
+     * halfway there. Placed at the satellite's depth, so it reads as coming
+     * in alongside it.
+     */
+    const width = size.width;
+    const height = size.height;
+    const end = hubProject([to.x, to.y, to.z], width, height);
+    const depth = hubProject([meet.x, meet.y, meet.z], width, height).depth;
+    const dx = end.x - width / 2;
+    const dy = end.y - height / 2;
+    const length = Math.hypot(dx, dy) || 1;
+    const ux = dx / length;
+    const uy = dy / length;
+    // Far enough along the mirrored direction to clear the nearer edge.
+    const reach =
+      Math.min(
+        Math.abs(ux) > 1e-3 ? width / 2 / Math.abs(ux) : Infinity,
+        Math.abs(uy) > 1e-3 ? height / 2 / Math.abs(uy) : Infinity,
+      ) + 40;
+    const from = new THREE.Vector3(
+      ...hubUnproject(width / 2 - ux * reach, height / 2 - uy * reach, depth, width, height),
+    );
+
+    return { from, meet, past, to };
   }, [cometProgress, size.width, size.height]);
 
   useFrame(({ clock }, delta) => {
@@ -131,6 +180,12 @@ export function RocketLaunch({ cometProgress, reducedMotion, onDone }: Props) {
       material.opacity = THREE.MathUtils.damp(material.opacity, t > 0.85 ? 0 : 0.4, 5, delta);
     }
 
+    // The bloom opens once, as the reply goes past (§11).
+    if (!bloomed.current && t >= OVERTAKE_AT) {
+      bloomed.current = true;
+      onBloom?.({ at: [path.past.x, path.past.y, path.past.z] });
+    }
+
     if (t >= 1) {
       finished.current = true;
       onDone();
@@ -164,7 +219,12 @@ export function RocketLaunch({ cometProgress, reducedMotion, onDone }: Props) {
  * then drifting out. The hold is why this is not a single interpolation.
  */
 function at(
-  path: { from: THREE.Vector3; meet: THREE.Vector3; to: THREE.Vector3 },
+  path: {
+    from: THREE.Vector3;
+    meet: THREE.Vector3;
+    past: THREE.Vector3;
+    to: THREE.Vector3;
+  },
   t: number,
 ): THREE.Vector3 {
   if (t <= MEET_AT) {
@@ -179,8 +239,19 @@ function at(
   }
   if (t <= MEET_UNTIL) return path.meet.clone();
 
-  const local = ease((t - MEET_UNTIL) / (1 - MEET_UNTIL));
-  return path.meet.clone().lerp(path.to, local);
+  /*
+   * Out to the comet, and then past it. Two legs rather than one, so the
+   * overtaking lands exactly on 0.62 — the bloom has to open *where* the
+   * reply passes, and a single interpolation would put it wherever the
+   * easing happened to be at that instant.
+   */
+  if (t <= OVERTAKE_AT) {
+    const local = ease((t - MEET_UNTIL) / (OVERTAKE_AT - MEET_UNTIL));
+    return path.meet.clone().lerp(path.past, local);
+  }
+
+  const local = ease((t - OVERTAKE_AT) / (1 - OVERTAKE_AT));
+  return path.past.clone().lerp(path.to, local);
 }
 
 function quadratic(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, t: number) {

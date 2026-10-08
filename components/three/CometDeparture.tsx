@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { PLANET_CENTRE, PLANET_RADIUS, orbitPosition } from "./framing";
-import { displayOrbitPoint, displayedProgress, toWorld } from "@/lib/cometOrbit";
+import { PLANET_RADIUS, cometAt, hubPlanet, orbitPosition } from "./framing";
 import { DEPART_MS, REDUCED_MS } from "@/lib/timing";
 
 /**
@@ -34,13 +33,22 @@ type Props = {
 };
 
 export function CometDeparture({ progress, rotation, reducedMotion, onDone }: Props) {
+  const size = useThree((state) => state.size);
   const spark = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Mesh>(null);
   const light = useRef<THREE.PointLight>(null);
   const startedAt = useRef<number | null>(null);
   const finished = useRef(false);
 
-  const planet = useMemo(() => new THREE.Vector3(...PLANET_CENTRE), []);
+  /*
+   * Where the planet actually is on screen, not where `PLANET_CENTRE` puts it
+   * in the world: the hub stages it per aspect ratio (`hubPlanet`), and a
+   * capsule that leaves from the world constant leaves from empty sky.
+   */
+  const planet = useMemo(
+    () => new THREE.Vector3(...hubPlanet(size.width, size.height)),
+    [size.width, size.height],
+  );
 
   /** Coming round the limb from behind: below and behind the planet. */
   const birth = useMemo(
@@ -57,11 +65,15 @@ export function CometDeparture({ progress, rotation, reducedMotion, onDone }: Pr
     [],
   );
 
-  /** Where it stops: today's place on the orbit. */
-  const destination = useMemo(() => {
-    const world = toWorld(displayOrbitPoint(displayedProgress(progress)), rotation);
-    return planet.clone().add(new THREE.Vector3(world.x, world.y, world.z));
-  }, [planet, rotation, progress]);
+  /**
+   * Where it stops: today's place on the orbit — where the hub draws the
+   * comet (`cometAt`), so the departure hands over to the comet that is
+   * there from then on, rather than to a point of its own.
+   */
+  const destination = useMemo(
+    () => new THREE.Vector3(...cometAt(progress, size.width, size.height)),
+    [progress, size.width, size.height],
+  );
 
   useFrame(({ clock }) => {
     if (finished.current) return;

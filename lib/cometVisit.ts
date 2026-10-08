@@ -21,6 +21,8 @@ export type CometVisit = {
   cycle: string;
   /** The departure has been watched. */
   departed?: true;
+  /** The first-launch intro — the days, the path, the countdown — has played. */
+  introduced?: true;
   /** The invite sheet has been shown once. */
   nudged?: true;
   /** Words were put on the comet, on this day. */
@@ -35,6 +37,7 @@ export type CometFlags = {
   returned: boolean;
   capsuleOpen: boolean;
   departed: boolean;
+  introduced: boolean;
 };
 
 export const NO_COMET: CometFlags = {
@@ -42,6 +45,7 @@ export const NO_COMET: CometFlags = {
   returned: false,
   capsuleOpen: false,
   departed: false,
+  introduced: false,
 };
 
 export function visitKey(slug: string): string {
@@ -64,6 +68,7 @@ export function parseVisit(raw: string | null, cycle: string): CometVisit {
 
     const visit: CometVisit = { cycle };
     if (parsed.departed === true) visit.departed = true;
+    if (parsed.introduced === true) visit.introduced = true;
     if (parsed.nudged === true) visit.nudged = true;
     if (parsed.arrivalSeen === true) visit.arrivalSeen = true;
     if (parsed.sent && typeof parsed.sent.on === "string") visit.sent = { on: parsed.sent.on };
@@ -88,6 +93,9 @@ export function toFlags(
     capsuleOpen: comet.capsule && !visit.sent,
     // A kept comet left long ago; there is no departure left to watch.
     departed: Boolean(visit.departed) || comet.status === "kept",
+    // Its own mark rather than `departed`, so a browser that watched the old
+    // departure still gets the intro once.
+    introduced: Boolean(visit.introduced) || comet.status === "kept",
   };
 }
 
@@ -119,9 +127,9 @@ export function previewVisit(mode: string | undefined, cycle = ""): CometVisit |
     case "first":
       return { cycle };
     case "again":
-      return { cycle, departed: true, nudged: true };
+      return { cycle, departed: true, introduced: true, nudged: true };
     case "sent":
-      return { cycle, departed: true, nudged: true, sent: { on: cycle } };
+      return { cycle, departed: true, introduced: true, nudged: true, sent: { on: cycle } };
     default:
       return null;
   }

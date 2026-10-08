@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { FOV, hubComet, hubPlanet, hubPose } from "./framing";
+import { hubCometAt, hubPose, hubProject, worldPerPixel } from "./framing";
 import {
   comaFragmentShader,
   comaVertexShader,
@@ -14,11 +14,14 @@ import {
   DISPLAY_FAR,
   DISPLAY_NEAR,
   SEGMENT_AHEAD,
+  comaPixels,
   comaSize,
   displayOrbitPoint,
   displayedProgress,
-  tailLength,
+  orbitPoint,
+  tailPixels,
 } from "@/lib/cometOrbit";
+import { useDawn } from "./DawnProvider";
 
 /**
  * A comet (spec v0.2 §11.2).
@@ -30,9 +33,15 @@ import {
  * weeks it is visibly, unmistakably coming back. Nobody has to read a number
  * to feel that the day is near.
  *
- * Both tails point away from the planet, as real tails point away from the
- * sun. The ion tail is straight and narrow; the dust tail is wider and lags
- * behind along the orbit, because the dust is heavier.
+ * Both tails point away from the **sun**, which is where real tails point and
+ * which revision 7.1 §10 finally makes possible: before r7 there was no sun
+ * in the scene to point away from, so they pointed away from the planet
+ * instead. Now that the sun is coming up behind the limb, a tail aimed at the
+ * planet would be visibly, specifically wrong — it is the one object in the
+ * sky whose orientation a reader can check against the light.
+ *
+ * The ion tail is straight and narrow; the dust tail is wider and lags behind
+ * along the orbit, because the dust is heavier.
  */
 
 /**
@@ -64,27 +73,7 @@ const TAIL_SEGMENTS = 24;
  * It is constant per viewport, so one sample answers it.
  */
 function cometDepth(width: number, height: number): number {
-  return hubPose(width, height).position[2] - hubComet(0.5, width, height)[2];
-}
-
-/** 0 when the comet is home, 1 when it is as far away as it goes. */
-function reach(f: number): number {
-  return (displayOrbitPoint(f).distance - DISPLAY_NEAR) / (DISPLAY_FAR - DISPLAY_NEAR);
-}
-
-/**
- * The shortest tail worth drawing, in world units at the comet's depth.
- *
- * Raised from 24/36px once the comet was measured rather than eyeballed: at
- * aphelion it was a 37px blob with a 24px stub, which is not a comet among
- * fifteen hundred stars, it is a smudge. The tail is the only thing that says
- * *which* of the lights up there is the one coming back.
- */
-function minimumTail(width: number, height: number): number {
-  const pixels = width < height ? 44 : 62;
-  const tanH = Math.tan(Math.atan(Math.tan((FOV * Math.PI) / 360) * (width / height)));
-  // Width in world units at that depth, times the fraction of it we want.
-  return (pixels / width) * 2 * tanH * cometDepth(width, height);
+  return hubPose(width, height).position[2] - hubCometAt(0.5, width, height)[2];
 }
 
 export type CometTone = "sender" | "receiver";
@@ -127,13 +116,17 @@ export function Comet({
 
   const colours = TONES[tone];
   const size = useThree((state) => state.size);
+  const { sun } = useDawn();
 
-  const { position, distance } = useMemo(() => {
+  const { position, distance, trueDistance } = useMemo(() => {
     const f = displayedProgress(progress);
     const point = displayOrbitPoint(f);
     return {
-      position: new THREE.Vector3(...hubComet(reach(f), size.width, size.height)),
+      position: new THREE.Vector3(...hubCometAt(f, size.width, size.height)),
       distance: point.distance,
+      // The real orbital radius, which is what the tail's length is written
+      // against: the displayed one is compressed so the comet stays in frame.
+      trueDistance: orbitPoint(f).distance,
     };
   }, [progress, size.width, size.height]);
 
@@ -151,7 +144,7 @@ export function Comet({
     const points: THREE.Vector3[] = [];
     for (let i = 0; i <= LEAD_POINTS; i++) {
       const ahead = Math.min(f + (SEGMENT_AHEAD * i) / LEAD_POINTS, 1);
-      points.push(new THREE.Vector3(...hubComet(reach(ahead), size.width, size.height)));
+      points.push(new THREE.Vector3(...hubCometAt(ahead, size.width, size.height)));
     }
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     leadPositions.current = geometry.getAttribute("position").array as Float32Array;
@@ -169,24 +162,64 @@ export function Comet({
     return line;
   }, [progress, size.width, size.height, colours.ion]);
 
-  /** Away from the planet: where both tails point. */
+  // Rebuilt whenever the progress changes — which the first-launch intro does
+  // many times over — so the old one is released rather than left on the GPU.
+  useEffect(
+    () => () => {
+      orbitLine.geometry.dispose();
+      (orbitLine.material as THREE.Material).dispose();
+    },
+    [orbitLine],
+  );
+
+  /**
+   * Away from the sun: where both tails point (r7 §10).
+   *
+   * Measured **on screen**, and it has to be. The sun is staged just outside
+   * the planet's limb, about 2.7 units from the lens; the comet is staged
+   * nine and a half units further back. Subtracting the two world positions
+   * therefore gives a vector that is almost entirely depth — a tail pointing
+   * straight into the screen, seen end-on, which is to say invisible. What
+   * r7 means by "away from the sun" is what the reader sees, so the
+   * direction is taken between the two as they land in the frame and then
+   * laid in the image plane.
+   */
   const away = useMemo(() => {
-    const direction = position
-      .clone()
-      .sub(new THREE.Vector3(...hubPlanet(size.width, size.height)));
+    const here = hubProject([position.x, position.y, position.z], size.width, size.height);
+    const there = hubProject(sun, size.width, size.height);
+    // Screen y is down; the world's y is up.
+    const direction = new THREE.Vector3(here.x - there.x, -(here.y - there.y), 0);
     return direction.lengthSq() > 1e-9 ? direction.normalize() : new THREE.Vector3(0, 1, 0);
-  }, [position, size.width, size.height]);
+  }, [position, sun, size.width, size.height]);
 
   /*
-   * A minimum on-screen tail (rev 6 §5). Far out, the distance formula gives
-   * almost nothing, and a comet without a tail is just a star — the tail is
-   * how you know which of the lights up there is the one coming back.
+   * The tail, in world units at the comet's own depth.
+   *
+   * Written in pixels and converted here, because the length is a statement
+   * about the picture: forty pixels at aphelion, so a comet is never just a
+   * star, growing to two hundred and twenty at the meeting point, so the last
+   * weeks are unmistakable. The comet is staged at a nearly fixed depth, so
+   * this is a constant per viewport and not something that drifts with it.
    */
-  const tail = Math.max(tailLength(distance), minimumTail(size.width, size.height));
-  // Bigger than the nucleus by enough to be findable at orbit distance. The
-  // floor is what governs for most of the year, so it is the number that
-  // decides whether the comet can be seen at all.
-  const comaRadius = comaSize(distance);
+  const tail = useMemo(() => {
+    const depth = cometDepth(size.width, size.height);
+    const pixels = tailPixels(trueDistance, size.width < size.height);
+    return pixels * worldPerPixel(depth, size.height);
+  }, [trueDistance, size.width, size.height]);
+  /*
+   * The head, in world units at the comet's depth (§14 step 0).
+   *
+   * `comaSize`'s floor made the head about as wide as §10's tail is long, so
+   * the tail was drawn inside it and the comet read as a pale oval. The head
+   * is now sized the way the tail is — from the same `near` — and stays about
+   * a third of the tail's length at every point on the orbit.
+   */
+  const comaRadius = useMemo(() => {
+    const depth = cometDepth(size.width, size.height);
+    return (
+      comaPixels(trueDistance, size.width < size.height) * worldPerPixel(depth, size.height)
+    );
+  }, [trueDistance, size.width, size.height]);
 
   const comaUniforms = useMemo(
     () => ({
@@ -248,7 +281,7 @@ export function Comet({
       const array = leadPositions.current;
       for (let i = 0; i <= LEAD_POINTS; i++) {
         const along = ((i + phase) / LEAD_POINTS) * SEGMENT_AHEAD;
-        const [x, y, z] = hubComet(reach(Math.min(f + along, 1)), size.width, size.height);
+        const [x, y, z] = hubCometAt(Math.min(f + along, 1), size.width, size.height);
         array[i * 3] = x;
         array[i * 3 + 1] = y;
         array[i * 3 + 2] = z;
@@ -271,7 +304,8 @@ export function Comet({
           onPointerOver={() => onSelect && (document.body.style.cursor = "pointer")}
           onPointerOut={() => onSelect && (document.body.style.cursor = "")}
         >
-          <sphereGeometry args={[Math.max(comaRadius * 2, 0.8), 8, 8]} />
+          {/* §11.2: 44px, whatever the head happens to be doing. */}
+          <sphereGeometry args={[Math.max(comaSize(distance), 0.44), 8, 8]} />
         </mesh>
 
         <mesh ref={nucleus} scale={NUCLEUS_SCALE(distance)}>
@@ -306,24 +340,35 @@ export function Comet({
           <>
             {/* No ref: an ion tail is steady in reality, and the contrast
                 with the flickering dust tail is what tells them apart. */}
+            {/* Straight, narrow and a tenth longer than the dust (§10). */}
             <Tail
               direction={away}
-              length={tail}
-              width={0.09}
+              length={tail * 1.1}
+              width={tail * 0.045}
               curve={0}
               color={colours.ion}
-              opacity={0.42}
+              opacity={0.6}
             />
             <Tail
               ref={dust}
               direction={away}
-              length={tail * 0.8}
-              width={0.26}
+              length={tail}
+              /*
+               * Widening to 0.2 of its length (§10).
+               *
+               * Not 0.2/3.5 as the strip's own taper would suggest. The
+               * fragment shader throws away the outer half of the strip with
+               * `across²` — which is what stops the tails reading as two
+               * ribbons of plastic — so the width that is actually *seen* is
+               * about two fifths of the geometry's. 0.143 lands the visible
+               * wedge on §10's fifth of the length.
+               */
+              width={tail * 0.143}
               // The dust lags behind along the orbit, so it curves; the ion
               // tail does not.
-              curve={0.35}
+              curve={0.32}
               color={colours.dust}
-              opacity={0.3}
+              opacity={0.5}
             />
           </>
         ) : null}

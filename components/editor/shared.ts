@@ -77,14 +77,6 @@ export const PLATFORM_LABELS: Record<SocialPlatform, string> = {
  * The arc a six-face letter tends to want. Shown as a hint, never enforced —
  * it is a suggestion from someone who has written one before, not a template.
  */
-export const FACE_ARC = [
-  "挨拶",
-  "思い出",
-  "感謝",
-  "言えなかったこと",
-  "願い",
-  "ひとこと",
-];
 
 export const emptyTextFace = (): CardFace => ({ type: "text", body: "" });
 
