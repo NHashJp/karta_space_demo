@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
+  BIG,
   POOL,
   QUIET_AFTER_S,
   WIDTH,
@@ -54,10 +55,13 @@ export function ShootingStars({
    * an ordinary shooting star crossing it would make it look like weather.
    */
   showering = false,
+  meanGap,
 }: {
   seed: number;
   reducedMotion: boolean;
   showering?: boolean;
+  /** Seconds between stars on average; the ordinary sky's if not given. */
+  meanGap?: number;
 }) {
   const group = useRef<THREE.Group>(null);
   const started = useRef<number | null>(null);
@@ -72,7 +76,10 @@ export function ShootingStars({
    * trade: the alternative is paths that were aimed at a frame that no longer
    * exists.
    */
-  const schedule = useMemo(() => shootingStars(seed, SCHEDULE, aspect), [seed, aspect]);
+  const schedule = useMemo(
+    () => shootingStars(seed, SCHEDULE, aspect, meanGap),
+    [seed, aspect, meanGap],
+  );
 
   /*
    * When the hold ends. Set on the first frame the shower is seen, rather
@@ -88,6 +95,7 @@ export function ShootingStars({
         uHead: { value: HEAD.clone() },
         uTail: { value: COOL.clone() },
         uOpacity: { value: 0 },
+        uGlow: { value: 1 },
       })),
     [],
   );
@@ -167,7 +175,7 @@ export function ShootingStars({
        */
       camera.updateMatrixWorld();
       mesh.position.set(x, y, -star.depth).applyMatrix4(camera.matrixWorld);
-      mesh.scale.set(WIDTH * halfHeight, length, 1);
+      mesh.scale.set(WIDTH * halfHeight * (star.big ? BIG.width : 1), length, 1);
 
       // Face the lens, then roll so +Y runs along the flight.
       const roll = Math.atan2(star.direction[1], star.direction[0]) - Math.PI / 2;
@@ -175,6 +183,7 @@ export function ShootingStars({
       mesh.quaternion.multiply(spin.setFromAxisAngle(FORWARD, roll));
 
       shader.uOpacity.value = glow;
+      shader.uGlow.value = star.big ? BIG.glow : 1;
     }
   });
 

@@ -21,7 +21,7 @@ import { SunFlare } from "./SunFlare";
 import { Orbiters } from "./Orbiters";
 import { SignalPulses } from "./SignalPulses";
 import { Bloom, type BloomRequest } from "./Bloom";
-import { Comet, type CometTone } from "./Comet";
+import { Comet } from "./Comet";
 import { MemoryPanel } from "./MemoryPanel";
 import { CapsuleBoarding } from "./CapsuleBoarding";
 import { CometDeparture } from "./CometDeparture";
@@ -34,7 +34,7 @@ import { Trail } from "./Trail";
 import { TrailSky } from "./TrailSky";
 import { SpaceEnvironment } from "./SpaceEnvironment";
 import { asteroidSeed } from "@/lib/asteroids";
-import { shootingStarSeed } from "@/lib/shootingStars";
+import { ORBIT_MEAN_GAP_S, shootingStarSeed } from "@/lib/shootingStars";
 import type { Sky } from "@/lib/skyAge";
 import type { CometStatus } from "@/lib/cometOrbit";
 import { orbiterSeed } from "@/lib/orbiters";
@@ -317,8 +317,6 @@ export function CubeScene({
         {staged && comet && !departing && !previewing ? (
           <Comet
             progress={comet.progress}
-            slug={slug}
-            releasedOn={comet.leftOn}
             tone={comet.aboard ? "receiver" : "sender"}
             reducedMotion={cube.reducedMotion}
             showOrbit={showCometOrbit}
@@ -331,7 +329,6 @@ export function CubeScene({
       {departing && comet && onDepartEnd ? (
         <CometDeparture
           progress={comet.progress}
-          rotation={cometRotation}
           reducedMotion={cube.reducedMotion}
           onDone={onDepartEnd}
         />
@@ -340,8 +337,6 @@ export function CubeScene({
       {previewing && comet ? (
         <CometPreview
           progress={comet.progress}
-          slug={slug}
-          releasedOn={comet.leftOn}
           tone={comet.aboard ? "receiver" : "sender"}
           reducedMotion={cube.reducedMotion}
         />
@@ -419,6 +414,20 @@ export function CubeScene({
           seed={shootingStarSeed(slug)}
           reducedMotion={cube.reducedMotion}
           showering={Boolean(deployed && returned)}
+        />
+      ) : null}
+
+      {/*
+        And more of them in orbit (`ORBIT_MEAN_GAP_S`): a second stream with a
+        seed of its own, so together the hub sees one every four seconds or
+        so. It holds still for the returned day's shower like the first.
+      */}
+      {cameraPhase === "orbit" ? (
+        <ShootingStars
+          seed={shootingStarSeed(`${slug}:orbit`)}
+          reducedMotion={cube.reducedMotion}
+          showering={Boolean(deployed && returned)}
+          meanGap={ORBIT_MEAN_GAP_S}
         />
       ) : null}
 

@@ -5,6 +5,7 @@ import { getCardBySlug } from "@/lib/cards";
 import { resolveNow } from "@/lib/devTime";
 import { firstParam } from "@/lib/devJump";
 import { CometPage } from "@/components/comet/CometPage";
+import { langOf } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
@@ -36,13 +37,11 @@ export default async function Page({ params, searchParams }: Props) {
   // The comet's slug is inside the ciphertext, so the card's own time zone can
   // only be looked up *after* opening it. Until then, the default.
   const provisional = open(token, civilDate(now, DEFAULT_TIME_ZONE));
-  const timeZone =
-    provisional.status === "invalid"
-      ? DEFAULT_TIME_ZONE
-      : (getCardBySlug(provisional.slug)?.timeZone ?? DEFAULT_TIME_ZONE);
+  const card = provisional.status === "invalid" ? null : getCardBySlug(provisional.slug);
+  const timeZone = card?.timeZone ?? DEFAULT_TIME_ZONE;
 
   const today = civilDate(now, timeZone);
   const comet = timeZone === DEFAULT_TIME_ZONE ? provisional : open(token, today);
 
-  return <CometPage comet={comet} today={today} />;
+  return <CometPage comet={comet} today={today} lang={langOf(card?.lang)} />;
 }

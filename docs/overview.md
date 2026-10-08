@@ -20,7 +20,8 @@ write is emailed straight to the sender and stored nowhere.
 
 1. **Landing** — the card's title, and a button.
 2. **Six faces** — scroll or swipe; the cube turns one face per gesture. Each
-   face is a paragraph of Japanese, or a photograph.
+   face is a paragraph of text — Japanese or English, per card — or a
+   photograph.
 3. **The closing screen** — a farewell line drawn stroke by stroke, as if by
    hand, then the sender's signature.
 4. **Inside the cube** — optional. One short line written on the inner wall.
@@ -28,8 +29,10 @@ write is emailed straight to the sender and stored nowhere.
 6. **Orbit** — the hub. The satellite in the middle, a planet in the corner, a
    trail of memories off to one side, a comet passing, and a rock crossing the
    deep field every half-minute or so.
-7. **The comet** — it leaves, and the card offers to put the receiver's words
-   on it. They cannot be read until the date it comes back.
+7. **The comet** — the first time, the card shows how many days until it
+   comes back and plays its whole way home fast while the number counts down;
+   then it offers to put the receiver's words on it. They cannot be read until
+   the date it comes back.
 8. **The crossroads** — where next: send a reply by rocket, walk the trail of
    memories, or look at the comet's orbit.
 
@@ -165,6 +168,8 @@ to do nothing. Keep the window in front.
 
 ## Current state
 
-Implementing spec v0.2 「またね」, with the orbit composition of revision 6.
-Those two documents disagree in places; revision 6 wins.
+Implementing spec v0.2 「またね」, with the orbit composition of revision 6 and
+the dawn of revision 7.1. Where they disagree, the later revision wins. V7 adds
+English cards ([languages](./languages.md)), the first-launch comet intro, an
+elliptical comet orbit, and a contrail that ages and bends as it goes back.
 → [Spec v0.2](./spec-v0.2.md), [Revision 6](./spec-v0.2-r6-orbit.md)

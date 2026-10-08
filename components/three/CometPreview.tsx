@@ -29,13 +29,11 @@ const STEP = 0.002;
 type Props = {
   /** Today's raw progress along the orbit. */
   progress: number;
-  slug: string;
-  releasedOn: string;
   tone: CometTone;
   reducedMotion: boolean;
 };
 
-export function CometPreview({ progress, slug, releasedOn, tone, reducedMotion }: Props) {
+export function CometPreview({ progress, tone, reducedMotion }: Props) {
   const size = useThree((state) => state.size);
   const startedAt = useRef<number | null>(null);
   const [at, setAt] = useState(progress);
@@ -102,8 +100,6 @@ export function CometPreview({ progress, slug, releasedOn, tone, reducedMotion }
       <primitive object={line} />
       <Comet
         progress={at}
-        slug={slug}
-        releasedOn={releasedOn}
         tone={tone}
         reducedMotion={reducedMotion}
       />

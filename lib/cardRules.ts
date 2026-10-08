@@ -1,3 +1,4 @@
+import { visualLength } from "./i18n.ts";
 import { FUZZY_DATE_PATTERN, isFullDate, parseFuzzyDate } from "./fuzzyDate.ts";
 import { isValidTimeZone } from "./orbitClock.ts";
 import type { CardConfig, CardFace, ReturnPrecision } from "@/types/card";
@@ -84,7 +85,7 @@ function faceProblems(face: CardFace, index: number, slug: string, out: Problems
   const at = `face ${index + 1}`;
 
   if (face.type === "text") {
-    const chars = face.body.trim().length;
+    const chars = visualLength(face.body.trim());
 
     // A "line" face is a beat, not a paragraph: its own range replaces the
     // 80-250 check entirely (spec v0.2 §5).
@@ -123,6 +124,11 @@ export function cardProblems(card: CardConfig, seenSlugs: Iterable<string> = [])
   }
   if (!card.title?.trim()) out.errors.push("the title is empty");
   if (!card.closing?.trim()) out.errors.push("the closing message is empty");
+  // Only the languages the interface is written in (lib/i18n.ts).
+  if (card.lang !== undefined && card.lang !== "ja" && card.lang !== "en") {
+    out.errors.push(`lang: "${String(card.lang)}" is not a supported language (ja, en)`);
+  }
+
   if (card.faces?.length !== FACE_COUNT) {
     out.errors.push(`a card needs exactly ${FACE_COUNT} faces (found ${card.faces?.length ?? 0})`);
   }
@@ -130,9 +136,9 @@ export function cardProblems(card: CardConfig, seenSlugs: Iterable<string> = [])
   card.faces?.forEach((face, index) => faceProblems(face, index, card.slug, out));
 
   const secret = card.secret?.trim();
-  if (secret && secret.length > SECRET_MAX) {
+  if (secret && visualLength(secret) > SECRET_MAX) {
     out.warnings.push(
-      `the secret line is ${secret.length} characters, over ${SECRET_MAX} — it sets too small inside the cube`,
+      `the secret line is ${Math.round(visualLength(secret))} characters wide, over ${SECRET_MAX} — it sets too small inside the cube`,
     );
   }
 
@@ -184,10 +190,10 @@ function memoryProblems(card: CardConfig, out: Problems): void {
 
     const title = memory.title?.trim() ?? "";
     if (!title) out.warnings.push(`${at}: no title`);
-    else if (title.length > MEMORY_TITLE_MAX) {
+    else if (visualLength(title) > MEMORY_TITLE_MAX) {
       out.warnings.push(`${at}: title is ${title.length} characters, over ${MEMORY_TITLE_MAX}`);
     }
-    if ((memory.caption?.trim().length ?? 0) > MEMORY_CAPTION_MAX) {
+    if (visualLength(memory.caption?.trim() ?? "") > MEMORY_CAPTION_MAX) {
       out.warnings.push(`${at}: caption is over ${MEMORY_CAPTION_MAX} characters`);
     }
 
@@ -244,13 +250,13 @@ function cometProblems(card: CardConfig, out: Problems): void {
     );
   }
 
-  if ((comet.promise?.trim().length ?? 0) > COMET_PROMISE_MAX) {
+  if (visualLength(comet.promise?.trim() ?? "") > COMET_PROMISE_MAX) {
     out.warnings.push(`comet: promise is over ${COMET_PROMISE_MAX} characters`);
   }
-  if ((comet.label?.trim().length ?? 0) > COMET_LABEL_MAX) {
+  if (visualLength(comet.label?.trim() ?? "") > COMET_LABEL_MAX) {
     out.warnings.push(`comet: label is over ${COMET_LABEL_MAX} characters`);
   }
-  if ((comet.message?.trim().length ?? 0) > COMET_MESSAGE_MAX) {
+  if (visualLength(comet.message?.trim() ?? "") > COMET_MESSAGE_MAX) {
     out.warnings.push(`comet: message is over ${COMET_MESSAGE_MAX} characters`);
   }
 }
@@ -270,10 +276,10 @@ function v02Problems(card: CardConfig, out: Problems): void {
   if (card.timeZone && !isValidTimeZone(card.timeZone)) {
     out.errors.push(`timeZone: "${card.timeZone}" is not a time zone this runtime knows`);
   }
-  if ((card.from?.trim().length ?? 0) > FROM_MAX) {
+  if (visualLength(card.from?.trim() ?? "") > FROM_MAX) {
     out.warnings.push(`from: "${card.from}" is over ${FROM_MAX} characters`);
   }
-  if (card.closing && card.closing.trim().length > CLOSING_MAX) {
+  if (card.closing && visualLength(card.closing.trim()) > CLOSING_MAX) {
     out.notes.push(
       `the closing line is ${card.closing.trim().length} characters — it draws at about 14px on a phone`,
     );
@@ -283,7 +289,7 @@ function v02Problems(card: CardConfig, out: Problems): void {
   if (access?.passwordHash && !PASSWORD_HASH_PATTERN.test(access.passwordHash)) {
     out.errors.push("access: passwordHash is not in the scrypt$... format the editor writes");
   }
-  if ((access?.hint?.trim().length ?? 0) > HINT_MAX) {
+  if (visualLength(access?.hint?.trim() ?? "") > HINT_MAX) {
     out.warnings.push(`access: hint is over ${HINT_MAX} characters`);
   }
   // A hash with no key to sign cookies with means the card stays shut for

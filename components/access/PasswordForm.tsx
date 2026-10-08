@@ -1,5 +1,6 @@
 "use client";
 
+import { strings, type Lang } from "@/lib/i18n";
 import { useRef, useState } from "react";
 import { EyeIcon, EyeOffIcon } from "@/components/card/Icons";
 
@@ -21,6 +22,8 @@ type Props = {
   pendingLabel: string;
   /** What to say when the password is simply wrong. */
   wrongMessage: string;
+  /** The card's language, for the form's own messages. Default Japanese. */
+  lang?: Lang;
   onUnlocked: () => void;
   children?: React.ReactNode;
 };
@@ -32,9 +35,11 @@ export function PasswordForm({
   submitLabel,
   pendingLabel,
   wrongMessage,
+  lang = "ja",
   onUnlocked,
   children,
 }: Props) {
+  const t = strings(lang).gate;
   const field = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -95,12 +100,12 @@ export function PasswordForm({
       setPending(false);
       setError(
         response.status === 429
-          ? "試行回数が多すぎます。しばらくしてからお試しください。"
+          ? t.tooMany
           : wrongMessage,
       );
     } catch {
       setPending(false);
-      setError("うまく確認できませんでした。もう一度お試しください。");
+      setError(t.failed);
     }
   }
 
@@ -108,7 +113,7 @@ export function PasswordForm({
     <form className="gate" onSubmit={submit}>
       {children}
 
-      <label className="gate__label" htmlFor="password" lang="ja">
+      <label className="gate__label" htmlFor="password" lang={lang}>
         {label}
       </label>
 
@@ -133,19 +138,19 @@ export function PasswordForm({
           onClick={toggleReveal}
           aria-pressed={revealed}
           aria-controls="password"
-          aria-label={revealed ? "パスワードを隠す" : "パスワードを表示"}
-          title={revealed ? "パスワードを隠す" : "パスワードを表示"}
+          aria-label={revealed ? t.hide : t.show}
+          title={revealed ? t.hide : t.show}
         >
           {revealed ? <EyeOffIcon /> : <EyeIcon />}
         </button>
       </div>
 
-      <button className="button" type="submit" disabled={pending || !password} lang="ja">
+      <button className="button" type="submit" disabled={pending || !password} lang={lang}>
         {pending ? pendingLabel : submitLabel}
       </button>
 
       {error ? (
-        <p className="gate__error" role="alert" lang="ja">
+        <p className="gate__error" role="alert" lang={lang}>
           {error}
         </p>
       ) : null}

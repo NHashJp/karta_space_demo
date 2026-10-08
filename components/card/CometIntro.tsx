@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { useEffect, useRef, useState } from "react";
 import { daysBetween } from "@/lib/orbitClock";
 import { daysLeft, previewFrame, showsTheDay, type PreviewFrame } from "@/lib/cometPreview";
@@ -31,6 +32,8 @@ export function CometIntro({
   onDay: (day: boolean) => void;
   onDone: () => void;
 }) {
+  const t = useStrings();
+  const lang = useLang();
   const comet = card.comet;
   const days = comet ? Math.max(0, daysBetween(card.today, comet.returnsOn)) : 0;
 
@@ -71,42 +74,46 @@ export function CometIntro({
    * same line the chart and the hub caption carry — rather than a sentence
    * of the card's own. Only a card with no promise falls back to one.
    */
-  const promise = comet.promise?.trim() || "また会えます";
+  const promise = comet.promise?.trim() || t.intro.fallbackPromise;
 
   return (
-    <div className="comet-intro" data-out={frame.out > 0} data-started={frame.started} lang="ja">
+    <div className="comet-intro" data-out={frame.out > 0} data-started={frame.started} lang={lang}>
       {/* The promise, alone, before anything moves. */}
       <div className="comet-intro__announce" aria-hidden={frame.started}>
-        <p className="chart-head__label">約束の彗星</p>
+        <p className="chart-head__label">{t.intro.label}</p>
         <p className="comet-intro__count">
-          あと<span className="comet-intro__days">{days}</span>日
+          {t.intro.daysBefore}
+          <span className="comet-intro__days">{days}</span>
+          {t.intro.daysAfter(days)}
         </p>
         <p className="comet-intro__promise">{promise}</p>
       </div>
 
       <header className="chart-head comet-intro__head" aria-hidden={!frame.started}>
-        <p className="chart-head__label">約束の彗星</p>
+        <p className="chart-head__label">{t.intro.label}</p>
         <p className="comet-intro__lead" data-visible={!frame.arrived}>
-          彗星が戻るまで
+          {t.intro.untilBack}
         </p>
         <p className="comet-intro__count" aria-live="polite">
           {frame.arrived ? (
-            "また会うよ！"
+            t.intro.arrived
           ) : (
             <>
-              あと<span className="comet-intro__days">{left}</span>日
+              {t.intro.daysBefore}
+              <span className="comet-intro__days">{left}</span>
+              {t.intro.daysAfter(left)}
             </>
           )}
         </p>
         <p className="comet-intro__note" data-visible={frame.arrived}>
           {comet.capsule
-            ? `その日、彗星にのせた言葉が${card.from}に届きます。`
-            : `その日、${card.from}との約束がひらきます。`}
+            ? t.intro.wordsArrive(card.from)
+            : t.intro.promiseOpens(card.from)}
         </p>
       </header>
 
       <button className="button button--quiet comet-intro__skip" onClick={onDone}>
-        スキップ
+        {t.intro.skip}
       </button>
     </div>
   );

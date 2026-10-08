@@ -28,7 +28,11 @@ A real card is a letter to one person, and the editor is how real cards get
 written, so that is where they belong.
 See [Content and cards](./content-and-cards.md#real-cards-are-not-committed).
 
-`config/cards.config.ts` keeps the two samples for anyone editing by hand.
+`config/cards.config.ts` keeps the samples for anyone editing by hand.
+
+**Basics** starts with the card's **Language** — 日本語 or English. Everything
+drawn around the letter follows it: buttons, sheets, dates, the countdown, and
+the emails the sender receives. See [languages](./languages.md).
 
 ## Why it is sections now
 
@@ -150,8 +154,19 @@ have produced.
 It writes **stroked paths, never fills**. That is not a style preference: the
 closing screen draws the signature by walking a dash along each path, and a
 filled shape has nothing to walk. It would simply appear, which is not the same
-thing. `npm run verify` checks any configured signature is a real file, is an
-SVG, and has paths and no fills.
+thing.
+
+It is kept **in the card**, like the card's words — never as a file. The pad
+posts its strokes to `/api/editor/signature`, which returns the SVG and writes
+nothing; the editor stores it as `signature` and it is saved with the card to
+`.karta/cards.local.json`. It used to be written to
+`public/cards/<slug>/signature.svg`, which is served flat: anyone with the URL
+could fetch someone's handwriting without the password, and it was committed
+with the repository. Before it reaches the page the server rebuilds it from its
+own path data (`cleanSignature` in `lib/signature.ts`), so nothing but stroked
+paths is ever put into the document. `npm run verify` checks a configured
+signature is inline markup rather than a path, survives that rebuild, and has
+paths and no fills.
 
 Pressure is ignored — half the devices this runs on do not report it, and a
 signature whose weight depends on the hardware would look different to the

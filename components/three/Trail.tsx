@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { RAMP_SIZE, ribbonFragmentShader, ribbonVertexShader } from "./shaders/ribbon";
-import { trailColour, trailSeed, type TrailSeed } from "@/lib/trailColour";
+import { trailColour, type TrailSeed } from "@/lib/trailColour";
 import { memoryU, trailPoint, trailSway, trailTangent, type Point3 } from "@/lib/trailCurve";
 import { useStagedTrail } from "./useStagedTrail";
 

@@ -91,8 +91,6 @@ const TONES: Record<CometTone, { nucleus: string; ion: string; dust: string }> =
 type Props = {
   /** Raw progress 0..1 from the comet's dates. */
   progress: number;
-  slug: string;
-  releasedOn: string;
   tone: CometTone;
   reducedMotion: boolean;
   /** Show the dotted orbit — only while this comet's panel is open (§11.2). */
@@ -102,8 +100,6 @@ type Props = {
 
 export function Comet({
   progress,
-  slug,
-  releasedOn,
   tone,
   reducedMotion,
   showOrbit = false,

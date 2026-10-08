@@ -3,6 +3,7 @@ import { cometCycle, type CometStatus } from "./cometOrbit.ts";
 import { returnLabel, type ReturnLabel } from "./returnLabel.ts";
 import { sortMemoriesNewestFirst } from "./fuzzyDate.ts";
 import { cleanSignature } from "./signature.ts";
+import { langOf, strings } from "./i18n.ts";
 import type { CardConfig, Memory, MemoryImage } from "@/types/card";
 
 /**
@@ -65,8 +66,9 @@ export type EnvFlags = {
   cometReady: boolean;
 };
 
-export const DEFAULT_FROM = "送り主";
-export const DEFAULT_REPLY_PROMPT = "ひとこと、返事をどうぞ。";
+/** Japanese, as every card was before `lang`; see `strings(lang).defaults`. */
+export const DEFAULT_FROM = strings("ja").defaults.from;
+export const DEFAULT_REPLY_PROMPT = strings("ja").defaults.replyPrompt;
 
 /**
  * A memory image is served through the media route, never from /public.
@@ -85,7 +87,9 @@ function mediaUrl(slug: string, src: string): string {
 export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): ClientCard {
   const timeZone = card.timeZone ?? DEFAULT_TIME_ZONE;
   const today = civilDate(now, timeZone);
-  const from = card.from?.trim() || DEFAULT_FROM;
+  const lang = langOf(card.lang);
+  const words = strings(lang);
+  const from = card.from?.trim() || words.defaults.from;
 
   const replyAvailable = Boolean(card.reply) && env.mailReady;
 
@@ -106,7 +110,7 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
       status: cycle.status,
       leftOn: cycle.leftOn,
       returnsOn: cycle.returnsOn,
-      label: returnLabel(cycle.returnsOn, card.comet.show, now, timeZone),
+      label: returnLabel(cycle.returnsOn, card.comet.show, now, timeZone, lang),
       promise: card.comet.promise,
       // Words can only be offered while the comet is still on its way, and
       // only if there is any way to deliver them.
@@ -153,6 +157,7 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
 
   return {
     ...rest,
+    lang,
     from,
     timeZone,
     passwordHint: access?.hint,
@@ -160,7 +165,7 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
     memories,
     comet,
     replyAvailable,
-    replyPrompt: replyAvailable ? (card.reply?.prompt ?? DEFAULT_REPLY_PROMPT) : undefined,
+    replyPrompt: replyAvailable ? (card.reply?.prompt ?? words.defaults.replyPrompt) : undefined,
     today,
     hasOrbit,
     hasCrossroads,
@@ -175,11 +180,15 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
  * screen with three sub-headings is no longer a landing screen.
  */
 export function landingNote(card: ClientCard): string | undefined {
-  if (card.comet?.status === "returned") return "彗星が、戻ってきました。";
+  const words = strings(card.lang);
+  if (card.comet?.status === "returned") return words.landing.cometBack;
   if (!card.writtenAt) return undefined;
 
   const parsed = /^(\d{4})(?:-(\d{2}))?/.exec(card.writtenAt);
   if (!parsed) return undefined;
   const [, year, month] = parsed;
-  return month ? `${year}年${Number(month)}月に書かれた手紙` : `${year}年に書かれた手紙`;
+  const when = month
+    ? words.dates.month(Number(year), Number(month))
+    : words.dates.year(Number(year));
+  return words.landing.writtenIn(when);
 }

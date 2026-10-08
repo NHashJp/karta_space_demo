@@ -1,5 +1,6 @@
 "use client";
 
+import { scriptLang, visualLength } from "@/lib/i18n";
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import type { TextFace as TextFaceData } from "@/types/card";
@@ -26,8 +27,8 @@ export function TextFace({ face, position, rotation, visible, index }: Props) {
   // spilling past the cube edge. A `line` face is fitted to land as a beat
   // instead (spec v0.2 §13.2).
   const fontPx = isLine
-    ? fitLineFaceSize(panelPx, face.body.length)
-    : fitFontSize(panelPx, face.body.length);
+    ? fitLineFaceSize(panelPx, visualLength(face.body))
+    : fitFontSize(panelPx, visualLength(face.body));
 
   return (
     <group position={position} rotation={rotation}>
@@ -49,7 +50,7 @@ export function TextFace({ face, position, rotation, visible, index }: Props) {
           style={{ width: panelPx, height: panelPx, fontSize: `${fontPx}px` }}
           data-visible={visible}
           aria-hidden={!visible}
-          lang="ja"
+          lang={scriptLang(face.body)}
         >
           <p>{face.body}</p>
           <span className="face-text__index">{String(index + 1).padStart(2, "0")}</span>

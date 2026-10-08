@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listCards } from "@/lib/cards";
+import { strings } from "@/lib/i18n";
 
 export const dynamic = "force-static";
 
@@ -15,7 +16,9 @@ export default function Home() {
       <div className="screen">
         <div className="notice">
           <p className="landing__brand">KARTA_SPACE</p>
-          <p lang="ja">カードのリンクからお入りください。</p>
+          {/* No card here to take a language from, so it says it in both. */}
+          <p lang="ja">{strings("ja").index.enter}</p>
+          <p lang="en">{strings("en").index.enter}</p>
         </div>
       </div>
     );
@@ -27,11 +30,12 @@ export default function Home() {
     <div className="screen">
       <div className="notice">
         <p className="landing__brand">KARTA_SPACE</p>
-        <p lang="ja">開発用のカード一覧（{cards.length}）</p>
+        <p lang="ja">{strings("ja").index.devList(cards.length)}</p>
+        <p lang="en">{strings("en").index.devList(cards.length)}</p>
         <nav className="index">
           {cards.map((card) => (
             <Link key={card.slug} className="index__link" href={`/c/${card.slug}`}>
-              <span lang="ja">{card.title}</span>
+              <span lang={card.lang ?? "ja"}>{card.title}</span>
               <code>/c/{card.slug}</code>
             </Link>
           ))}

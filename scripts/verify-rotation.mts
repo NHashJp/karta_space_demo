@@ -62,6 +62,7 @@ import { allProblems, cardProblems, MEMORY_MAX } from "../lib/cardRules.ts";
 import { rehomeCard, strayMedia } from "../lib/cardMedia.ts";
 import {
   APPEAR,
+  BIG,
   MEAN_GAP_S,
   POOL as STAR_POOL,
   QUIET_AFTER_S,
@@ -72,6 +73,7 @@ import {
   shootingStars,
 } from "../lib/shootingStars.ts";
 import { cleanSignature } from "../lib/signature.ts";
+import { visualLength } from "../lib/i18n.ts";
 /** The meteor shower's own length, read from the component that plays it. */
 const SHOWER_S = Number(
   /const DURATION_S = ([\d.]+)/.exec(
@@ -327,12 +329,12 @@ console.log("4. Camera framing and on-screen text size:");
     const cssToScreen = renderedPx / panelPx;
     const longest = Math.max(
       ...cards.flatMap((card) =>
-        card.faces.filter((f) => f.type === "text").map((f) => f.body.length),
+        card.faces.filter((f) => f.type === "text").map((f) => visualLength(f.body)),
       ),
     );
     const longestSecret = Math.max(
       1,
-      ...cards.map((card) => (card.secret ?? "").trim().length),
+      ...cards.map((card) => visualLength((card.secret ?? "").trim())),
     );
     const worst = measureFace(panelPx, longest);
     const fontPx = worst.fontPx * cssToScreen;
@@ -399,7 +401,7 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
         check(id(`face ${i + 1} image exists`), existsSync(file), file);
         continue;
       }
-      const chars = face.body.length;
+      const chars = visualLength(face.body);
 
       if (face.style === "line") {
         // A line face is fitted as a beat, not as a paragraph: the question is
@@ -3483,6 +3485,8 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
   let startedLow = 0;
   let shortest = Infinity;
   let longest = 0;
+  let longestBig = 0;
+  let bigOnes = 0;
 
   for (const [, aspect] of shapes) {
     for (let card = 0; card < 20; card++) {
@@ -3494,8 +3498,14 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
         // It appears in the open upper sky, as the dawn mockup's do — never
         // down where the planet rises and the controls sit.
         if (star.from[1] < 1 - APPEAR.bottom * 2 - 1e-9) startedLow++;
-        shortest = Math.min(shortest, star.duration);
-        longest = Math.max(longest, star.duration);
+        if (star.big) {
+          // A fireball burns longer on purpose (`BIG`); held to its own bound.
+          bigOnes++;
+          longestBig = Math.max(longestBig, star.duration);
+        } else {
+          shortest = Math.min(shortest, star.duration);
+          longest = Math.max(longest, star.duration);
+        }
       }
     }
   }
@@ -3504,6 +3514,10 @@ console.log("30. Shooting stars cross the frame, on every screen (§23.2):");
   check("and every one appears in the upper sky", startedLow === 0, String(startedLow));
   check("they are over in a second and a half or so", shortest >= 1.2 && longest <= 2,
     `${shortest.toFixed(2)}-${longest.toFixed(2)}s`);
+  check("a fireball lasts longer, but not much", longestBig <= 2 * BIG.duration,
+    `${longestBig.toFixed(2)}s`);
+  check("fireballs are occasional", bigOnes / tested > 0.05 && bigOnes / tested < 0.2,
+    `${((bigOnes / tested) * 100).toFixed(1)}%`);
 
   /*
    * Brightness: in fast, out slow, and nothing at either end. A streak that

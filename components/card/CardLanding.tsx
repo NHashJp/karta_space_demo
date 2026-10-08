@@ -1,5 +1,7 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
+
 type Props = {
   title: string;
   subtitle?: string;
@@ -17,18 +19,20 @@ type Props = {
 };
 
 export function CardLanding({ title, subtitle, note, ready, leaving, onOpen }: Props) {
+  const t = useStrings();
+  const lang = useLang();
   return (
     <div className="screen screen--landing" data-leaving={leaving} aria-hidden={leaving}>
       <div className="landing">
         <p className="landing__brand">KARTA_SPACE</p>
-        <h1 className="landing__title" lang="ja">{title}</h1>
-        {subtitle ? <p className="landing__subtitle" lang="ja">{subtitle}</p> : null}
-        {note ? <p className="landing__note" lang="ja">{note}</p> : null}
-        <button className="button" onClick={onOpen} disabled={!ready || leaving} lang="ja">
-          {ready ? "カードを開く" : "カードを準備しています…"}
+        <h1 className="landing__title" lang={lang}>{title}</h1>
+        {subtitle ? <p className="landing__subtitle" lang={lang}>{subtitle}</p> : null}
+        {note ? <p className="landing__note" lang={lang}>{note}</p> : null}
+        <button className="button" onClick={onOpen} disabled={!ready || leaving} lang={lang}>
+          {ready ? t.landing.open : t.landing.preparing}
         </button>
-        <p className="landing__hint" lang="ja">
-          スクロール／スワイプで次の面へ進みます。
+        <p className="landing__hint" lang={lang}>
+          {t.landing.hint}
         </p>
       </div>
     </div>

@@ -45,9 +45,19 @@ config/cards.config.ts     the content            edited by hand or by /editor
 
 ## Real cards are not committed
 
-`config/cards.config.ts` holds the **two sample cards** and nothing else. They
-are documentation: a fresh checkout has something to open, and these documents
-have something to point at.
+`config/cards.config.ts` holds the **sample cards** and nothing else. They are
+documentation and templates: a fresh checkout has something to open, these
+documents have something to point at, and a new card can start from one.
+
+| Slug | Language | What it shows |
+|---|---|---|
+| `2026-newyear-7k2m` | Japanese | every feature: six faces, five memories, a comet with a sealed message, the reply, the secret line, a signature |
+| `newyear-en-k7m2q9x4` | English | the same card, in English |
+| `thanks-sample-3f9q` | Japanese | the minimum: six text faces and a closing line — how a card with no orbit ends |
+| `thanks-en-r4t8w2p6` | English | the same card, in English |
+
+They are written to be generic — no real names or places; the sender is ゆう
+or Alex — so they can be copied and filled in.
 
 A real card lives in **`.karta/cards.local.json`**, which is gitignored — the
 same folder, and the same reason, as the plaintext passwords beside it. A real
@@ -184,7 +194,8 @@ mistake this layout makes easy to catch and easy to make.
 
 [Spec v0.2](./spec-v0.2.md) adds optional fields — `from`, `writtenAt`,
 `timeZone`, `memories`, `satellite`, `comet`, `reply`, `access`, `signature`,
-`sound` — and §0.3 makes it an acceptance criterion that **a card using none of
+`sound` — and V7 adds `lang` (see [languages](./languages.md)) — and §0.3 makes
+it an acceptance criterion that **a card using none of
 them behaves exactly as it did in v0.1**. That is why every new rule in
 `cardRules.ts` runs only when its field is present.
 

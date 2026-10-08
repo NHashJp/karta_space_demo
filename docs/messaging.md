@@ -32,12 +32,14 @@ listed in §20 as deferred to v0.3.
 ## The three emails
 
 All three go to `notifyTo(slug)` — `CARD_NOTIFY_TO_<SLUG>`, else `NOTIFY_TO` —
-from `MAIL_FROM`. Plain text, Japanese, and short.
+from `MAIL_FROM`. Plain text, short, and in the **card's language** (`lang`) —
+the sender wrote the card, so they read its mail in the same language. The
+Japanese text is unchanged; the English is in `lib/i18n.ts` beside it.
 
 | Mail | When | Carries |
 |---|---|---|
 | Reply | the receiver launches a rocket | their name, their message, the time in the card's zone |
-| Comet | the receiver releases a comet | the return date and **the link**, which is the only copy |
+| Comet | the receiver puts words on the comet | the return date and **the link**, which is the only copy |
 | Satellite day | the daily cron, on the satellite's date | the promise, and a nudge to reach out |
 
 The timestamp is formatted in the **card's** time zone, not the server's. A

@@ -81,12 +81,6 @@ export const WING_AXIS_DEG = -50;
 /** The camera looks a little above the planet, so it sits low in the frame. */
 export const ORBIT_TARGET: Vec3 = [1.1, -1.0, -1.3];
 
-/**
- * Margin beyond the composition. §17 requires 8%; designing to 12% leaves the
- * check somewhere to fail from if the numbers are ever tuned.
- */
-const ORBIT_MARGIN = 1.12;
-
 export type Vec3 = [number, number, number];
 export type Pose = { position: Vec3; lookAt: Vec3 };
 
@@ -971,8 +965,10 @@ export const CAPTION_INSET = {
  * dwells just outside three lines of type still reads as sitting on them.
  */
 export const CAPTION_KEEP_OUT = {
-  portrait: { x: 0.5, y: 0.2 },
-  landscape: { x: 0.66, y: 0.25 },
+  // Taller than it was: the promise and the countdown are set larger now,
+  // with the countdown on a line of its own.
+  portrait: { x: 0.5, y: 0.27 },
+  landscape: { x: 0.66, y: 0.3 },
 };
 
 /**

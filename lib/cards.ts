@@ -66,5 +66,5 @@ export function listCards(): CardConfig[] {
 
 /** Everything the landing screen may show before access is granted. */
 export function publicCardShape(card: CardConfig) {
-  return { slug: card.slug, title: card.title };
+  return { slug: card.slug, title: card.title, lang: card.lang ?? "ja" };
 }

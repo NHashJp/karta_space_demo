@@ -5,7 +5,8 @@ for the current project structure, major file roles, and technical basics.
 
 Six-sided 3D message cards. Open a URL, pass an optional password gate, see the
 card title, then scroll or swipe through six cube faces — each one a paragraph
-of Japanese text or an image.
+of text or an image. A card is Japanese or English (`lang`), and everything
+around it follows; see [`docs/languages.md`](./docs/languages.md).
 
 One deployment serves any number of cards: every card is an entry in
 `config/cards.config.ts`, on its own slug, with its own optional password.
@@ -157,7 +158,7 @@ It exports an array of cards; each has a slug, a title, a closing message, an
 optional line inside the cube, and exactly six faces, each face either:
 
 ```ts
-{ type: "text", body: "…" }                                  // ~80–250 Japanese characters
+{ type: "text", body: "…" }                                  // ~80–250 characters wide (a Latin letter counts ~half)
 { type: "image", src: "/cards/<slug>/x.png", alt: "…" }      // square, ideally ≥1200×1200
 ```
 

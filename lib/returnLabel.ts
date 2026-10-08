@@ -1,4 +1,5 @@
 import { daysBetween, civilDate, DEFAULT_TIME_ZONE } from "./orbitClock.ts";
+import { strings, type Lang } from "./i18n.ts";
 import type { ReturnPrecision } from "@/types/card";
 
 /**
@@ -17,7 +18,6 @@ import type { ReturnPrecision } from "@/types/card";
 
 export type ReturnLabel = { label: string; relative: string };
 
-const SEASON_NAME = ["春", "夏", "秋", "冬"] as const;
 
 /**
  * Which season a month belongs to: 春 3–5, 夏 6–8, 秋 9–11, 冬 12–2.
@@ -43,12 +43,16 @@ export function returnLabel(
   show: ReturnPrecision = "day",
   now: Date = new Date(),
   timeZone: string = DEFAULT_TIME_ZONE,
+  lang: Lang = "ja",
 ): ReturnLabel {
   const today = civilDate(now, timeZone);
   const [year, month, day] = returnsOn.split("-").map(Number);
   const days = daysBetween(today, returnsOn);
 
-  return { label: buildLabel(show, year, month, day, today), relative: relative(show, days) };
+  return {
+    label: buildLabel(show, year, month, day, today, lang),
+    relative: relative(show, days, lang),
+  };
 }
 
 function buildLabel(
@@ -57,19 +61,21 @@ function buildLabel(
   month: number,
   day: number,
   today: string,
+  lang: Lang,
 ): string {
-  if (show === "year") return `${year}年`;
-  if (show === "month") return `${year}年${month}月`;
-  if (show === "day") return `${year}年${month}月${day}日`;
+  const { dates } = strings(lang);
+  if (show === "year") return dates.year(year);
+  if (show === "month") return dates.month(year, month);
+  if (show === "day") return dates.day(year, month, day);
 
   // Season: compare season *instances*, not names, or "次の冬" would be true
   // of every winter there has ever been.
   const [todayYear, todayMonth] = today.split("-").map(Number);
   const here = seasonInstance(todayYear, todayMonth);
   const there = seasonInstance(year, month);
-  const name = SEASON_NAME[there.index];
+  const name = dates.seasons[there.index];
 
-  if (seasonOrder(there) === seasonOrder(here)) return `この${name}`;
+  if (seasonOrder(there) === seasonOrder(here)) return dates.thisSeason(name);
 
   /*
    * 次の = the season immediately after this one, not "the next time this
@@ -79,8 +85,8 @@ function buildLabel(
    * been `次の秋`. The examples are right and match how the phrase is used —
    * in autumn, 次の冬 is the winter coming up.
    */
-  if (seasonOrder(there) === seasonOrder(here) + 1) return `次の${name}`;
-  return `${year}年の${name}`;
+  if (seasonOrder(there) === seasonOrder(here) + 1) return dates.nextSeason(name);
+  return lang === "ja" ? `${year}年の${name}` : dates.seasonOf(year, name);
 }
 
 /** 18 months, past which the answer is in years rather than months. */
@@ -88,24 +94,25 @@ const MONTHS_LIMIT_DAYS = 548;
 const DAYS_PER_MONTH = 30.44;
 const DAYS_PER_YEAR = 365.25;
 
-function relative(show: ReturnPrecision, days: number): string {
-  if (days === 0) return "今日";
+function relative(show: ReturnPrecision, days: number, lang: Lang): string {
+  const words = strings(lang).relative;
+  if (days === 0) return words.today;
   // Inside the returned window: it came back, and how long ago matters more
   // than how far away it is.
-  if (days < 0) return `${-days}日前`;
+  if (days < 0) return words.daysAgo(-days);
 
   // A day-precise promise can afford a day-precise countdown; a season-precise
   // one cannot, so it only ever says "soon".
-  if (show === "day" && days <= 100) return `あと${days}日`;
-  if (show !== "day" && days <= 30) return "もうすぐ";
+  if (show === "day" && days <= 100) return words.daysLeft(days);
+  if (show !== "day" && days <= 30) return words.soon;
 
   if (days < MONTHS_LIMIT_DAYS) {
-    return `約${Math.max(1, Math.round(days / DAYS_PER_MONTH))}か月後`;
+    return words.months(Math.max(1, Math.round(days / DAYS_PER_MONTH)));
   }
 
   // Rounded to the half year: "約1年半後" is how people say this.
   const halves = Math.round((days / DAYS_PER_YEAR) * 2) / 2;
-  return Number.isInteger(halves) ? `約${halves}年後` : `約${Math.floor(halves)}年半後`;
+  return Number.isInteger(halves) ? words.years(halves) : words.yearsHalf(Math.floor(halves));
 }
 
 /** `{label} · {relative}`, which is how it is always shown. */

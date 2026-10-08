@@ -71,6 +71,7 @@ export async function POST(request: Request, { params }: Params) {
     name: result.value.name,
     returnsOn: cycle.returnsOn,
     token,
+    lang: card.lang,
   });
   if (!mail) return notFound();
 

@@ -175,7 +175,10 @@ the landing or closing screen, that is a bug regardless of how it looks.
 
 ### The inside of the cube
 
-From the closing screen: `この立方体には、内側があります。` → `中をのぞく`. The
+From the closing screen: `この立方体には、内側があります。` → `中をのぞく`. It
+is the **last** thing to appear on that screen — after the closing line and
+signature have finished writing and after `軌道へ送り出す`, with a beat of its
+own (`SECRET_AFTER_MS`). Until then it is invisible and cannot be pressed. The
 camera passes *through a wall*, and one line is written inside.
 
 It must be attached only once the camera has arrived — not readable on the way
@@ -210,6 +213,15 @@ does the sound under them. Watch that it is the *same* animation compressed:
 two booms, six hinges landing one at a time, a thruster, a rise. If the panels
 arrive together rather than in sequence, `REPLAY_SCALE` has gone too low.
 
+**It should start without a hitch.** The orbit's planet, sky, sun and comet are
+built and their shaders compiled while the closing screen is up
+(`Precompile`), so pressing `軌道へ送り出す` only has to show them. A stutter in
+the first half-second of the unfold means that preparation did not happen.
+On a phone, the satellite must stay in front of the planet the whole way.
+
+**The first time in a cycle, the comet intro plays** — see *The comet* below.
+To see it again, clear the card's `ks_comet_<slug>` record in local storage.
+
 **Jump straight to `?at=orbit` and check the cube actually became a satellite.**
 This used to fail: the transformation only ran while the deployment was
 animating, so arriving by jump left a cube in orbit.
@@ -234,7 +246,10 @@ felt. On a phone in portrait:
 | The planet | rotating, lit from one side, never covering the satellite |
 | Rotate the device | the composition re-solves; nothing falls off the edge |
 | Rocks | one drifts past every half-minute or so, well behind the satellite, tumbling slowly. Never in front of it, never near it |
-| Shooting stars | one every ~14 s, crossing the upper sky in about a second: bright head, tail tapering to nothing. Also on the landing screen and the trail — but never over a face, never inside the cube, never on the closing screen |
+| Shooting stars | about one every 4 s in the hub (every ~14 s elsewhere): a short streak appearing in the upper-left sky, sliding down and right, fading in and out over ~1.5 s. About one in eight is a larger, slower fireball. Also on the landing screen and the trail — but never over a face, never inside the cube, never on the closing screen |
+| The planet's rim | the shine sits exactly on the planet's edge all the way round — gold-white at the sun, cyan, then blue — never as a band floating off the contour |
+| The top-right | `?` and the sound control side by side; `?` opens *KARTA_SPACE について* — the core idea and five values |
+| The caption | the sender's promise, large, then the countdown on its own line (`あと 78 日`, the number in sunrise gold), then the date |
 | Hover the satellite | `中をのぞく` fades in on it. Moving onto the button keeps it there; moving away hides it |
 | Tap the comet | still works. The label's box is near it, and must never take the tap |
 
@@ -289,7 +304,17 @@ twenty memories still feels like a journey rather than a list.
 ### The comet
 
 The comet's **position is the countdown**. Far out and faint for most of the
-wait, then swinging home fast in the last tenth with a growing tail.
+wait, then swinging home fast in the last tenth with a growing tail. In the hub
+it rides an **ellipse**: out along the right-hand side of the loop, round the
+far point in the top-right, home along the left — so try `?now=` at a few dates
+and check it moves round the loop rather than back and forth on one arc.
+
+**The first-launch intro** plays straight after the first deployment of a
+cycle: `あと X 日` over the promise as written in the editor, then the dashed
+way home drawn, the comet flown home while the number counts down and the sky
+rises to the reunion morning, then a rewind to today and the `言葉をのせる`
+sheet. `スキップ` must end it at any point. The sky at zero should be the sky
+`?now=<returnsOn>` shows.
 
 Fastest way in: **`?at=chart`**. That plays the departure and lands on the
 chart with the sheet open. Tapping `彗星` in the bar gets there too, and after
@@ -344,8 +369,10 @@ Fastest way in: **`?at=reply`**, which opens the panel directly. Otherwise
 No `返事を打ち上げる` pill in the bar means mail is not configured, or the
 card has no `reply` block — see above.
 
-`返事を打ち上げる` → up to 140 characters → the rocket rises, becomes a star,
-and the star stays in the sky for the rest of the session.
+`返事を打ち上げる` → up to 140 characters → the panel closes, and the rocket
+comes in from beyond the far edge of the screen, crosses the frame past the
+satellite, overtakes the comet and becomes a star, which stays in the sky for
+the rest of the session.
 
 The panel must say **what is being launched and where it goes** before the
 button is pressed: `あなたの言葉をのせたロケットが、彗星を追い越して…に届きます。`
@@ -367,6 +394,17 @@ only after pressing send a second time.
 Check the email arrives with line breaks intact. A newline in the *message* is
 a paragraph; a newline in the *name* would be header injection, and the two are
 cleaned separately.
+
+### English cards
+
+`/c/newyear-en-k7m2q9x4` and `/c/thanks-en-r4t8w2p6` are the English samples.
+Everything around the letter should be English: the gate, the landing line
+(*A letter written in January 2026*), the closing offers, the orbit bar, the
+caption (*78 days to go*), the intro, every sheet and panel, and the dates
+(*around April 2023*, *by next winter*). Faces should set at the same size as
+a Japanese face of similar *visual* length — never tiny because English has
+more letters. Switching a card's Language in the editor should switch all of
+it, emails included. See [languages](./languages.md).
 
 ### Reduced motion
 

@@ -16,6 +16,10 @@ import { CometIntro } from "./CometIntro";
 import { CrossroadsPanel } from "./CrossroadsPanel";
 import { TrajectoryPanel } from "./TrajectoryPanel";
 import { ReplyPanel } from "./ReplyPanel";
+import { AboutPanel } from "./AboutPanel";
+import { LangProvider } from "./LangContext";
+import { strings } from "@/lib/i18n";
+import { QuestionIcon } from "./Icons";
 import { TrailOverlay } from "./TrailOverlay";
 import { AmbientOverlay } from "./AmbientOverlay";
 import { SoundToggle } from "./SoundToggle";
@@ -31,16 +35,10 @@ import {
 } from "@/lib/cometVisit";
 import { lightSeed } from "@/lib/sceneLight";
 import { dawn as dawnOf } from "@/lib/dawn";
-import { elapsedDays, skyFor } from "@/lib/skyAge";
+import { skyFor } from "@/lib/skyAge";
 import { DEPLOY_MS, replayed } from "@/lib/timing";
-import { orbitRotation, progress as cometProgress } from "@/lib/cometOrbit";
-import {
-  readLaunched,
-  readReleased,
-  writeLaunched,
-  writeReleased,
-  type ReleasedComet,
-} from "@/lib/localMarks";
+import { progress as cometProgress } from "@/lib/cometOrbit";
+import { readLaunched, writeLaunched } from "@/lib/localMarks";
 import {
   acceptsInput,
   breathesAtRest,
@@ -67,6 +65,9 @@ export function CardExperience({
   visitMode?: VisitMode;
 }) {
   const memoryCount = card.memories?.length ?? 0;
+  // The card's own language, for every word drawn around it (`lib/i18n.ts`).
+  const lang = card.lang ?? "ja";
+  const t = strings(lang);
 
   /*
    * What this browser has already seen of the comet (§11.5). It is read once,
@@ -287,23 +288,15 @@ export function CardExperience({
   }, [soundAvailable]);
 
   /*
-   * The two marks a previous visit left, in this browser only (§10.4, §11.6).
-   * Read after mount rather than during render: the server has no idea what is
-   * in someone's localStorage, and assuming would mean a hydration mismatch.
+   * The mark a previous visit left, in this browser only (§10.4): whether a
+   * reply has already been launched. Read after mount rather than during
+   * render: the server has no idea what is in someone's localStorage, and
+   * assuming would mean a hydration mismatch.
    */
   const [launchedBefore, setLaunchedBefore] = useState(false);
-  const [releasedComet, setReleasedComet] = useState<ReleasedComet | null>(null);
   useEffect(() => {
     setLaunchedBefore(readLaunched(card.slug));
-    setReleasedComet(readReleased(card.slug));
   }, [card.slug]);
-
-  // Its orbit is seeded from the day it was released, exactly as the sender's
-  // is, so the two never lie on top of each other.
-  const releaseRotation = useMemo(
-    () => orbitRotation(card.slug, releasedComet?.releasedOn ?? card.today),
-    [card.slug, releasedComet?.releasedOn, card.today],
-  );
 
   useEffect(() => {
     if (launched) writeLaunched(card.slug);
@@ -389,13 +382,19 @@ export function CardExperience({
 
   useFaceNavigation(move, !acceptsInput(state), state !== "landing");
 
+  // The document speaks the card's language, for screen readers and for the
+  // browser's own line breaking.
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   if (failed) {
     return (
       <div className="screen">
         <div className="notice">
-          <p lang="ja">カードを読み込めませんでした。もう一度お試しください。</p>
-          <button className="button button--ghost" onClick={() => location.reload()} lang="ja">
-            再読み込み
+          <p lang={lang}>{t.common.loadFailed}</p>
+          <button className="button button--ghost" onClick={() => location.reload()} lang={lang}>
+            {t.common.reload}
           </button>
         </div>
       </div>
@@ -403,242 +402,264 @@ export function CardExperience({
   }
 
   return (
-    <main className="experience" data-state={state}>
-      <div className="experience__scene" aria-hidden={state !== "reading"}>
-        <CubeScene
-          faces={card.faces}
-          activeFace={activeFace}
-          isTransitioning={state === "transitioning"}
-          revealText={revealsText(state)}
-          dimmed={dimsScene(state)}
-          cameraPhase={phase}
-          cameraLeg={activeMemory}
-          seed={seed}
-          returned={returned || introDay}
-          sky={sky}
-          atRest={atRest}
-          memories={card.memories}
-          activeMemory={activeMemory}
-          revealMemory={revealsMemory(state)}
-          slug={card.slug}
-          comet={comet}
-          showCometOrbit={phase === "chart"}
-          launching={state === "launching"}
-          launched={launched || launchedBefore}
-          onLaunchEnd={onLaunchEnd}
-          departing={state === "departing"}
-          onDepartEnd={onDepartEnd}
-          previewing={state === "previewing"}
-          boarding={state === "boarding"}
-          onBoardEnd={onBoardEnd}
-          deploying={deploying}
-          deployMs={deployMs}
-          deployed={isDeployed(state)}
-          // The closing screen is up and the orbit is the way on: build it now,
-          // hidden, so 軌道へ送り出す starts the animation with nothing to wait for.
-          prepare={card.hasOrbit && (state === "leaving" || state === "completed")}
-          onDeployEnd={onDeployEnd}
-          propel={propelling}
-          onBloom={onBloom}
-          secret={secret}
-          within={isWithinCube(state)}
-          revealSecret={revealsSecret(state)}
-          reducedMotion={reducedMotion}
-          onTransitionEnd={onTransitionEnd}
-          onZoomEnd={onZoomEnd}
-        />
-      </div>
-
-      {state === "landing" || state === "entering" ? (
-        <CardLanding
-          title={card.title}
-          subtitle={card.subtitle}
-          note={landingNote(card)}
-          ready={ready}
-          leaving={state === "entering"}
-          onOpen={() => {
-            // The one user gesture the whole session gets: browsers will only
-            // start an AudioContext from inside one.
-            if (soundAvailable && soundOn) sound.start();
-            dispatch({ type: "open" });
-          }}
-        />
-      ) : null}
-
-      {state === "reading" || state === "transitioning" ? (
-        <>
-          <CardProgress active={activeFace} total={6} />
-          <p className="hint" data-visible={state === "reading" && activeFace === 0} lang="ja">
-            スクロール／スワイプ
-          </p>
-        </>
-      ) : null}
-
-      {showsCompletion(experience) ? (
-        <CompletionState
-          closing={card.closing}
-          social={card.social}
-          leaving={state !== "completed"}
-          hasSecret={Boolean(secret)}
-          hasOrbit={card.hasOrbit}
-          signature={card.signature}
-          again={closings > 1}
-          onReveal={onReveal}
-          onReplay={() => dispatch({ type: "replay" })}
-          onDeploy={onDeploy}
-        />
-      ) : null}
-
-      {phase === "orbit" && state !== "deploying" && state !== "previewing" ? (
-        <OrbitOverlay
-          card={card}
-          panel={panel}
-          launched={launched || launchedBefore}
-          aboard={aboard}
-          onOpenPanel={onOpenPanel}
-          onOpenChart={onOpenChart}
-          onLookBack={onLookBack}
-          onDock={onDock}
-          onEnterSatellite={onEnterSatellite}
-          hasSecret={Boolean(secret)}
-          onFindReply={onOpenChart}
-          overtook={overtook}
-        />
-      ) : null}
-
-      {/* The first time the comet leaves, what it is for — before it asks. */}
-      {state === "previewing" ? (
-        <CometIntro
-          card={card}
-          reducedMotion={reducedMotion}
-          onDay={onIntroDay}
-          onDone={onPreviewEnd}
-        />
-      ) : null}
-
-      {/* The comet sheet: the end of every comet moment (§8.6). */}
-      {showsCometSheet(state) ? (
-        <CometSheet
-          card={card}
-          aboard={aboard}
-          justBoardedLink={cometLink}
-          askedBefore={askedBefore}
-          onAsked={onAsked}
-          onBoarded={(token) => {
-            // Remembered in this browser so the nudge does not come back, and
-            // so the chip in the hub can say where their words got to. The
-            // token is never stored — it is the message, and its one home is
-            // the email it went out in (§11.5).
-            if (token) setCometLink(`${window.location.origin}/comet/${token}`);
-            remember({ sent: { on: card.today } });
-            dispatch({ type: "board" });
-          }}
-          onLeave={onLeaveChart}
-        />
-      ) : null}
-
-      {panel === "crossroads" ? (
-        <CrossroadsPanel
-          card={card}
-          onLookBack={onLookBack}
-          onReply={() => onOpenPanel("reply")}
-          onTrajectory={() => onOpenPanel("trajectory")}
-          onClose={onClosePanel}
-        />
-      ) : null}
-
-      {panel === "trajectory" ? (
-        <TrajectoryPanel card={card} aboard={aboard} onClose={onClosePanel} />
-      ) : null}
-
-      {panel === "reply" ? (
-        <ReplyPanel
-          card={card}
-          onClose={onClosePanel}
-          onSent={() => dispatch({ type: "launch" })}
-        />
-      ) : null}
-
-      {phase === "trail" && memories.length > 0 ? (
-        <TrailOverlay
-          memories={memories}
-          active={activeMemory}
-          revealed={revealsMemory(state)}
-          onBack={onLookBack}
-        />
-      ) : null}
-
-      {state === "inside" || state === "ascending" ? (
-        <div className="screen screen--inside" data-leaving={state === "ascending"}>
-          <div className="inside">
-            <p className="inside__hint" lang="ja">
-              スクロールして外へ
-            </p>
-            <button
-              className="button button--ghost"
-              onClick={onReveal}
-              disabled={state === "ascending"}
-              lang="ja"
-            >
-              外に戻る
-            </button>
-          </div>
+    <LangProvider lang={lang}>
+      <main className="experience" data-state={state} lang={lang}>
+        <div className="experience__scene" aria-hidden={state !== "reading"}>
+          <CubeScene
+            faces={card.faces}
+            activeFace={activeFace}
+            isTransitioning={state === "transitioning"}
+            revealText={revealsText(state)}
+            dimmed={dimsScene(state)}
+            cameraPhase={phase}
+            cameraLeg={activeMemory}
+            seed={seed}
+            returned={returned || introDay}
+            sky={sky}
+            atRest={atRest}
+            memories={card.memories}
+            activeMemory={activeMemory}
+            revealMemory={revealsMemory(state)}
+            slug={card.slug}
+            comet={comet}
+            showCometOrbit={phase === "chart"}
+            launching={state === "launching"}
+            launched={launched || launchedBefore}
+            onLaunchEnd={onLaunchEnd}
+            departing={state === "departing"}
+            onDepartEnd={onDepartEnd}
+            previewing={state === "previewing"}
+            boarding={state === "boarding"}
+            onBoardEnd={onBoardEnd}
+            deploying={deploying}
+            deployMs={deployMs}
+            deployed={isDeployed(state)}
+            // The closing screen is up and the orbit is the way on: build it now,
+            // hidden, so 軌道へ送り出す starts the animation with nothing to wait for.
+            prepare={card.hasOrbit && (state === "leaving" || state === "completed")}
+            onDeployEnd={onDeployEnd}
+            propel={propelling}
+            onBloom={onBloom}
+            secret={secret}
+            within={isWithinCube(state)}
+            revealSecret={revealsSecret(state)}
+            reducedMotion={reducedMotion}
+            onTransitionEnd={onTransitionEnd}
+            onZoomEnd={onZoomEnd}
+          />
         </div>
-      ) : null}
 
-      {soundAvailable && state !== "landing" ? (
-        <SoundToggle on={soundOn} onToggle={() => setSoundOn((on) => !on)} />
-      ) : null}
-
-      <AmbientOverlay />
-
-      {/* Paragraph text also lives here as plain DOM, for assistive tech. */}
-      {/*
-        The whole card as plain DOM, for assistive tech (§18). Everything the
-        3D scene says is here in text — including the memories, which are
-        otherwise textures and <Html> inside a canvas.
-
-        The sender's comet message appears here only when it has returned, and
-        for the same reason it appears nowhere else before then: it is not in
-        the payload at all until its date (§14.1).
-      */}
-      <div className="sr-only">
-        <h1 lang="ja">{card.title}</h1>
-        {card.faces.map((face, index) => (
-          <p key={index} lang="ja">
-            {face.type === "text" ? face.body : face.alt}
-          </p>
-        ))}
-        {secret ? <p lang="ja">{secret}</p> : null}
-
-        {memories.length > 0 ? (
-          <section lang="ja">
-            <h2>航跡</h2>
-            {memories.map((memory, index) => (
-              <article key={index}>
-                <h3>{memory.title}</h3>
-                <p>{formatFuzzyDate(memory.date, memory)}</p>
-                {memory.caption ? <p>{memory.caption}</p> : null}
-                {memory.image ? <p>{memory.image.alt}</p> : null}
-              </article>
-            ))}
-          </section>
+        {state === "landing" || state === "entering" ? (
+          <CardLanding
+            title={card.title}
+            subtitle={card.subtitle}
+            note={landingNote(card)}
+            ready={ready}
+            leaving={state === "entering"}
+            onOpen={() => {
+              // The one user gesture the whole session gets: browsers will only
+              // start an AudioContext from inside one.
+              if (soundAvailable && soundOn) sound.start();
+              dispatch({ type: "open" });
+            }}
+          />
         ) : null}
 
-        {card.comet ? (
-          <section lang="ja">
-            <h2>彗星</h2>
-            {card.comet.promise ? <p>{card.comet.promise}</p> : null}
-            <p>{formatReturn(card.comet.label)}</p>
-            {card.comet.message ? (
-              <>
-                <p>{card.from}からの言葉</p>
-                <p>{card.comet.message}</p>
-              </>
-            ) : null}
-          </section>
+        {state === "reading" || state === "transitioning" ? (
+          <>
+            <CardProgress active={activeFace} total={6} />
+            <p className="hint" data-visible={state === "reading" && activeFace === 0} lang={lang}>
+              {t.reading.swipe}
+            </p>
+          </>
         ) : null}
-      </div>
-    </main>
+
+        {showsCompletion(experience) ? (
+          <CompletionState
+            closing={card.closing}
+            social={card.social}
+            leaving={state !== "completed"}
+            hasSecret={Boolean(secret)}
+            hasOrbit={card.hasOrbit}
+            signature={card.signature}
+            again={closings > 1}
+            onReveal={onReveal}
+            onReplay={() => dispatch({ type: "replay" })}
+            onDeploy={onDeploy}
+          />
+        ) : null}
+
+        {phase === "orbit" && state !== "deploying" && state !== "previewing" ? (
+          <OrbitOverlay
+            card={card}
+            panel={panel}
+            launched={launched || launchedBefore}
+            aboard={aboard}
+            onOpenPanel={onOpenPanel}
+            onOpenChart={onOpenChart}
+            onLookBack={onLookBack}
+            onDock={onDock}
+            onEnterSatellite={onEnterSatellite}
+            hasSecret={Boolean(secret)}
+            onFindReply={onOpenChart}
+            overtook={overtook}
+          />
+        ) : null}
+
+        {/* The first time the comet leaves, what it is for — before it asks. */}
+        {state === "previewing" ? (
+          <CometIntro
+            card={card}
+            reducedMotion={reducedMotion}
+            onDay={onIntroDay}
+            onDone={onPreviewEnd}
+          />
+        ) : null}
+
+        {/* The comet sheet: the end of every comet moment (§8.6). */}
+        {showsCometSheet(state) ? (
+          <CometSheet
+            card={card}
+            aboard={aboard}
+            justBoardedLink={cometLink}
+            askedBefore={askedBefore}
+            onAsked={onAsked}
+            onBoarded={(token) => {
+              // Remembered in this browser so the nudge does not come back, and
+              // so the chip in the hub can say where their words got to. The
+              // token is never stored — it is the message, and its one home is
+              // the email it went out in (§11.5).
+              if (token) setCometLink(`${window.location.origin}/comet/${token}`);
+              remember({ sent: { on: card.today } });
+              dispatch({ type: "board" });
+            }}
+            onLeave={onLeaveChart}
+          />
+        ) : null}
+
+        {panel === "crossroads" ? (
+          <CrossroadsPanel
+            card={card}
+            onLookBack={onLookBack}
+            onReply={() => onOpenPanel("reply")}
+            onTrajectory={() => onOpenPanel("trajectory")}
+            onClose={onClosePanel}
+          />
+        ) : null}
+
+        {panel === "about" ? <AboutPanel onClose={onClosePanel} /> : null}
+
+        {panel === "trajectory" ? (
+          <TrajectoryPanel card={card} aboard={aboard} onClose={onClosePanel} />
+        ) : null}
+
+        {panel === "reply" ? (
+          <ReplyPanel
+            card={card}
+            onClose={onClosePanel}
+            onSent={() => dispatch({ type: "launch" })}
+          />
+        ) : null}
+
+        {phase === "trail" && memories.length > 0 ? (
+          <TrailOverlay
+            memories={memories}
+            active={activeMemory}
+            revealed={revealsMemory(state)}
+            onBack={onLookBack}
+          />
+        ) : null}
+
+        {state === "inside" || state === "ascending" ? (
+          <div className="screen screen--inside" data-leaving={state === "ascending"}>
+            <div className="inside">
+              <p className="inside__hint" lang={lang}>
+                {t.inside.scrollOut}
+              </p>
+              <button
+                className="button button--ghost"
+                onClick={onReveal}
+                disabled={state === "ascending"}
+                lang={lang}
+              >
+                {t.inside.back}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/*
+          The top-right controls, side by side: what this is all about, in the
+          orbit view, and the sound everywhere past the landing screen. One group,
+          so the "?" sits right next to the sound control at any width.
+        */}
+        <div className="corner-controls">
+          {phase === "orbit" && state !== "deploying" && state !== "previewing" ? (
+            <button
+              className="about-toggle"
+              onClick={() => onOpenPanel("about")}
+              aria-label={t.orbit.about}
+              aria-pressed={panel === "about"}
+              title={t.orbit.about}
+            >
+              <QuestionIcon />
+            </button>
+          ) : null}
+          {soundAvailable && state !== "landing" ? (
+            <SoundToggle on={soundOn} onToggle={() => setSoundOn((on) => !on)} />
+          ) : null}
+        </div>
+
+        <AmbientOverlay />
+
+        {/* Paragraph text also lives here as plain DOM, for assistive tech. */}
+        {/*
+          The whole card as plain DOM, for assistive tech (§18). Everything the
+          3D scene says is here in text — including the memories, which are
+          otherwise textures and <Html> inside a canvas.
+
+          The sender's comet message appears here only when it has returned, and
+          for the same reason it appears nowhere else before then: it is not in
+          the payload at all until its date (§14.1).
+        */}
+        <div className="sr-only">
+          <h1 lang={lang}>{card.title}</h1>
+          {card.faces.map((face, index) => (
+            <p key={index} lang={lang}>
+              {face.type === "text" ? face.body : face.alt}
+            </p>
+          ))}
+          {secret ? <p lang={lang}>{secret}</p> : null}
+
+          {memories.length > 0 ? (
+            <section lang={lang}>
+              <h2>{t.a11y.trail}</h2>
+              {memories.map((memory, index) => (
+                <article key={index}>
+                  <h3>{memory.title}</h3>
+                  <p>{formatFuzzyDate(memory.date, { ...memory, lang })}</p>
+                  {memory.caption ? <p>{memory.caption}</p> : null}
+                  {memory.image ? <p>{memory.image.alt}</p> : null}
+                </article>
+              ))}
+            </section>
+          ) : null}
+
+          {card.comet ? (
+            <section lang={lang}>
+              <h2>{t.a11y.comet}</h2>
+              {card.comet.promise ? <p>{card.comet.promise}</p> : null}
+              <p>{formatReturn(card.comet.label)}</p>
+              {card.comet.message ? (
+                <>
+                  <p>{t.a11y.fromWords(card.from)}</p>
+                  <p>{card.comet.message}</p>
+                </>
+              ) : null}
+            </section>
+          ) : null}
+        </div>
+      </main>
+    </LangProvider>
   );
 }

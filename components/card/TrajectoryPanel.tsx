@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { Panel } from "./Panel";
 import { CometTrajectory } from "./CometTrajectory";
 import { LockIcon } from "./Icons";
@@ -29,13 +30,15 @@ export function TrajectoryPanel({
   aboard: boolean;
   onClose: () => void;
 }) {
+  const t = useStrings();
+  const lang = useLang();
   const comet = card.comet;
   if (!comet) return null;
 
   const returned = comet.status !== "away";
 
   return (
-    <Panel title="彗星の軌道" onClose={onClose}>
+    <Panel title={t.trajectory.title} onClose={onClose}>
       <div className="trajectory-panel">
         <CometTrajectory
           progress={cometProgress(comet.leftOn, comet.returnsOn, card.today)}
@@ -44,7 +47,7 @@ export function TrajectoryPanel({
           returned={returned}
         />
 
-        <p className="trajectory-panel__when" lang="ja">
+        <p className="trajectory-panel__when" lang={lang}>
           {formatReturn(comet.label)}
         </p>
 
@@ -56,14 +59,14 @@ export function TrajectoryPanel({
           <p className="sheet__sealed">
             <LockIcon />
             {aboard
-              ? `${card.from}とあなたの言葉がのっています。また会う日に、ひらきます。`
-              : `${card.from}の言葉がのっています。また会う日に、ひらきます。`}
+              ? t.trajectory.bothAboard(card.from)
+              : t.trajectory.sealed(card.from)}
           </p>
         ) : null}
 
         <div className="sheet__actions">
-          <button className="button button--wide" onClick={onClose} lang="ja">
-            軌道へもどる
+          <button className="button button--wide" onClick={onClose} lang={lang}>
+            {t.sheet.toOrbit}
           </button>
         </div>
       </div>

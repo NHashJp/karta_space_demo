@@ -1,5 +1,7 @@
 "use client";
 
+import { visualLength } from "@/lib/i18n";
+import { useLang, useStrings } from "./LangContext";
 import { useEffect, useMemo, useState } from "react";
 import StrokeText, { strokeTextDuration } from "@/components/text/StrokeText";
 import { SocialLinks } from "./SocialLinks";
@@ -81,6 +83,8 @@ export function CompletionState({
   onReplay,
   onDeploy,
 }: Props) {
+  const t = useStrings();
+  const lang = useLang();
   const [width, setWidth] = useState(1024);
   const [offerOrbit, setOfferOrbit] = useState(false);
   const [written, setWritten] = useState(false);
@@ -93,7 +97,9 @@ export function CompletionState({
    * rather than against the whole sentence.
    */
   const lines = useMemo(() => closingLines(closing, width), [closing, width]);
-  const longest = lines.reduce((most, line) => Math.max(most, line.length), 0);
+  // In full-width characters, so an English line is sized by how wide it
+  // actually sets rather than by how many letters it has.
+  const longest = lines.reduce((most, line) => Math.max(most, visualLength(line)), 0);
   const fontSize = strokeFontSize(width, longest);
 
   /** Line `i` starts when line `i - 1` has finished: one hand, not two. */
@@ -216,7 +222,7 @@ export function CompletionState({
   return (
     <div className="screen screen--completion" data-leaving={leaving} aria-hidden={leaving}>
       <div className="completion">
-        <div className="completion__stroke" lang="ja">
+        <div className="completion__stroke" lang={lang}>
           {lines.map((line, index) => (
             <StrokeText
               key={`${lines.length}:${index}`}
@@ -255,23 +261,23 @@ export function CompletionState({
           data-settled={written}
           onClick={onReplay}
           disabled={leaving}
-          lang="ja"
+          lang={lang}
         >
-          もう一度見る
+          {t.completion.replay}
         </button>
 
         {hasOrbit ? (
           <div className="orbit-offer" data-visible={offerOrbit} aria-hidden={!offerOrbit}>
-            <p className="orbit-offer__line" lang="ja">
-              この手紙には、続きがあります。
+            <p className="orbit-offer__line" lang={lang}>
+              {t.completion.continues}
             </p>
             <button
               className="button button--quiet"
               onClick={onDeploy}
               disabled={leaving || !offerOrbit}
-              lang="ja"
+              lang={lang}
             >
-              軌道へ送り出す
+              {t.completion.deploy}
             </button>
             {/* Scrolling forward does the same thing; this says so without words. */}
             <span className="orbit-offer__cue" aria-hidden="true">
@@ -282,16 +288,16 @@ export function CompletionState({
 
         {hasSecret ? (
           <div className="secret-offer" data-visible={offerSecret} aria-hidden={!offerSecret}>
-            <p className="secret-offer__line" lang="ja">
-              この立方体には、内側があります。
+            <p className="secret-offer__line" lang={lang}>
+              {t.completion.hasInside}
             </p>
             <button
               className="button button--quiet"
               onClick={onReveal}
               disabled={leaving || !offerSecret}
-              lang="ja"
+              lang={lang}
             >
-              中をのぞく
+              {t.completion.lookInside}
             </button>
           </div>
         ) : null}

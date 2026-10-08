@@ -16,6 +16,8 @@ import { lightSeed } from "@/lib/sceneLight";
 import { skyFor } from "@/lib/skyAge";
 import { usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import type { Opened } from "@/lib/cometSeal";
+import { strings, type Lang } from "@/lib/i18n";
+import { LangProvider, useLang } from "@/components/card/LangContext";
 
 /**
  * What the sender opens from the email (spec v0.2 §11.7).
@@ -25,14 +27,32 @@ import type { Opened } from "@/lib/cometSeal";
  * a little further round. In the final weeks it visibly comes home, which is
  * the entire feature — the countdown is a place, not a number.
  */
-export function CometPage({ comet, today }: { comet: Opened; today: string }) {
+export function CometPage({
+  comet,
+  today,
+  lang = "ja",
+}: {
+  comet: Opened;
+  today: string;
+  /** The card's language: the comet page speaks the card's words. */
+  lang?: Lang;
+}) {
+  return (
+    <LangProvider lang={lang}>
+      <CometPageBody comet={comet} today={today} lang={lang} />
+    </LangProvider>
+  );
+}
+
+function CometPageBody({ comet, today, lang }: { comet: Opened; today: string; lang: Lang }) {
   const reducedMotion = usePrefersReducedMotion();
+  const t = strings(lang).cometPage;
 
   if (comet.status === "invalid") {
     return (
       <main className="screen">
-        <p className="comet-page__invalid" lang="ja">
-          この彗星は見つかりませんでした。
+        <p className="comet-page__invalid" lang={lang}>
+          {t.notFound}
         </p>
       </main>
     );
@@ -85,8 +105,6 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
           </group>
           <Comet
             progress={progress}
-            slug={comet.slug}
-            releasedOn={comet.leftOn}
             tone="receiver"
             reducedMotion={reducedMotion}
             showOrbit
@@ -101,29 +119,29 @@ export function CometPage({ comet, today }: { comet: Opened; today: string }) {
         <CometOrbitMini
           progress={progress}
           tone="receiver"
-          label={formatFuzzyDate(comet.returnsOn)}
+          label={formatFuzzyDate(comet.returnsOn, { lang })}
         />
 
         {returned ? (
           <>
-            <h1 className="comet__headline" lang="ja">
-              {comet.name}さんの言葉が、戻ってきました。
+            <h1 className="comet__headline" lang={lang}>
+              {t.returned(comet.name)}
             </h1>
-            <p className="comet__meta" lang="ja">
-              {formatFuzzyDate(comet.boardedOn)}に、彗星にのりました
+            <p className="comet__meta" lang={lang}>
+              {t.boardedOn(formatFuzzyDate(comet.boardedOn, { lang }))}
             </p>
             <Message body={comet.body} slug={comet.slug} />
           </>
         ) : (
           <>
-            <h1 className="comet__headline" lang="ja">
-              {comet.name}さんの言葉
+            <h1 className="comet__headline" lang={lang}>
+              {t.words(comet.name)}
             </h1>
-            <p className="comet__meta" lang="ja">
-              約束の彗星にのって、{formatFuzzyDate(comet.returnsOn)}に戻ってきます。
+            <p className="comet__meta" lang={lang}>
+              {t.returnsOn(formatFuzzyDate(comet.returnsOn, { lang }))}
             </p>
-            <p className="comet__meta" lang="ja">
-              あと{daysUntil}日
+            <p className="comet__meta" lang={lang}>
+              {t.daysLeft(daysUntil)}
             </p>
           </>
         )}
@@ -154,9 +172,10 @@ function Message({ body, slug }: { body: string; slug: string }) {
   }, [slug]);
 
   const lines = body.split("\n");
+  const lang = useLang();
 
   return (
-    <div className="comet-page__message" lang="ja">
+    <div className="comet-page__message" lang={lang}>
       {lines.map((line, index) => (
         <p
           key={index}

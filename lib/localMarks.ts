@@ -1,6 +1,7 @@
 /**
- * The two small marks a visit leaves, in the reader's own browser (spec v0.2
- * §10.4, §11.6).
+ * The small mark a launched reply leaves, in the reader's own browser (spec
+ * v0.2 §10.4). What the comet remembers about a visit — watched, asked,
+ * words sent — is its own record, in `lib/cometVisit.ts`.
  *
  * Nothing about a receiver is stored on a server — no account, no address, no
  * record that they opened anything. But a reply they launched last week should
@@ -13,7 +14,6 @@
  * rather than returning null.
  */
 
-export type ReleasedComet = { releasedOn: string; returnsOn: string };
 
 function read<T>(key: string): T | null {
   try {
@@ -38,14 +38,4 @@ export function readLaunched(slug: string): boolean {
 
 export function writeLaunched(slug: string) {
   write(`ks_reply_${slug}`, { at: new Date().toISOString() });
-}
-
-export function readReleased(slug: string): ReleasedComet | null {
-  return read<ReleasedComet>(`ks_comet_${slug}`);
-}
-
-export function writeReleased(slug: string, comet: ReleasedComet) {
-  // The token is deliberately not kept. It is the message itself, and the one
-  // place it belongs is the email it was sent in (§11.6).
-  write(`ks_comet_${slug}`, comet);
 }

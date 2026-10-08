@@ -94,6 +94,24 @@ export function RocketIcon({ className }: IconProps) {
   );
 }
 
+/**
+ * A question mark in a ring, with a small star for its dot: "what is this?",
+ * asked in the scene's own terms.
+ */
+export function QuestionIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.5" />
+      <path
+        d="M12 15.9l.45 1 1 .45-1 .45-.45 1-.45-1-1-.45 1-.45Z"
+        fill="currentColor"
+        strokeWidth={0.8}
+      />
+    </svg>
+  );
+}
+
 /** Reveal what has been typed into a password field. */
 export function EyeIcon({ className }: IconProps) {
   return (

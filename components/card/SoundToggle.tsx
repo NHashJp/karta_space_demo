@@ -1,5 +1,7 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
+
 /**
  * The sound toggle (spec v0.2 §12.2).
  *
@@ -14,13 +16,15 @@ export function SoundToggle({
   on: boolean;
   onToggle: () => void;
 }) {
+  const t = useStrings();
+  const lang = useLang();
   return (
     <button
       className="sound-toggle"
       onClick={onToggle}
       aria-pressed={on}
-      aria-label={on ? "音を消す" : "音を出す"}
-      lang="ja"
+      aria-label={on ? t.common.soundOff : t.common.soundOn}
+      lang={lang}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path

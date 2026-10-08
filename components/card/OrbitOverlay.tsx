@@ -1,10 +1,10 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { useEffect, useState } from "react";
 import { SocialLinks } from "./SocialLinks";
 import { CheckIcon, ChevronLeftIcon } from "./Icons";
 import { hubLabel } from "@/components/three/framing";
-import { formatReturn } from "@/lib/returnLabel";
 import { ORBIT_IDLE_HINT_MS, ORBIT_TIP_MS, REPLY_TOAST_MS } from "@/lib/timing";
 import { useIdle } from "@/lib/useFaceNavigation";
 import type { OrbitPanel } from "@/lib/experienceState";
@@ -60,6 +60,8 @@ export function OrbitOverlay({
   onFindReply,
   overtook = false,
 }: Props) {
+  const t = useStrings();
+  const lang = useLang();
   const [tip, setTip] = useState(true);
 
   useEffect(() => {
@@ -114,8 +116,8 @@ export function OrbitOverlay({
 
   return (
     <div className="orbit-ui" data-panel={panel ?? "none"}>
-      <p className="orbit-ui__tip" data-visible={tip && !busy} lang="ja">
-        星をタップしてみてください。
+      <p className="orbit-ui__tip" data-visible={tip && !busy} lang={lang}>
+        {t.orbit.tapStar}
       </p>
 
       {/*
@@ -130,17 +132,22 @@ export function OrbitOverlay({
         placed to stay out from under it (§8.3).
       */}
       {card.comet ? (
-        <div className="orbit-caption" data-day={day} lang="ja">
+        <div className="orbit-caption" data-day={day} lang={lang}>
           {card.comet.promise ? (
             <p className="orbit-caption__promise">
-              {day ? "約束の彗星が、戻ってきました。" : card.comet.promise}
+              {day ? t.orbit.returned : card.comet.promise}
             </p>
           ) : null}
-          <p className="orbit-caption__when">
-            {day ? "この冬 · 今日" : formatReturn(card.comet.label)}
+          {/*
+            The countdown on its own line, set large — it is the number the
+            whole card is counting — with the date quietly beneath it.
+          */}
+          <p className="orbit-caption__count">
+            <Countdown text={day ? t.orbit.today : card.comet.label.relative} />
           </p>
+          <p className="orbit-caption__when">{day ? t.orbit.thisSeason : card.comet.label.label}</p>
           {aboard ? (
-            <p className="orbit-caption__aboard">あなたの言葉も、のっています</p>
+            <p className="orbit-caption__aboard">{t.orbit.aboard}</p>
           ) : null}
         </div>
       ) : null}
@@ -184,9 +191,9 @@ export function OrbitOverlay({
         <button
           className="button button--quiet"
           onClick={hasSecret ? onEnterSatellite : onDock}
-          lang="ja"
+          lang={lang}
         >
-          {hasSecret ? "中をのぞく" : "手紙を読みかえす"}
+          {hasSecret ? t.orbit.lookInside : t.orbit.reread}
         </button>
       </div>
 
@@ -195,11 +202,11 @@ export function OrbitOverlay({
         is capped narrower than the screen so it wraps at the same place on
         every phone, instead of at whatever width the labels happen to reach.
       */}
-      <nav className="orbit-bar" aria-label="軌道">
+      <nav className="orbit-bar" aria-label={t.orbit.bar}>
         <div className="orbit-bar__row">
           {card.memories?.length ? (
-            <button className="button button--quiet" onClick={onLookBack} lang="ja">
-              航跡をたどる
+            <button className="button button--quiet" onClick={onLookBack} lang={lang}>
+              {t.orbit.trail}
             </button>
           ) : null}
 
@@ -220,37 +227,54 @@ export function OrbitOverlay({
               onClick={() => (launched ? onFindReply?.() : onOpenPanel("reply"))}
               aria-pressed={launched ? undefined : panel === "reply"}
               aria-disabled={launched || undefined}
-              lang="ja"
+              lang={lang}
             >
               {launched ? (
                 <>
                   <CheckIcon className="orbit-bar__done-cue" />
-                  返事、届いています
+                  {t.orbit.replied}
                 </>
               ) : (
-                "返事を打ち上げる"
+                t.orbit.reply
               )}
             </button>
           ) : null}
 
           {card.comet ? (
-            <button className="button button--quiet" onClick={onOpenChart} lang="ja">
-              彗星
+            <button className="button button--quiet" onClick={onOpenChart} lang={lang}>
+              {t.orbit.comet}
             </button>
           ) : null}
 
-          <button className="button button--quiet" onClick={onDock} lang="ja">
+          <button className="button button--quiet" onClick={onDock} lang={lang}>
             <ChevronLeftIcon className="orbit-bar__back-cue" />
-            手紙を読みかえす
+            {t.orbit.reread}
           </button>
         </div>
       </nav>
 
-      <p className="orbit-toast" data-visible={toast && !busy} role="status" lang="ja">
-        返事は、彗星より先に届きました。
+      <p className="orbit-toast" data-visible={toast && !busy} role="status" lang={lang}>
+        {t.orbit.replyArrived}
       </p>
 
       {card.social ? <SocialLinks links={card.social} /> : null}
     </div>
+  );
+}
+
+/** "あと78日", with the number itself set larger than the words around it. */
+function Countdown({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(\d+)/).map((part, index) =>
+        /^\d+$/.test(part) ? (
+          <span key={index} className="orbit-caption__days">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
   );
 }

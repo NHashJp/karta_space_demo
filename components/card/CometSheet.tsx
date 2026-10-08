@@ -1,5 +1,6 @@
 "use client";
 
+import { useLang, useStrings } from "./LangContext";
 import { useEffect, useState } from "react";
 import { MessageForm } from "./MessageForm";
 import { CloseIcon, CopyIcon, LockIcon } from "./Icons";
@@ -72,6 +73,8 @@ export function CometSheet({
   onBoarded,
   onLeave,
 }: Props) {
+  const t = useStrings();
+  const lang = useLang();
   const comet = card.comet;
   const [step, setStep] = useState<Step>("asked");
   const [copied, setCopied] = useState(false);
@@ -100,12 +103,12 @@ export function CometSheet({
   const inviting = Boolean(comet.capsule) && !aboard;
 
   const label = opens
-    ? `${card.from}の言葉`
+    ? t.sheet.fromWords(card.from)
     : aboard
-      ? "あなたの言葉"
+      ? t.sheet.yourWords
       : inviting
-        ? "言葉をのせる"
-        : "約束の彗星";
+        ? t.sheet.addWords
+        : t.sheet.promiseComet;
 
   /*
    * `次のクリスマスに、みおのもとへ届きます。` — the same sentence everywhere it
@@ -113,7 +116,7 @@ export function CometSheet({
    * carries the date and the countdown as well and reads as a timestamp
    * wedged into the middle of a sentence.
    */
-  const delivery = `${comet.label.label}に、${card.from}のもとへ届きます。`;
+  const delivery = t.sheet.delivery(comet.label.label, card.from);
 
   const copyLink = link ? (
     // Offered, never done automatically. The link *is* the message, and
@@ -128,10 +131,10 @@ export function CometSheet({
             () => setCopied(false),
           );
         }}
-        lang="ja"
+        lang={lang}
       >
         <CopyIcon />
-        {copied ? "コピーしました" : "彗星の行方を見るリンクをコピー"}
+        {copied ? t.sheet.copied : t.sheet.copyLink}
       </button>
     </div>
   ) : null;
@@ -144,16 +147,16 @@ export function CometSheet({
       }}
     >
       {/* The chart's own caption, above the sheet and outside it (M12c). */}
-      <header className="chart-head" lang="ja">
-        <p className="chart-head__label">約束の彗星</p>
+      <header className="chart-head" lang={lang}>
+        <p className="chart-head__label">{t.sheet.label}</p>
         {comet.promise ? <p className="chart-head__promise">{comet.promise}</p> : null}
         <p className="chart-head__when">{when}</p>
       </header>
 
-      <section className="sheet" role="dialog" aria-modal="true" aria-label="彗星" lang="ja">
+      <section className="sheet" role="dialog" aria-modal="true" aria-label={t.sheet.dialog} lang={lang}>
         <header className="sheet__head">
           <h2 className="sheet__label">{label}</h2>
-          <button className="panel__close" onClick={onLeave} aria-label="閉じる">
+          <button className="panel__close" onClick={onLeave} aria-label={t.common.close}>
             <CloseIcon />
           </button>
         </header>
@@ -168,21 +171,21 @@ export function CometSheet({
             */}
             <div className="sheet__arrival">
               <p className="sheet__headline sheet__headline--warm">
-                約束の彗星が、戻ってきました。
+                {t.sheet.returned}
               </p>
               <p className="sheet__body">
-                {formatFuzzyDate(comet.leftOn.slice(0, 7))}に旅立った彗星です
+                {t.sheet.leftIn(formatFuzzyDate(comet.leftOn.slice(0, 7), { lang }))}
               </p>
             </div>
             <p className="comet__message">{comet.message}</p>
             {aboard ? (
               <p className="sheet__also">
-                あなたの言葉も、{card.from}に届いています。
+                {t.sheet.alsoDelivered(card.from)}
               </p>
             ) : null}
             <div className="sheet__actions">
-              <button className="button button--ghost button--wide" onClick={onLeave} lang="ja">
-                軌道へもどる
+              <button className="button button--ghost button--wide" onClick={onLeave} lang={lang}>
+                {t.sheet.toOrbit}
               </button>
             </div>
           </>
@@ -190,10 +193,10 @@ export function CometSheet({
 
         {kept && !comet.message ? (
           <>
-            <p className="sheet__body">この彗星は、約束を果たしました。</p>
+            <p className="sheet__body">{t.sheet.kept}</p>
             <div className="sheet__actions">
-              <button className="button button--ghost button--wide" onClick={onLeave} lang="ja">
-                軌道へもどる
+              <button className="button button--ghost button--wide" onClick={onLeave} lang={lang}>
+                {t.sheet.toOrbit}
               </button>
             </div>
           </>
@@ -210,13 +213,13 @@ export function CometSheet({
             {sealed ? (
               <p className="sheet__sealed">
                 <LockIcon />
-                {card.from}の言葉がのっています。また会う日に、ひらきます。
+                {t.sheet.sealed(card.from)}
               </p>
             ) : null}
             <p className="sheet__headline">
               {askedBefore
-                ? "彗星は、まだあなたの言葉を待っています。"
-                : "この彗星に、あなたの言葉ものせませんか。"}
+                ? t.sheet.stillWaiting
+                : t.sheet.invite}
             </p>
             {/*
               The long explanation is first-time only. Someone seeing this for
@@ -226,19 +229,21 @@ export function CometSheet({
             */}
             {askedBefore ? null : (
               <p className="sheet__body">
-                {delivery}それまでは、{card.from}にも読めません。
+                {delivery}
+                {lang === "en" ? " " : ""}
+                {t.sheet.unreadable(card.from)}
               </p>
             )}
             <div className="sheet__actions">
-              <button className="button button--ghost button--wide" onClick={onLeave} lang="ja">
-                今はやめておく
+              <button className="button button--ghost button--wide" onClick={onLeave} lang={lang}>
+                {t.sheet.notNow}
               </button>
               <button
                 className="button button--wide"
                 onClick={() => setStep("writing")}
-                lang="ja"
+                lang={lang}
               >
-                言葉をのせる
+                {t.sheet.addWords}
               </button>
             </div>
           </>
@@ -248,10 +253,10 @@ export function CometSheet({
           <MessageForm
             endpoint={`/c/${card.slug}/comet`}
             messageMax={COMET_MAX}
-            submitLabel="彗星にのせる"
-            sendingLabel="のせています…"
+            submitLabel={t.sheet.submit}
+            sendingLabel={t.sheet.sending}
             note={delivery}
-            backLabel="もどる"
+            backLabel={t.common.back}
             onBack={() => setStep("asked")}
             onSent={(token) => onBoarded(token)}
           />
@@ -265,19 +270,19 @@ export function CometSheet({
               (M13d); plainer once it is simply true of the comet (M14c).
             */}
             <p className={`sheet__headline${link ? " sheet__headline--warm" : ""}`}>
-              {link ? "言葉をのせました。" : "あなたの言葉も、のっています。"}
+              {link ? t.sheet.boarded : t.sheet.alsoAboard}
             </p>
             <p className="sheet__body">{delivery}</p>
             {sealed && !link ? (
               <p className="sheet__sealed">
                 <LockIcon />
-                {card.from}の言葉がのっています。また会う日に、ひらきます。
+                {t.sheet.sealed(card.from)}
               </p>
             ) : null}
             {copyLink}
             <div className="sheet__actions">
-              <button className="button button--wide" onClick={onLeave} lang="ja">
-                {link ? "つづける" : "軌道へもどる"}
+              <button className="button button--wide" onClick={onLeave} lang={lang}>
+                {link ? t.sheet.continue : t.sheet.toOrbit}
               </button>
             </div>
           </>
@@ -294,13 +299,13 @@ export function CometSheet({
             {sealed ? (
               <p className="sheet__sealed">
                 <LockIcon />
-                {card.from}の言葉がのっています。また会う日に、ひらきます。
+                {t.sheet.sealed(card.from)}
               </p>
             ) : null}
-            <p className="sheet__headline">{comet.label.label}に、ここへ戻ってきます。</p>
+            <p className="sheet__headline">{t.sheet.comesBack(comet.label.label)}</p>
             <div className="sheet__actions">
-              <button className="button button--wide" onClick={onLeave} lang="ja">
-                つづける
+              <button className="button button--wide" onClick={onLeave} lang={lang}>
+                {t.sheet.continue}
               </button>
             </div>
           </>

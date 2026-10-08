@@ -1,3 +1,4 @@
+import { strings, type Lang } from "./i18n.ts";
 import type { FuzzyDate, Memory } from "@/types/card";
 
 /**
@@ -21,12 +22,7 @@ const SEASON_MIDPOINT: Record<Season, number> = {
   winter: 1,
 };
 
-const SEASON_LABEL: Record<Season, string> = {
-  spring: "春",
-  summer: "夏",
-  autumn: "秋",
-  winter: "冬",
-};
+const SEASON_INDEX: Record<Season, number> = { spring: 0, summer: 1, autumn: 2, winter: 3 };
 
 export type ParsedFuzzyDate = {
   year: number;
@@ -58,23 +54,27 @@ export function isFullDate(value: string | undefined): boolean {
   return parseFuzzyDate(value) !== null;
 }
 
-type FormatOptions = { approx?: boolean; season?: Season };
+type FormatOptions = { approx?: boolean; season?: Season; lang?: Lang };
 
-/** The table in spec v0.2 §5, and nothing more. */
+/**
+ * The table in spec v0.2 §5, and nothing more — in the card's own language
+ * ("2023年4月頃", "around April 2023").
+ */
 export function formatFuzzyDate(value: FuzzyDate, options: FormatOptions = {}): string {
   const parsed = parseFuzzyDate(value);
   if (!parsed) return "";
 
+  const { dates } = strings(options.lang);
   const { year, month, day } = parsed;
-  const suffix = options.approx ? "頃" : "";
+  const approx = (text: string) => (options.approx ? dates.approx(text) : text);
 
   if (month === undefined) {
     // A season only stands in for a month that is not there.
-    if (options.season) return `${year}年${SEASON_LABEL[options.season]}`;
-    return `${year}年${suffix}`;
+    if (options.season) return dates.seasonOf(year, dates.seasons[SEASON_INDEX[options.season]]);
+    return approx(dates.year(year));
   }
-  if (day === undefined) return `${year}年${month}月${suffix}`;
-  return `${year}年${month}月${day}日${suffix}`;
+  if (day === undefined) return approx(dates.month(year, month));
+  return approx(dates.day(year, month, day));
 }
 
 /**

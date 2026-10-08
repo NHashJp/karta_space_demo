@@ -39,7 +39,7 @@ export type ExperienceState =
 export type CameraPhase = "far" | "near" | "inside" | "orbit" | "chart" | "trail";
 
 /** Which orbit sheet is open, if any. Only one is ever open at a time. */
-export type OrbitPanel = null | "crossroads" | "reply" | "trajectory";
+export type OrbitPanel = null | "crossroads" | "reply" | "trajectory" | "about";
 
 /**
  * What the card and this browser between them say about the comet, read once
