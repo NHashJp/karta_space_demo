@@ -1186,7 +1186,7 @@ export function cameraDistance(width: number, height: number): number {
   return Math.max(FACE_PLANE_Z + toFace, safe);
 }
 
-const PANEL_WORLD = 1.84; // width of the text panel, in cube-face units
+export const PANEL_WORLD = 1.84; // width of the text panel, in cube-face units
 const PANEL_MIN_PX = 260;
 const PANEL_MAX_PX = 560;
 
@@ -1207,11 +1207,6 @@ function panelScreenPixels(width: number, height: number): number {
 export function textPanelPx(width: number, height: number): number {
   const ideal = panelScreenPixels(width, height);
   return Math.round(Math.min(Math.max(ideal, PANEL_MIN_PX), PANEL_MAX_PX));
-}
-
-/** drei's <Html transform> maps 40 CSS px to 1 world unit at scale 1. */
-export function textPanelScale(panelPx: number): number {
-  return (40 * PANEL_WORLD) / panelPx;
 }
 
 const PANEL_PADDING = 0.085; // fraction of the panel, per side
@@ -1314,7 +1309,7 @@ export function secretPanel(width: number, height: number) {
   const panelPx = Math.round(Math.min(Math.max(SECRET_FILL * width, SECRET_MIN_PX), SECRET_MAX_PX));
   // Keep the panel inside the frame even where the clamp above widened it.
   const worldWidth = Math.min((panelPx / width) * visible, visible * SECRET_FILL);
-  return { panelPx, worldWidth, scale: (40 * worldWidth) / panelPx };
+  return { panelPx, worldWidth };
 }
 
 /** One line, so size is simply what fits the panel's width. */

@@ -52,11 +52,12 @@ restart the server ([messaging](./messaging.md#only-offered-when-deliverable)).
 | Area | Expect |
 |---|---|
 | Gate | nothing of the card in the page source; `HOSHIZORA`, ` hoshizora`, `ほしぞら` all accepted; an eleventh wrong try refused; a wrong slug looks like a wrong password |
-| Faces | one gesture, one face; every face square-on and upright; text never readable mid-turn or on the landing/closing screens |
+| Faces | one gesture, one face; every face square-on and upright; text inside the face, number included, on an iPhone too; text never readable mid-turn or on the landing/closing screens |
 | Closing | the line, then the signature, then the offers; 中をのぞく last; the second visit plays faster |
 | Inside | the line attaches only after the camera arrives; any gesture leads out |
 | Deployment | starts without a hitch; no panel through the body; the satellite stays in front of the planet on a phone; docking returns the closing screen exactly as it was |
 | First launch | the intro: あと X 日 over the promise, the dashed way home, the comet's run with the sunrise, the rewind, then the sheet; スキップ works; it can be replayed from the sheet once words are aboard |
+| Hub (phone) | after 20 s still, 中をのぞく appears and stays when touched; one tap on the satellite arms it with "もう一度タップ", a second goes inside; a tap elsewhere hides it |
 | Hub | the planet's rim exactly on its edge; the comet moving round its loop across `?now=` dates; shooting stars and the odd fireball; rocks behind the satellite; `?` and sound side by side; the caption's promise and countdown |
 | Comet sheet | the seal stated first; the two-step invite; the words fly to the comet; `?now=<returnsOn>` opens the sender's message |
 | Rocket | the panel closes; the rocket crosses from the far edge, overtakes the comet, becomes a star; a failure (dummy key) keeps the message and says so above the button |

@@ -73,6 +73,14 @@ export const ORBIT_TIP_MS = 4000;
 export const ORBIT_IDLE_HINT_MS = 20000;
 
 /**
+ * On a touch screen the satellite's label takes two taps — the first shows it
+ * and arms it, the second goes in — the touch version of hovering then
+ * clicking. The first tap is forgotten after this long, so a tap made and
+ * walked away from does not turn a later, unrelated one into an entry.
+ */
+export const TOUCH_ARM_MS = 5000;
+
+/**
  * Reduced motion does not mean no feedback: a state still has to change
  * visibly, or a button press reads as broken. It means the change is a
  * crossfade rather than a journey (§18).

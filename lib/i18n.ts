@@ -94,6 +94,8 @@ export type Strings = {
     comet: string;
     replyArrived: string;
     about: string;
+    /** Under the satellite's label on a touch screen, once the first tap armed it. */
+    tapAgain: string;
   };
   about: {
     title: string;
@@ -288,6 +290,7 @@ const ja: Strings = {
     comet: "彗星",
     replyArrived: "返事は、彗星より先に届きました。",
     about: "KARTA_SPACE について",
+    tapAgain: "もう一度タップ",
   },
   about: {
     title: "KARTA_SPACE について",
@@ -498,6 +501,7 @@ const en: Strings = {
     comet: "Comet",
     replyArrived: "Your reply arrived before the comet.",
     about: "About KARTA_SPACE",
+    tapAgain: "Tap again",
   },
   about: {
     title: "About KARTA_SPACE",

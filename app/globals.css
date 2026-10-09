@@ -560,13 +560,16 @@ body {
   text-align: left;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 420ms ease 140ms, transform 420ms ease 140ms;
+  /* Leaving is quick: the text lies flat on the screen (FlatHtml), so it must
+     be gone before the face has turned far enough to show it. */
+  transition: opacity 140ms ease, transform 140ms ease;
   user-select: none;
 }
 
 .face-text[data-visible="true"] {
   opacity: 1;
   transform: translateY(0);
+  transition: opacity 420ms ease 140ms, transform 420ms ease 140ms;
 }
 
 .face-text p {
@@ -1046,11 +1049,18 @@ body {
   text-wrap: balance;
   text-shadow: 0 0 22px rgba(127, 212, 245, 0.45);
   opacity: 0;
-  transition: opacity 1200ms ease 260ms;
+  transition: opacity 160ms ease;
 }
 
 .secret-line[data-visible="true"] {
   opacity: 1;
+  transition: opacity 1200ms ease 260ms;
+}
+
+/* Text laid over the scene (FlatHtml) never takes a touch from it. */
+.flat-html,
+.flat-html * {
+  pointer-events: none;
 }
 
 /* ---------- the orbit view (spec v0.2 §8.1, §8.3) ---------- */
@@ -1417,9 +1427,35 @@ body:has(.sheet-layer) .orbit-ui__reread {
  * someone has looked at everything obvious.
  */
 .orbit-ui__reread[data-hinted="true"],
+.orbit-ui__reread[data-armed="true"],
 .orbit-ui__reread:focus-within {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Armed by a first tap: arrives at once, because it was asked for. */
+.orbit-ui__reread[data-armed="true"] {
+  transition: opacity 200ms ease;
+}
+
+/* "Tap again", under the label, only once a first tap has armed it. */
+.orbit-ui__tap-again {
+  position: absolute;
+  top: calc(50% + var(--control-h) / 2 + var(--space-1));
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--starlight);
+  text-shadow: 0 0 12px rgba(5, 7, 12, 0.9);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.orbit-ui__reread[data-armed="true"] .orbit-ui__tap-again {
+  opacity: 1;
 }
 
 /* The hint arrives, rather than appearing: it is an offer, not an alert. */
@@ -1452,6 +1488,18 @@ body:has(.sheet-layer) .orbit-ui__reread {
  * inside it — so the label cannot flicker out from under the cursor on its
  * way to being pressed.
  */
+/*
+ * On a touch screen the satellite's area takes taps — the first shows and arms
+ * the label, the second goes in — so it has to accept pointer events even
+ * while the label is hidden. The comet, the one other tappable thing, passes
+ * outside this box at every viewport (a verify check).
+ */
+@media (hover: none) {
+  body:not(:has(.panel-layer)):not(:has(.sheet-layer)) .orbit-ui__reread {
+    pointer-events: auto;
+  }
+}
+
 @media (hover: hover) {
   /*
    * Guarded rather than out-specified. `body:has(.panel-layer)` hides this
@@ -1560,6 +1608,9 @@ body:has(.sheet-layer) .orbit-ui__reread {
   width: min(420px, 100%);
   max-height: 100%;
   overflow-y: auto;
+  /* Scrolling to the end of a panel stops there, rather than dragging the
+     page and the scene behind it. */
+  overscroll-behavior: contain;
   padding: var(--space-3);
   text-align: left;
   border: 1px solid var(--glass-edge);
@@ -2580,6 +2631,7 @@ body:has(.sheet-layer) .orbit-ui__reread {
   width: min(420px, 100%);
   max-height: 72vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-3);
   text-align: left;
   border: 1px solid var(--glass-edge);
