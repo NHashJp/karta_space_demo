@@ -91,17 +91,17 @@ export const cards: CardConfig[] = [
     "social": [
       {
         "platform": "instagram",
-        "href": "https://www.instagram.com/your-handle",
+        "href": "https://www.instagram.com/nh_hashi_1.23.456/",
         "label": "Instagram"
       },
       {
         "platform": "github",
-        "href": "https://github.com/your-handle",
+        "href": "https://github.com/NHashJp",
         "label": "GitHub"
       },
       {
         "platform": "linkedin",
-        "href": "https://www.linkedin.com/in/your-handle",
+        "href": "https://www.linkedin.com/in/n-hash9999/",
         "label": "LinkedIn"
       }
     ],
