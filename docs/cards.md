@@ -53,7 +53,7 @@ The samples are generic templates:
 |---|---|---|
 | `2026-newyear-7k2m` | Japanese | every feature |
 | `newyear-en-k7m2q9x4` | English | the same card |
-| `thanks-sample-3f9q` | Japanese | the minimum: six text faces, no orbit |
+| `thanks-sample-3f9q` | Japanese | six text faces and a reply — an orbit with no comet or trail |
 | `thanks-en-r4t8w2p6` | English | the same card |
 
 ## Validation

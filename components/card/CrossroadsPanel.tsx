@@ -47,7 +47,7 @@ export function CrossroadsPanel({
             <RocketIcon className="crossroads__icon" />
             <span className="crossroads__text">
               <span className="crossroads__name">{t.crossroads.rocket}</span>
-              <span className="crossroads__cost">{t.crossroads.rocketCost(card.from)}</span>
+              <span className="crossroads__cost">{t.crossroads.rocketCost(card.from, Boolean(card.comet))}</span>
             </span>
             <ChevronRightIcon className="crossroads__chevron" />
           </button>

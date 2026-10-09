@@ -18,7 +18,7 @@ npm run dev        # http://localhost:3000 — in development the root lists eve
 ```
 
 Open a sample: `/c/2026-newyear-7k2m` (everything) or `/c/thanks-sample-3f9q`
-(text only). English versions: `/c/newyear-en-k7m2q9x4`, `/c/thanks-en-r4t8w2p6`.
+(text faces and a reply). English versions: `/c/newyear-en-k7m2q9x4`, `/c/thanks-en-r4t8w2p6`.
 Write your own at `/editor`.
 
 Copy `.env.example` to `.env.local` for passwords, mail and secrets; each

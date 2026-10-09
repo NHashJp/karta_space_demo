@@ -48,7 +48,7 @@ export function ReplyPanel({
       */}
       <p className="reply__how" lang={lang}>
         <RocketIcon className="reply__how-icon" />
-        {t.reply.how(card.from)}
+        {t.reply.how(card.from, Boolean(card.comet))}
       </p>
 
       <MessageForm
@@ -56,7 +56,7 @@ export function ReplyPanel({
         messageMax={REPLY_MAX}
         submitLabel={t.reply.submit}
         sendingLabel={t.reply.sending}
-        note={t.reply.note(card.from)}
+        note={t.reply.note(card.from, Boolean(card.comet))}
         onSent={onSent}
       />
     </Panel>

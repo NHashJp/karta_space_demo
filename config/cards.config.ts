@@ -145,6 +145,7 @@ export const cards: CardConfig[] = [
     "secret": "また、どこかで。",
     "from": "ゆう",
     "writtenAt": "2026-03",
+    "reply": {},
     "faces": [
       {
         "type": "text",
@@ -297,6 +298,7 @@ export const cards: CardConfig[] = [
     "secret": "Until next time, somewhere.",
     "from": "Alex",
     "writtenAt": "2026-03",
+    "reply": {},
     "faces": [
       {
         "type": "text",
