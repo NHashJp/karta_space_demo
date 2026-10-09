@@ -64,7 +64,7 @@ export function BasicsSection({ card, edit }: SectionProps) {
           />
           {/* It is not decoration: it appears in the satellite's promise. */}
           <span className="editor__hint">
-            Used in sentences such as “{strings(lang).reply.note(card.from || defaults.from)}”
+            Used in sentences such as “{strings(lang).reply.note(card.from || defaults.from, Boolean(card.comet))}”
           </span>
         </label>
 

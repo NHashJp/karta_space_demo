@@ -308,7 +308,7 @@ export function OrbitOverlay({
       </nav>
 
       <p className="orbit-toast" data-visible={toast && !busy} role="status" lang={lang}>
-        {t.orbit.replyArrived}
+        {t.orbit.replyArrived(Boolean(card.comet))}
       </p>
 
       {card.social ? <SocialLinks links={card.social} /> : null}

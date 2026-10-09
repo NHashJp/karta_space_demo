@@ -42,8 +42,10 @@ $ npm run dev          # with MAIL_DEV_SINK=1 to test replies and comets with no
 
 Use the [development parameters](./architecture.md#development-parameters) to
 jump straight to a state. Test both a full card (`2026-newyear-7k2m`) and the
-text-only one (`thanks-sample-3f9q`) — a card without an orbit must end exactly
-at the closing screen.
+reply-only one (`thanks-sample-3f9q`), whose orbit has no comet or trail and
+whose reply copy never mentions a comet. A card with no reply, comet or memories
+has no orbit and must end exactly at the closing screen (remove `reply` from a
+copy in the editor to see it).
 
 **The reply and comet buttons appear only when mail is configured** — set
 `MAIL_DEV_SINK=1`, or a real `RESEND_API_KEY`, `MAIL_FROM` and `NOTIFY_TO`, and

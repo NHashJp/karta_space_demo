@@ -92,7 +92,8 @@ export type Strings = {
     replied: string;
     reply: string;
     comet: string;
-    replyArrived: string;
+    /** The toast after a reply; the comet is mentioned only if the card has one. */
+    replyArrived: (comet: boolean) => string;
     about: string;
     /** Under the satellite's label on a touch screen, once the first tap armed it. */
     tapAgain: string;
@@ -148,7 +149,7 @@ export type Strings = {
   crossroads: {
     title: string;
     rocket: string;
-    rocketCost: (from: string) => string;
+    rocketCost: (from: string, comet: boolean) => string;
     trail: string;
     memories: (count: number) => string;
     orbit: string;
@@ -157,10 +158,10 @@ export type Strings = {
   };
   reply: {
     title: string;
-    how: (from: string) => string;
+    how: (from: string, comet: boolean) => string;
     submit: string;
     sending: string;
-    note: (from: string) => string;
+    note: (from: string, comet: boolean) => string;
   };
   form: {
     name: string;
@@ -288,7 +289,7 @@ const ja: Strings = {
     replied: "返事、届いています",
     reply: "返事を打ち上げる",
     comet: "彗星",
-    replyArrived: "返事は、彗星より先に届きました。",
+    replyArrived: (comet) => (comet ? "返事は、彗星より先に届きました。" : "返事が、届きました。"),
     about: "KARTA_SPACE について",
     tapAgain: "もう一度タップ",
   },
@@ -362,7 +363,7 @@ const ja: Strings = {
   crossroads: {
     title: "このあとは",
     rocket: "ロケットを打ち上げる",
-    rocketCost: (from) => `彗星より先に、今すぐ${from}へ`,
+    rocketCost: (from, comet) => (comet ? `彗星より先に、今すぐ${from}へ` : `今すぐ、まっすぐ${from}へ`),
     trail: "ふたりの航跡をたどる",
     memories: (count) => `${count}つの思い出`,
     orbit: "彗星の軌道を見る",
@@ -371,10 +372,13 @@ const ja: Strings = {
   },
   reply: {
     title: "返事を打ち上げる",
-    how: (from) => `あなたの言葉をのせたロケットが、彗星を追い越して${from}に届きます。`,
+    how: (from, comet) =>
+      comet
+        ? `あなたの言葉をのせたロケットが、彗星を追い越して${from}に届きます。`
+        : `あなたの言葉をのせたロケットが、まっすぐ${from}に届きます。`,
     submit: "ロケットを打ち上げる",
     sending: "打ち上げています…",
-    note: (from) => `彗星より先に、すぐに${from}へ。`,
+    note: (from, comet) => (comet ? `彗星より先に、すぐに${from}へ。` : `すぐに、${from}へ。`),
   },
   form: {
     name: "お名前",
@@ -499,7 +503,7 @@ const en: Strings = {
     replied: "Your reply arrived",
     reply: "Launch a reply",
     comet: "Comet",
-    replyArrived: "Your reply arrived before the comet.",
+    replyArrived: (comet) => (comet ? "Your reply arrived before the comet." : "Your reply has arrived."),
     about: "About KARTA_SPACE",
     tapAgain: "Tap again",
   },
@@ -573,7 +577,7 @@ const en: Strings = {
   crossroads: {
     title: "What next",
     rocket: "Launch a rocket",
-    rocketCost: (from) => `Straight to ${from}, ahead of the comet`,
+    rocketCost: (from, comet) => (comet ? `Straight to ${from}, ahead of the comet` : `Straight to ${from}, right away`),
     trail: "Follow your trail together",
     memories: (count) => (count === 1 ? "1 memory" : `${count} memories`),
     orbit: "See the comet's orbit",
@@ -582,10 +586,13 @@ const en: Strings = {
   },
   reply: {
     title: "Launch a reply",
-    how: (from) => `A rocket carrying your words overtakes the comet and reaches ${from}.`,
+    how: (from, comet) =>
+      comet
+        ? `A rocket carrying your words overtakes the comet and reaches ${from}.`
+        : `A rocket carrying your words goes straight to ${from}.`,
     submit: "Launch the rocket",
     sending: "Launching…",
-    note: (from) => `To ${from} right away, ahead of the comet.`,
+    note: (from, comet) => (comet ? `To ${from} right away, ahead of the comet.` : `To ${from}, right away.`),
   },
   form: {
     name: "Your name",
