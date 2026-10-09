@@ -1,6 +1,7 @@
 import { visualLength } from "./i18n.ts";
 import { FUZZY_DATE_PATTERN, isFullDate, parseFuzzyDate } from "./fuzzyDate.ts";
 import { isValidTimeZone } from "./orbitClock.ts";
+import { COMPANY_MAX, companyLevel } from "./orbiters.ts";
 import type { CardConfig, CardFace, ReturnPrecision } from "@/types/card";
 
 /**
@@ -132,6 +133,10 @@ export function cardProblems(card: CardConfig, seenSlugs: Iterable<string> = [])
   // Only the languages the interface is written in (lib/i18n.ts).
   if (card.lang !== undefined && card.lang !== "ja" && card.lang !== "en") {
     out.errors.push(`lang: "${String(card.lang)}" is not a supported language (ja, en)`);
+  }
+
+  if (card.company !== undefined && companyLevel(card.company) !== card.company) {
+    out.errors.push(`company: ${String(card.company)} is outside 1-${COMPANY_MAX}`);
   }
 
   if (card.faces?.length !== FACE_COUNT) {

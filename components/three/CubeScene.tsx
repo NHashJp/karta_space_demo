@@ -76,6 +76,8 @@ type Props = {
   revealMemory?: boolean;
   /** The card's slug seeds its trail's shape and its colours. */
   slug: string;
+  /** The card's `company`: how busy the sky round the satellite is. */
+  company?: number;
   /** The comet on its long orbit (§11.2). */
   comet?: SceneComet;
   /** Its dotted orbit is drawn while the chart is up. */
@@ -134,6 +136,7 @@ export function CubeScene({
   activeMemory = 0,
   revealMemory = false,
   slug,
+  company,
   comet,
   showCometOrbit,
   launching,
@@ -304,6 +307,7 @@ export function CubeScene({
             seed={orbSeed}
             trailSeed={curveSeed}
             hasTrail={Boolean(memories?.length)}
+            company={company}
             reducedMotion={cube.reducedMotion}
             visible={inHub}
           />
@@ -390,7 +394,7 @@ export function CubeScene({
         clearance check in verify).
       */}
       {cameraPhase === "orbit" ? (
-        <Asteroids seed={asteroidSeed(slug)} reducedMotion={cube.reducedMotion} />
+        <Asteroids seed={asteroidSeed(slug)} company={company} reducedMotion={cube.reducedMotion} />
       ) : null}
 
       {/*

@@ -147,6 +147,11 @@ export type CardConfig = {
   signature?: string;
   /** Default true; false removes sound entirely for this card. */
   sound?: boolean;
+  /**
+   * How busy the sky around the satellite is, 1-3 (default 1): multiplies the
+   * small craft and rocks in orbit and how often a rock passes (`COMPANY_MAX`).
+   */
+  company?: number;
   /** 1-20 (`MEMORY_MAX`), shown newest first however they are ordered here. */
   memories?: Memory[];
   /** Replaces the revision-4 `satellite` and `comet` fields (§5.1). */

@@ -1,6 +1,9 @@
 import {
+  COMPANY_MAX,
   ORB_MIX,
   PERI_MIN,
+  companyLevel,
+  mixCount,
   SAT_CLEARANCE,
   isVisible,
   makeOrbiters,
@@ -380,6 +383,78 @@ for (const where of ["desktop", "phone"] as const) {
     plain.every((o: Orbiter) => o.set !== "rocks") && plain.length === 9,
     `${plain.length} left`,
   );
+}
+
+/* ---- a busier sky (the card's `company`) -------------------------------- */
+
+check(
+  "company is clamped to 1-" + COMPANY_MAX,
+  companyLevel(undefined) === 1 && companyLevel(0.2) === 1 && companyLevel(9) === COMPANY_MAX &&
+    companyLevel(2) === 2,
+);
+
+for (const company of [2, COMPANY_MAX]) {
+  for (const where of ["desktop", "phone"] as const) {
+    const frame = frames[where];
+    let short = 0;
+    let misplaced = 0;
+    let craftMisses = 0;
+    let plainSeen = 0;
+    let busySeen = 0;
+
+    for (const seed of SEEDS) {
+      const set = makeOrbiters(seed, frame, {}, company);
+      for (const type of Object.keys(ORB_MIX) as OrbiterType[]) {
+        const want = mixCount(type, frame.phone, company);
+        const got = set.filter((o) => o.type === type).length;
+        // A crowded box can run out of room; a tenth short is still busier.
+        if (got < Math.floor(want * 0.9)) short++;
+      }
+      for (const o of set) {
+        if (o.a * (1 - o.e) < PERI_MIN - 1e-9) misplaced++;
+        const ax = frame.planet.cx + Math.cos(o.beta) * o.apo * frame.planet.r;
+        const ay = frame.planet.cy + Math.sin(o.beta) * o.apo * frame.planet.r;
+        if (
+          segmentDistance([ax, ay], frame.satellite.a, frame.satellite.b) <
+            frame.satellite.kSat * SAT_CLEARANCE ||
+          (ax / frame.width > frame.caption.x && ay / frame.height < frame.caption.y)
+        ) {
+          misplaced++;
+        }
+        if (ORB_MIX[o.type].hero) {
+          const p = screenPos(o, 0, frame);
+          const clear =
+            isVisible(p, frame) &&
+            segmentDistance([p.x, p.y], frame.satellite.a, frame.satellite.b) >
+              frame.satellite.kSat * SAT_CLEARANCE &&
+            offTrail([p.x, p.y], frame);
+          if (!clear) craftMisses++;
+        }
+      }
+    }
+
+    for (const seed of SEEDS.slice(0, 6)) {
+      const plain = makeOrbiters(seed, frame);
+      const busy = makeOrbiters(seed, frame, {}, company);
+      for (let t = 0; t <= 3600; t += 30) {
+        plainSeen += plain.filter((o) => isVisible(screenPos(o, t, frame), frame)).length;
+        busySeen += busy.filter((o) => isVisible(screenPos(o, t, frame), frame)).length;
+      }
+    }
+
+    check(`company ${company}, ${where}: the counts are multiplied`, short === 0, `${short} short`);
+    check(
+      `company ${company}, ${where}: still clear of the planet, satellite and caption`,
+      misplaced === 0,
+      `${misplaced}`,
+    );
+    check(`company ${company}, ${where}: every craft in clear view at t = 0`, craftMisses === 0, `${craftMisses} misses`);
+    check(
+      `company ${company}, ${where}: the sky looks busier`,
+      busySeen >= plainSeen * (1 + (company - 1) * 0.6),
+      `${(busySeen / plainSeen).toFixed(2)}x visible`,
+    );
+  }
 }
 
 console.log(
