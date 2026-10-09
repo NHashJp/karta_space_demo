@@ -194,7 +194,9 @@ export const cards: CardConfig[] = [
       "message": "So much happened this year — the things that worked, and the things that didn't. All of it was a year that was truly yours. Thank you for making it through. When we meet, the first toast is on me.",
       "invite": true
     },
-    "reply": {},
+    "reply": {
+       "prompt": "Write a reply to Alex, sharing your own memories and hopes for the new year.",
+    },
     "memories": [
       {
         "title": "The day we met",
