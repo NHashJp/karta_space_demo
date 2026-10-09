@@ -47,10 +47,12 @@ is snapped at its tail so nothing settles at 99.9%.
 
 All maths is in `framing.ts`, pure and checked at five viewports.
 
-- **The 40-pixel rule.** drei's `<Html transform>` maps 40 CSS px to one world
-  unit at `scale = 1`, so `scale = 40 × worldUnits / pixelWidth`. Face text is
-  real DOM on the face (sharp, correctly broken, accessible) in a panel 1.84
-  units wide.
+- **Text is flat DOM over the face** (`FlatHtml`): real DOM (sharp, correctly
+  broken, accessible) in a panel 1.84 units wide, laid on the screen at the
+  face's centre and scaled each frame to its projected width. It is shown only
+  while the face is square-on. Not drei's `<Html transform>`: that treats one
+  world unit as one CSS pixel, so WebKit's pixel snapping of 3D layers is
+  magnified by the perspective and on an iPhone the text lands off the face.
 - **Camera distance** frames the face plane (`z = +1`), not the cube centre:
   portrait by width (75%), landscape by height (55%), never closer than the
   spinning cube's 1.5-unit sweep allows.
@@ -60,6 +62,9 @@ All maths is in `framing.ts`, pure and checked at five viewports.
   stepped down 0.25 px until the measured layout fits, clamped 12.5–20 px and
   floored, never rounded (rounding up costs a line). `N` is the visual length
   ([cards](./cards.md#languages)). Line faces are sized to land as one beat.
+  That is the starting size: real type runs longer (letter-spacing, kinsoku,
+  iOS fonts, the face number), so each face then measures its own DOM and
+  steps down until it fits inside the padding.
 - **Images** are textures: `cover` via repeat/offset, `contain` at 86% of the
   face; their materials are created transparent so dimming never recompiles a
   shader.

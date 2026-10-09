@@ -1,9 +1,9 @@
 "use client";
 
 import { scriptLang, visualLength } from "@/lib/i18n";
-import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { FlatHtml } from "./FlatHtml";
 import { SECRET_PLANE_Z, fitLinePx, secretPanel } from "./framing";
 
 type Props = {
@@ -20,7 +20,7 @@ type Props = {
  */
 export function SecretFace({ text, visible }: Props) {
   const size = useThree((state) => state.size);
-  const { panelPx, worldWidth, scale } = secretPanel(size.width, size.height);
+  const { panelPx, worldWidth } = secretPanel(size.width, size.height);
   const fontPx = fitLinePx(panelPx, visualLength(text));
 
   return (
@@ -30,13 +30,7 @@ export function SecretFace({ text, visible }: Props) {
         <planeGeometry args={[worldWidth * 1.35, worldWidth * 0.62]} />
         <meshBasicMaterial color="#070c16" transparent opacity={0.82} side={THREE.DoubleSide} />
       </mesh>
-      <Html
-        transform
-        scale={scale}
-        position={[0, 0, 0.012]}
-        zIndexRange={[20, 10]}
-        pointerEvents="none"
-      >
+      <FlatHtml worldWidth={worldWidth} panelPx={panelPx} position={[0, 0, 0.012]}>
         <p
           className="secret-line"
           style={{ width: panelPx, fontSize: `${fontPx}px` }}
@@ -46,7 +40,7 @@ export function SecretFace({ text, visible }: Props) {
         >
           {text}
         </p>
-      </Html>
+      </FlatHtml>
     </group>
   );
 }

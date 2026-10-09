@@ -160,7 +160,9 @@ A vignette and film grain sit over the canvas as DOM (`AmbientOverlay`).
   It hides while a panel is open.
 - **Into the cube from orbit**: the label on the satellite (中をのぞく), shown on
   hover, on keyboard focus, or after 20 s of stillness; its hit box is the body
-  only, so it never covers the clickable comet.
+  only, so it never covers the clickable comet. On a touch screen it takes
+  **two taps**: the first shows and arms it ("もう一度タップ" / "Tap again"), the
+  second goes in; touching elsewhere or waiting `TOUCH_ARM_MS` (5 s) disarms it.
 
 ## Ready before the button
 

@@ -12,6 +12,25 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest("input, textarea, select, [contenteditable]:not([contenteditable=\"false\"])"));
 }
 
+/**
+ * Inside a panel or a sheet, a swipe or a wheel is the reader scrolling *it* —
+ * the "about" briefing, a long comet sheet — so the browser's own scrolling
+ * has to be left alone there. Cancelling the touch move everywhere is what
+ * stops iOS rubber-banding during a swipe between faces, and it used to
+ * cancel these too, so a panel taller than the phone could not be scrolled.
+ * (The cube does not move while one is open anyway: the reducer ignores
+ * `move` whenever a panel is up.)
+ */
+function isScrollTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest(".panel, .sheet"));
+}
+
+/** Leave this event to the browser: typing, or scrolling a panel. */
+function isOwnedByPage(target: EventTarget | null): boolean {
+  return isTypingTarget(target) || isScrollTarget(target);
+}
+
 const WHEEL_THRESHOLD = 50;
 const SWIPE_THRESHOLD = 45;
 const GESTURE_QUIET_MS = 260;
@@ -54,7 +73,7 @@ export function useFaceNavigation(
     };
 
     const onWheel = (event: WheelEvent) => {
-      if (isTypingTarget(event.target)) return;
+      if (isOwnedByPage(event.target)) return;
       event.preventDefault();
       restartQuietTimer();
       if (lockedRef.current || cooling.current) {
@@ -68,13 +87,13 @@ export function useFaceNavigation(
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      touchStart.current = isTypingTarget(event.target)
+      touchStart.current = isOwnedByPage(event.target)
         ? null
         : (event.touches[0]?.clientY ?? null);
     };
 
     const onTouchMove = (event: TouchEvent) => {
-      if (isTypingTarget(event.target)) return;
+      if (isOwnedByPage(event.target)) return;
       // Stops iOS rubber-banding and pull-to-refresh from hijacking the swipe.
       event.preventDefault();
     };

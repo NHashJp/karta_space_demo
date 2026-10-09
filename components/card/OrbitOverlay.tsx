@@ -1,11 +1,11 @@
 "use client";
 
 import { useLang, useStrings } from "./LangContext";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SocialLinks } from "./SocialLinks";
 import { CheckIcon, ChevronLeftIcon } from "./Icons";
 import { hubLabel } from "@/components/three/framing";
-import { ORBIT_IDLE_HINT_MS, ORBIT_TIP_MS, REPLY_TOAST_MS } from "@/lib/timing";
+import { ORBIT_IDLE_HINT_MS, ORBIT_TIP_MS, REPLY_TOAST_MS, TOUCH_ARM_MS } from "@/lib/timing";
 import { useIdle } from "@/lib/useFaceNavigation";
 import type { OrbitPanel } from "@/lib/experienceState";
 import type { ClientCard } from "@/lib/clientCard";
@@ -114,6 +114,52 @@ export function OrbitOverlay({
    */
   const hinted = useIdle(ORBIT_IDLE_HINT_MS) && !busy;
 
+  /*
+   * The touch version of hover-then-click (a phone cannot hover).
+   *
+   * On a touch screen the satellite's area takes taps: the first one shows
+   * the label and *arms* it, with a "tap again" cue under it, and the second
+   * goes in. Two taps rather than one because the satellite fills the middle
+   * of the screen on a phone, and a single stray tap there should never fold
+   * the satellite up. The label also still appears after the same twenty
+   * seconds of stillness as on a desktop — and here it stays when touched,
+   * since that touch is the first of the two.
+   *
+   * Disarmed by touching anywhere else, by opening a panel, or after
+   * `TOUCH_ARM_MS`.
+   */
+  const touchOnly = useTouchOnly();
+  const [armed, setArmed] = useState(false);
+  const satellite = useRef<HTMLDivElement>(null);
+  const goInside = hasSecret ? onEnterSatellite : onDock;
+
+  useEffect(() => {
+    if (!armed) return;
+    const timer = window.setTimeout(() => setArmed(false), TOUCH_ARM_MS);
+    const elsewhere = (event: Event) => {
+      if (!satellite.current?.contains(event.target as Node)) setArmed(false);
+    };
+    window.addEventListener("pointerdown", elsewhere, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointerdown", elsewhere);
+    };
+  }, [armed]);
+
+  useEffect(() => {
+    if (busy) setArmed(false);
+  }, [busy]);
+
+  const onSatelliteTap = useCallback(() => {
+    if (!touchOnly || busy) return;
+    if (armed) {
+      setArmed(false);
+      goInside();
+    } else {
+      setArmed(true);
+    }
+  }, [touchOnly, busy, armed, goInside]);
+
   return (
     <div className="orbit-ui" data-panel={panel ?? "none"}>
       <p className="orbit-ui__tip" data-visible={tip && !busy} lang={lang}>
@@ -173,8 +219,11 @@ export function OrbitOverlay({
         Without one there is nothing in there, so it offers the letter.
       */}
       <div
+        ref={satellite}
         className="orbit-ui__reread"
         data-hinted={hinted}
+        data-armed={armed}
+        onClick={touchOnly ? onSatelliteTap : undefined}
         style={{
           ["--sat-x" as string]: `${centre[0] * 100}%`,
           ["--sat-y" as string]: `${centre[1] * 100}%`,
@@ -190,11 +239,16 @@ export function OrbitOverlay({
         */}
         <button
           className="button button--quiet"
-          onClick={hasSecret ? onEnterSatellite : onDock}
+          // On touch the box handles it (two taps); a mouse or keyboard press
+          // goes straight in, as it always has.
+          onClick={touchOnly ? undefined : goInside}
           lang={lang}
         >
           {hasSecret ? t.orbit.lookInside : t.orbit.reread}
         </button>
+        <span className="orbit-ui__tap-again" aria-hidden={!armed} lang={lang}>
+          {t.orbit.tapAgain}
+        </span>
       </div>
 
       {/*
@@ -277,4 +331,20 @@ function Countdown({ text }: { text: string }) {
       )}
     </>
   );
+}
+
+/**
+ * A screen that cannot hover — a phone or a tablet. Read after mount, since
+ * the server cannot know, and kept current if the input changes.
+ */
+function useTouchOnly(): boolean {
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(hover: none)");
+    const update = () => setTouch(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return touch;
 }
