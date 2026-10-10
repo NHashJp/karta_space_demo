@@ -22,6 +22,7 @@ type CardConfig = {
   social?: SocialLink[];
   // all optional — a card using none of them is the v0.1 card:
   from?, writtenAt?, timeZone?, signature?, sound?,
+  company?,                  // 1-3: how busy the sky round the satellite is
   memories?, comet?, reply?, access?
 };
 
@@ -47,7 +48,7 @@ not deployed until you decide how it gets there ([deployment](./deployment.md#1-
 The local file is re-read when its timestamp changes, so editor saves show
 immediately.
 
-The samples are generic templates:
+The samples are generic templates, all with `company: 2`:
 
 | Slug | Language | Shows |
 |---|---|---|

@@ -69,6 +69,8 @@ type Props = {
   /** The contrail's seed, so the orbiters know where it runs (§8.3). */
   trailSeed: number;
   hasTrail: boolean;
+  /** The card's `company`: how many small craft and rocks share the sky. */
+  company?: number;
   reducedMotion: boolean;
   /**
    * Shown in the hub and everything staged in it; faded out when the camera
@@ -82,6 +84,7 @@ export function Orbiters({
   seed,
   trailSeed,
   hasTrail,
+  company = 1,
   reducedMotion,
   visible,
 }: Props) {
@@ -93,7 +96,7 @@ export function Orbiters({
     [trailSeed, size.width, size.height, hasTrail],
   );
 
-  const set = useMemo(() => makeOrbiters(seed, frame), [seed, frame]);
+  const set = useMemo(() => makeOrbiters(seed, frame, {}, company), [seed, frame, company]);
 
   /** Each object's rock outline, built once: it is a fact about the object. */
   const outlines = useMemo(

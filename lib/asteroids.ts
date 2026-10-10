@@ -140,10 +140,10 @@ function draws(seed: number, index: number): () => number {
 }
 
 /** The gap before pass `index`, in seconds. */
-export function passGap(seed: number, index: number): number {
+export function passGap(seed: number, index: number, mean = PASS_MEAN_S): number {
   const u = seededUnit(seed, index * STRIDE + STRIDE - 1);
   // -mean * ln(1-u) is the exponential; 1-u avoids log(0) at u = 1.
-  const gap = -PASS_MEAN_S * Math.log(1 - u);
+  const gap = -mean * Math.log(1 - u);
   return Math.min(Math.max(gap, PASS_MIN_GAP_S), PASS_MAX_GAP_S);
 }
 
@@ -227,11 +227,11 @@ export function asteroidAt(pass: Omit<AsteroidPass, "startAt">, local: number): 
  * same reason the comet is drawn from its dates: a sequence that exists as
  * numbers can be checked, and a card reopened twice behaves the same way.
  */
-export function asteroidPasses(seed: number, count: number): AsteroidPass[] {
+export function asteroidPasses(seed: number, count: number, mean = PASS_MEAN_S): AsteroidPass[] {
   const passes: AsteroidPass[] = [];
   let at = 0;
   for (let index = 0; index < count; index++) {
-    at += passGap(seed, index);
+    at += passGap(seed, index, mean);
     passes.push({ ...asteroidPass(seed, index), startAt: at });
   }
   return passes;

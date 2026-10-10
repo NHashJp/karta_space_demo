@@ -422,6 +422,7 @@ export function CardExperience({
             activeMemory={activeMemory}
             revealMemory={revealsMemory(state)}
             slug={card.slug}
+            company={card.company}
             comet={comet}
             showCometOrbit={phase === "chart"}
             launching={state === "launching"}

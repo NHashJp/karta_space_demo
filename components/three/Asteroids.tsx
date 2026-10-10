@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
+  PASS_MEAN_S,
   POOL,
   SHAPES,
   asteroidPasses,
   type AsteroidPass,
 } from "@/lib/asteroids";
+import { companyLevel } from "@/lib/orbiters";
 
 /**
  * Debris crossing the hub, roughly every half minute (rev 6 §3.2).
@@ -25,7 +27,8 @@ import {
  * already be moving in.
  */
 
-/** Enough timetable for a three-hour sitting; nobody will reach the end. */
+/** Enough timetable for a three-hour sitting at the usual pace; a busier sky
+ *  gets proportionally more. Nobody will reach the end. */
 const SCHEDULE = 400;
 
 /** Lit by the one key light, like everything else, so they read as rock. */
@@ -64,10 +67,13 @@ function rock(shape: number): THREE.BufferGeometry {
 
 export function Asteroids({
   seed,
+  company = 1,
   reducedMotion,
 }: {
   /** The card's own, so two cards never share a timetable. */
   seed: number;
+  /** The card's `company`: a busier sky sends rocks past that much more often. */
+  company?: number;
   reducedMotion: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
@@ -82,7 +88,10 @@ export function Asteroids({
   const flying = useRef<(AsteroidPass | null)[]>(Array.from({ length: POOL }, () => null));
   const cursor = useRef(0);
 
-  const passes = useMemo(() => asteroidPasses(seed, SCHEDULE), [seed]);
+  const passes = useMemo(() => {
+    const level = companyLevel(company);
+    return asteroidPasses(seed, Math.ceil(SCHEDULE * level), PASS_MEAN_S / level);
+  }, [seed, company]);
   const shapes = useMemo(() => Array.from({ length: SHAPES }, (_, i) => rock(i)), []);
 
   // r3f disposes what JSX owns; a geometry handed in as a prop is ours.

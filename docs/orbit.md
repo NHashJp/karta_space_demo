@@ -127,6 +127,11 @@ time, and either end returns to orbit.
   drawn in three meshes.
 - **Rocks** cross the deep field about every 30 s (Poisson), tumbling, built
   around a guaranteed miss distance from the satellite.
+- **How many** is per card: `company` (1–3, default 1) multiplies the cubesats
+  and orbiting rocks (`mixCount`; the station and moonlet stay one each) and
+  divides the gap between passing rocks. At 1 a desktop has 30 orbiters and a
+  phone 22; the samples use 2. `verify-orbiters` checks 2 and 3 for the same
+  clearances as 1.
 - **Shooting stars** (`lib/shootingStars.ts`): short streaks appearing in the
   upper-left sky and fading over ~1.5 s — about one every 4 s in the hub, every
   14 s elsewhere, never over text. One in eight is a larger, slower **fireball**.

@@ -79,13 +79,31 @@ export const ORB_MIX: Record<
     d: [number, number];
     /** Must be in view at t = 0. Rocks are not: they keep a uniform phase. */
     hero: boolean;
+    /** Multiplied by the card's `company`. The station and the moon stay one each. */
+    many: boolean;
   }
 > = {
-  cubesat: { set: "craft", n: [7, 6], d: [1.3, 2.0], hero: true },
-  station: { set: "craft", n: [1, 1], d: [1.4, 1.8], hero: true },
-  rock: { set: "rocks", n: [21, 14], d: [1.25, 2.7], hero: false },
-  moonlet: { set: "moon", n: [1, 1], d: [1.95, 2.5], hero: true },
+  cubesat: { set: "craft", n: [7, 6], d: [1.3, 2.0], hero: true, many: true },
+  station: { set: "craft", n: [1, 1], d: [1.4, 1.8], hero: true, many: false },
+  rock: { set: "rocks", n: [21, 14], d: [1.25, 2.7], hero: false, many: true },
+  moonlet: { set: "moon", n: [1, 1], d: [1.95, 2.5], hero: true, many: false },
 };
+
+/** The busiest a card's sky may be (`company` in the card config). */
+export const COMPANY_MAX = 3;
+
+/** A card's `company`, clamped: 1 (the mix above) to COMPANY_MAX. */
+export function companyLevel(company: number | undefined): number {
+  if (typeof company !== "number" || !Number.isFinite(company)) return 1;
+  return Math.min(Math.max(company, 1), COMPANY_MAX);
+}
+
+/** How many of a type a card gets, on this kind of screen. */
+export function mixCount(type: OrbiterType, phone: boolean, company = 1): number {
+  const mix = ORB_MIX[type];
+  const n = mix.n[phone ? 1 : 0];
+  return mix.many ? Math.round(n * companyLevel(company)) : n;
+}
 
 export type Orbiter = {
   type: OrbiterType;
@@ -265,6 +283,7 @@ export function makeOrbiters(
   seed: number,
   frame: OrbitFrameLike,
   sets: Partial<Record<OrbiterSet, boolean>> = {},
+  company = 1,
 ): Orbiter[] {
   const r = lcg(Math.imul(seed, 7919) + 13);
   const out: Orbiter[] = [];
@@ -277,7 +296,7 @@ export function makeOrbiters(
     (typeof ORB_MIX)[OrbiterType],
   ][]) {
     if (sets[mix.set] === false) continue;
-    const n = mix.n[frame.phone ? 1 : 0];
+    const n = mixCount(type, frame.phone, company);
 
     for (let i = 0; i < n; i++) {
       /*
