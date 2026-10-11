@@ -19,12 +19,24 @@ so "unsaved changes" is one honest flag.
 ## Sections
 
 - **Basics** — language first (日本語 / English: everything around the letter
-  follows it), title, sign-off, time zone, when it was written.
+  follows it), title, sign-off, who it is for (`to`: on a Japanese card the
+  interface says this name wherever it would say あなた — ゆいの言葉, ゆいの星),
+  time zone, when it was written.
 - **Faces** — six faces, text or image; images can be uploaded straight onto a
-  face.
+  face. Text faces, memory captions and the line inside the cube take **bold**,
+  *italic* and __underline__ from the B / I / U bar above the field or ⌘B / ⌘I /
+  ⌘U, which wrap the selection in the marks the card reads (pressing again
+  removes them). Uploads (faces and memories) land in `private/cards/<slug>/` and show
+  as a thumbnail at once (`/api/editor/image`, behind the editor's guard); the
+  preview shows them after **Save to file**, at that face's Jump target. HEIC
+  photos are converted to JPEG in the browser where it can read them (Safari);
+  otherwise export them as JPEG first.
 - **Memories** — up to 20, each with a fuzzy date (year, month, day, season,
   "about" — the display string is shown live as the reader will see it) and an
-  optional photograph.
+  optional photograph, listed in the trail's order. By default that is newest
+  first by date (a month alone counts as its 15th); drag a memory by ⠿, or use
+  ↑ ↓, to set your own order (`memoryOrder: "manual"`), and **Sort by date** to
+  go back. A photo can be detached without deleting its file.
 - **Orbit** — the comet's dates, promise, sealed message, and the reply prompt.
 - **Closing** — the closing line, the signature pad, the secret line.
 - **Links** — social links under the closing screen.

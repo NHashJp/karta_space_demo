@@ -3,15 +3,19 @@
 import { useState } from "react";
 import { FuzzyDateInput } from "../FuzzyDateInput";
 import type { SectionProps } from "../shared";
+import { UPLOAD_ACCEPT, thumbUrl, uploadImage } from "../uploadImage";
+import { RichField } from "../FormatBar";
+import { plainText } from "@/lib/richText";
 import { MEMORY_CAPTION_MAX, MEMORY_MAX, MEMORY_TITLE_MAX } from "@/lib/cardRules";
-import { sortMemoriesNewestFirst } from "@/lib/fuzzyDate";
+import { orderMemories, sortMemoriesNewestFirst } from "@/lib/fuzzyDate";
 import type { Memory } from "@/types/card";
 
 /**
  * The trail (spec v0.2 §15.4).
  *
- * Shown in **display order** — newest first — rather than in the order they
- * happen to sit in the config, because that is the order the receiver will
+ * Shown in **display order** — by date, or the sender's own order once they
+ * have dragged one — rather than in the order they happen to sit in the
+ * config, because that is the order the receiver will
  * travel them. Editing a list in one order and having it read back in another
  * is how you end up with a trail that surprises the person who wrote it.
  */
@@ -20,11 +24,41 @@ export function MemoriesSection({ card, edit }: SectionProps) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const memories = card.memories ?? [];
-  // Sorted for display, but edits are written back to the original indices, so
-  // the config keeps whatever order it had.
-  const ordered = sortMemoriesNewestFirst(
+  const manual = card.memoryOrder === "manual";
+  // In the trail's order, but edits are written back to the original indices,
+  // so a date-ordered config keeps whatever order it had.
+  const ordered = orderMemories(
     memories.map((memory, index) => ({ ...memory, __index: index })),
+    card.memoryOrder,
   ) as (Memory & { __index: number })[];
+
+  /** Positions in `ordered`: the memory being dragged, and the one under it. */
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+
+  /**
+   * Move the memory at display position `from` to `to`. The list is written
+   * back in exactly the order shown, and the card switches to its own order —
+   * the trail now follows the list rather than the dates.
+   */
+  function arrange(from: number, to: number) {
+    if (from === to || to < 0 || to >= ordered.length) return;
+    const list = ordered.map(({ __index: _, ...memory }) => memory as Memory);
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
+    edit({ memories: list, memoryOrder: "manual" });
+  }
+
+  /** Back to newest first by date — a month alone counts as its 15th. */
+  function sortByDate() {
+    edit({ memories: sortMemoriesNewestFirst(memories), memoryOrder: undefined });
+    setNotice(null);
+  }
+
+  function endDrag() {
+    setDragging(null);
+    setOver(null);
+  }
 
   function setMemory(index: number, patch: Partial<Memory>) {
     edit({
@@ -43,65 +77,118 @@ export function MemoriesSection({ card, edit }: SectionProps) {
   async function upload(index: number, file: File) {
     setUploading(index);
     setNotice(null);
-
-    const form = new FormData();
-    form.set("slug", card.slug);
-    form.set("file", file);
-
-    const response = await fetch("/api/editor/upload", { method: "POST", body: form });
-    const payload = (await response.json().catch(() => ({}))) as {
-      src?: string;
-      bytes?: number;
-      large?: boolean;
-      error?: string;
-    };
+    const result = await uploadImage(card.slug, file);
     setUploading(null);
 
-    if (!response.ok || !payload.src) {
-      setNotice(
-        payload.error === "unsupported_type"
-          ? "Only WebP, JPEG, PNG and AVIF images."
-          : payload.error === "too_large"
-            ? "That file is over 8 MB."
-            : "Could not save that file.",
-      );
+    if ("error" in result) {
+      setNotice(result.error);
       return;
     }
 
     setMemory(index, {
       image: {
-        src: payload.src,
+        src: result.src,
         alt: memories[index].image?.alt ?? "",
         fit: memories[index].image?.fit ?? "cover",
       },
     });
 
-    if (payload.large) {
+    if (result.large) {
       // A note rather than a refusal: it is their photograph, and the cost is
       // a slower trail rather than a broken one.
       setNotice(
-        `Saved, but it is ${Math.round((payload.bytes ?? 0) / 1024)} KB. ` +
+        `Saved, but it is ${Math.round(result.bytes / 1024)} KB. ` +
           "Under 350 KB keeps the trail quick — try WebP, or 1600px on the long edge.",
       );
+    } else if (result.converted) {
+      setNotice("Converted to JPEG and saved.");
     }
   }
 
   return (
     <div className="editor__section">
       <p className="editor__hint">
-        Read newest first, as a journey backwards in time. Up to {MEMORY_MAX}.
+        Read from the top, as a journey backwards in time. Up to {MEMORY_MAX}.
         Photographs live in private/cards/{card.slug}/ and are only served to
         someone who can open the card.
       </p>
 
       {notice ? <p className="editor__problem">{notice}</p> : null}
 
-      {ordered.map((memory) => {
+      {memories.length > 1 ? (
+        <div className="memories__order">
+          <span className="editor__hint">
+            {manual
+              ? "In your own order — the trail follows this list exactly. Drag by ⠿ or use ↑ ↓."
+              : "By date, newest first (a month alone counts as the 15th). Drag by ⠿ or use ↑ ↓ to set your own order."}
+          </span>
+          <button className="face__type" onClick={sortByDate} disabled={uploading !== null}>
+            Sort by date
+          </button>
+        </div>
+      ) : null}
+
+      {ordered.map((memory, position) => {
         const index = memory.__index;
         return (
-          <div className="face" key={index}>
+          <div
+            className="face"
+            key={index}
+            data-dragging={dragging === position}
+            data-over={over === position && dragging !== null && dragging !== position}
+            onDragOver={(event) => {
+              if (dragging === null) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              if (over !== position) setOver(position);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (dragging !== null) arrange(dragging, position);
+              endDrag();
+            }}
+          >
             <div className="face__head">
+              {/*
+                Only the handle drags — the fields stay selectable — but the
+                picture under the pointer is the whole memory.
+              */}
+              <span
+                className="memory__handle"
+                aria-hidden="true"
+                title="Drag to reorder"
+                draggable={uploading === null}
+                onDragStart={(event) => {
+                  setDragging(position);
+                  event.dataTransfer.effectAllowed = "move";
+                  // Firefox will not start a drag without some data.
+                  event.dataTransfer.setData("text/plain", String(position));
+                  const card = event.currentTarget.closest(".face");
+                  if (card) event.dataTransfer.setDragImage(card, 24, 24);
+                }}
+                onDragEnd={endDrag}
+              >
+                ⠿
+              </span>
               <strong lang="ja">{memory.title || "(untitled)"}</strong>
+              <span className="memory__moves">
+                <button
+                  className="face__type"
+                  aria-label={`Move “${memory.title || "untitled"}” up`}
+                  disabled={position === 0 || uploading !== null}
+                  onClick={() => arrange(position, position - 1)}
+                >
+                  ↑
+                </button>
+                <button
+                  className="face__type"
+                  aria-label={`Move “${memory.title || "untitled"}” down`}
+                  disabled={position === ordered.length - 1 || uploading !== null}
+                  onClick={() => arrange(position, position + 1)}
+                >
+                  ↓
+                </button>
+              </span>
               <button
                 className="face__type"
                 onClick={() =>
@@ -140,27 +227,32 @@ export function MemoriesSection({ card, edit }: SectionProps) {
               </div>
             </div>
 
-            <label className="field">
+            <div className="field">
               <span>
-                Caption &middot; {(memory.caption ?? "").length}/{MEMORY_CAPTION_MAX}
+                Caption &middot; {plainText(memory.caption ?? "").length}/{MEMORY_CAPTION_MAX}
               </span>
-              <input
+              <RichField
+                multiline
+                rows={2}
+                label="Caption"
                 value={memory.caption ?? ""}
-                onChange={(event) => setMemory(index, { caption: event.target.value })}
+                onChange={(caption) => setMemory(index, { caption })}
                 lang="ja"
               />
-            </label>
+            </div>
 
             <div className="editor__row">
               <label className="field">
                 <span>Photograph</span>
                 <input
                   type="file"
-                  accept="image/webp,image/jpeg,image/png,image/avif"
+                  accept={UPLOAD_ACCEPT}
                   disabled={uploading === index}
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) void upload(index, file);
+                    // Let the same file be chosen again after a failure.
+                    event.target.value = "";
                   }}
                 />
                 <span className="editor__hint">
@@ -169,6 +261,31 @@ export function MemoriesSection({ card, edit }: SectionProps) {
                     : (memory.image?.src ?? "None — this memory will show as words alone.")}
                 </span>
               </label>
+
+              {memory.image?.src ? (
+                <img className="editor__thumb" src={thumbUrl(memory.image.src)} alt="" />
+              ) : null}
+
+              {/*
+                Detaching takes the photograph off this memory only. The file
+                stays in the card's folder — another memory or a face may use
+                it, and an upload is not something to lose to a misclick — and
+                nothing changes on disk until Save to file.
+              */}
+              {memory.image ? (
+                <button
+                  className="face__type"
+                  disabled={uploading === index}
+                  onClick={() => {
+                    setMemory(index, { image: undefined });
+                    setNotice(
+                      `Photo detached from “${memory.title || "(untitled)"}” — Save to file to keep the change. The file stays in private/cards/${card.slug}/.`,
+                    );
+                  }}
+                >
+                  Detach photo
+                </button>
+              ) : null}
 
               {memory.image ? (
                 <label className="field">

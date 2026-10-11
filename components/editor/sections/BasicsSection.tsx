@@ -3,7 +3,7 @@
 import { FuzzyDateInput } from "../FuzzyDateInput";
 import { TIME_ZONES, type SectionProps } from "../shared";
 import { FROM_MAX } from "@/lib/cardRules";
-import { strings } from "@/lib/i18n";
+import { YOU_JA, strings } from "@/lib/i18n";
 
 /** Who the card is from, when it was written, and where its clock is (§15.4). */
 export function BasicsSection({ card, edit }: SectionProps) {
@@ -65,6 +65,24 @@ export function BasicsSection({ card, edit }: SectionProps) {
           {/* It is not decoration: it appears in the satellite's promise. */}
           <span className="editor__hint">
             Used in sentences such as “{strings(lang).reply.note(card.from || defaults.from, Boolean(card.comet))}”
+          </span>
+        </label>
+
+        <label className="field">
+          <span>
+            Who it is for &middot; {card.to?.length ?? 0}/{FROM_MAX}
+          </span>
+          <input
+            value={card.to ?? ""}
+            onChange={(event) => edit({ to: event.target.value || undefined })}
+            placeholder={YOU_JA}
+            lang="ja"
+          />
+          {/* Shown in the card's own words, so the author sees the sentence they get. */}
+          <span className="editor__hint">
+            {lang === "ja"
+              ? `Replaces ${YOU_JA} on the card, as in “${strings("ja", card.to).sheet.invite}” Add さん or くん if you would say it.`
+              : `Used on Japanese cards only, where it replaces ${YOU_JA}; English keeps “you”.`}
           </span>
         </label>
 

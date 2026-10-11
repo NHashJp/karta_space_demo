@@ -251,219 +251,231 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-const ja: Strings = {
-  common: {
-    close: "閉じる",
-    back: "もどる",
-    loadFailed: "カードを読み込めませんでした。もう一度お試しください。",
-    reload: "再読み込み",
-    soundOff: "音を消す",
-    soundOn: "音を出す",
-  },
-  landing: {
-    open: "カードを開く",
-    preparing: "カードを準備しています…",
-    hint: "スクロール／スワイプで次の面へ進みます。",
-    writtenIn: (when) => `${when}に書かれた手紙`,
-    cometBack: "彗星が、戻ってきました。",
-  },
-  reading: { swipe: "スクロール／スワイプ" },
-  inside: { scrollOut: "スクロールして外へ", back: "外に戻る" },
-  completion: {
-    replay: "もう一度見る",
-    continues: "この手紙には、続きがあります。",
-    deploy: "軌道へ送り出す",
-    hasInside: "この立方体には、内側があります。",
-    lookInside: "中をのぞく",
-  },
-  orbit: {
-    tapStar: "星をタップしてみてください。",
-    returned: "約束の彗星が、戻ってきました。",
-    today: "今日",
-    thisSeason: "この冬",
-    aboard: "あなたの言葉も、のっています",
-    lookInside: "中をのぞく",
-    reread: "手紙を読みかえす",
-    bar: "軌道",
-    trail: "航跡をたどる",
-    replied: "返事、届いています",
-    reply: "返事を打ち上げる",
-    comet: "彗星",
-    replyArrived: (comet) => (comet ? "返事は、彗星より先に届きました。" : "返事が、届きました。"),
-    about: "KARTA_SPACE について",
-    tapAgain: "もう一度タップ",
-  },
-  about: {
-    title: "KARTA_SPACE について",
-    lead: "ただ言葉を送るの場所ではなく、つながりを次に繋げる",
-    intro: "別れのもう一度会うための約束に変える、宇宙のカードです。",
-    more: "開発の経緯や設計思想は、",
-    values: [
-      {
-        title: "終わりではなく、変わる",
-        body: "手紙は閉じて終わりません。衛星になって軌道をめぐり、また戻ってきます。",
-      },
-      {
-        title: "ふたりだけの宇宙",
-        body: "航跡の思い出も、約束の彗星も、このカードのためだけにあります。",
-      },
-      {
-        title: "約束は、その日まで封をして",
-        body: "彗星にのせた言葉は、戻る日まで誰にも読めません。書いた本人にも、送り主にも。",
-      },
-      {
-        title: "言葉は、宇宙で繋がっている",
-        body: "手紙の言葉は、彗星の光にのって、衛星の光にのって、また会う日まで届きます。",
-      },
-      {
-        title: "静かに、いつも夜明け",
-        body: "派手な演出より、ゆっくり昇る朝日を。再会が近づくほど、空は明るく、前に進んでいます。",
-      },
-    ],
-  },
-  intro: {
-    label: "約束の彗星",
-    fallbackPromise: "また会えます",
-    untilBack: "彗星が戻るまで",
-    daysBefore: "あと",
-    daysAfter: () => "日",
-    arrived: "また会うよ！",
-    wordsArrive: (from) => `その日、彗星にのせた言葉が${from}に届きます。`,
-    promiseOpens: (from) => `その日、${from}との約束がひらきます。`,
-    skip: "スキップ",
-  },
-  sheet: {
-    label: "約束の彗星",
-    fromWords: (from) => `${from}の言葉`,
-    yourWords: "あなたの言葉",
-    addWords: "言葉をのせる",
-    promiseComet: "約束の彗星",
-    delivery: (when, from) => `${when}に、${from}のもとへ届きます。`,
-    copied: "コピーしました",
-    copyLink: "彗星の行方を見るリンクをコピー",
-    dialog: "彗星",
-    returned: "約束の彗星が、戻ってきました。",
-    leftIn: (when) => `${when}に旅立った彗星です`,
-    alsoDelivered: (from) => `あなたの言葉も、${from}に届いています。`,
-    toOrbit: "軌道へもどる",
-    kept: "この彗星は、約束を果たしました。",
-    sealed: (from) => `${from}の言葉がのっています。また会う日に、ひらきます。`,
-    stillWaiting: "彗星は、まだあなたの言葉を待っています。",
-    invite: "この彗星に、あなたの言葉ものせませんか。",
-    unreadable: (from) => `それまでは、${from}にも読めません。`,
-    notNow: "今はやめておく",
-    submit: "彗星にのせる",
-    sending: "のせています…",
-    boarded: "言葉をのせました。",
-    alsoAboard: "あなたの言葉も、のっています。",
-    continue: "つづける",
-    comesBack: (when) => `${when}に、ここへ戻ってきます。`,
-    replayPreview: "彗星の軌道をもう一度見る",
-  },
-  crossroads: {
-    title: "このあとは",
-    rocket: "ロケットを打ち上げる",
-    rocketCost: (from, comet) => (comet ? `彗星より先に、今すぐ${from}へ` : `今すぐ、まっすぐ${from}へ`),
-    trail: "ふたりの航跡をたどる",
-    memories: (count) => `${count}つの思い出`,
-    orbit: "彗星の軌道を見る",
-    returnsAt: (when) => `${when}に戻ります`,
-    stay: "軌道にとどまる",
-  },
-  reply: {
-    title: "返事を打ち上げる",
-    how: (from, comet) =>
-      comet
-        ? `あなたの言葉をのせたロケットが、彗星を追い越して${from}に届きます。`
-        : `あなたの言葉をのせたロケットが、まっすぐ${from}に届きます。`,
-    submit: "ロケットを打ち上げる",
-    sending: "打ち上げています…",
-    note: (from, comet) => (comet ? `彗星より先に、すぐに${from}へ。` : `すぐに、${from}へ。`),
-  },
-  form: {
-    name: "お名前",
-    message: "メッセージ",
-    rateLimited: "少し時間をおいて、もう一度お試しください。",
-    failed: "うまく届きませんでした。もう一度お試しください。",
-  },
-  trajectory: {
-    title: "彗星の軌道",
-    bothAboard: (from) => `${from}とあなたの言葉がのっています。また会う日に、ひらきます。`,
-    sealed: (from) => `${from}の言葉がのっています。また会う日に、ひらきます。`,
-    aria: (when) => `彗星の軌道。${when}に、あなたの星へ戻ってきます。`,
-    mini: (when) => (when ? `彗星の軌道。${when}に戻ります。` : "彗星の軌道"),
-    home: "あなたの星",
-    meetHere: "また、ここで。",
-    back: "帰ってきました",
-    now: "いま、ここ",
-  },
-  trail: { further: "スクロールで、さらに昔へ", back: "軌道に戻る" },
-  a11y: {
-    trail: "航跡",
-    comet: "彗星",
-    fromWords: (from) => `${from}からの言葉`,
-  },
-  gate: {
-    label: "パスワードを入力してください",
-    submit: "開く",
-    pending: "確認しています…",
-    wrong: "パスワードが正しくありません。",
-    protected: "このカードはパスワードで保護されています",
-    hint: (hint) => `ヒント: ${hint}`,
-    tooMany: "試行回数が多すぎます。しばらくしてからお試しください。",
-    failed: "うまく確認できませんでした。もう一度お試しください。",
-    hide: "パスワードを隠す",
-    show: "パスワードを表示",
-  },
-  index: {
-    enter: "カードのリンクからお入りください。",
-    devList: (count) => `開発用のカード一覧（${count}）`,
-  },
-  cometPage: {
-    notFound: "この彗星は見つかりませんでした。",
-    returned: (name) => `${name}さんの言葉が、戻ってきました。`,
-    boardedOn: (when) => `${when}に、彗星にのりました`,
-    words: (name) => `${name}さんの言葉`,
-    returnsOn: (when) => `約束の彗星にのって、${when}に戻ってきます。`,
-    daysLeft: (days) => `あと${days}日`,
-  },
-  defaults: { from: "送り主", replyPrompt: "ひとこと、返事をどうぞ。" },
-  mail: {
-    replySubject: (title) => `「${title}」に返事が届きました`,
-    replyLead: (name) => `${name}さんから、返事が届きました。`,
-    cometSubject: (name, date) => `${name}さんの言葉が、彗星にのりました（${date}に戻ってきます）`,
-    cometLead: (title, name) => `「${title}」から、${name}さんが彗星に言葉をのせました。`,
-    cometSealed: (date) => `${date}に戻ってくるまで、中身は読めません。`,
-    cometLink: "彗星の行方と、戻ってきた言葉は、このリンクから:",
-    cometKeep: "このメールは消さずに残しておいてください。リンクがなくなると、彗星は見つけられなくなります。",
-    daySubject: (label) => `今日は「${label}」です`,
-    dayLead: (title) => `「${title}」の彗星が、戻ってくる日になりました。`,
-    dayNudge: "相手に、連絡してみませんか。",
-    dayCard: (url) => `カード: ${url}`,
-    dayOpen: "彗星のメールが届いている場合は、今日からそのリンクで読めます。",
-    fallbackLabel: "約束の日",
-    fallbackPromise: "また会いましょう。",
-  },
-  dates: {
-    seasons: ["春", "夏", "秋", "冬"],
-    year: (year) => `${year}年`,
-    month: (year, month) => `${year}年${month}月`,
-    day: (year, month, day) => `${year}年${month}月${day}日`,
-    seasonOf: (year, season) => `${year}年${season}`,
-    approx: (text) => `${text}頃`,
-    thisSeason: (season) => `この${season}`,
-    nextSeason: (season) => `次の${season}`,
-  },
-  relative: {
-    today: "今日",
-    daysAgo: (days) => `${days}日前`,
-    daysLeft: (days) => `あと${days}日`,
-    soon: "もうすぐ",
-    months: (months) => `約${months}か月後`,
-    years: (years) => `約${years}年後`,
-    yearsHalf: (years) => `約${years}年半後`,
-  },
-};
+/** What the Japanese interface calls the receiver when the card does not name them. */
+export const YOU_JA = "あなた";
+
+/**
+ * Japanese, addressed to `you`: the receiver's name from the card (`to`), or
+ * あなた. A name reads naturally in every place あなた stands — ゆいの言葉,
+ * ゆいの星 — which English "you"/"your" does not, so only this table takes it.
+ */
+function japanese(you: string): Strings {
+  return {
+    common: {
+      close: "閉じる",
+      back: "もどる",
+      loadFailed: "カードを読み込めませんでした。もう一度お試しください。",
+      reload: "再読み込み",
+      soundOff: "音を消す",
+      soundOn: "音を出す",
+    },
+    landing: {
+      open: "カードを開く",
+      preparing: "カードを準備しています…",
+      hint: "スクロール／スワイプで次の面へ進みます。",
+      writtenIn: (when) => `${when}に書かれた手紙`,
+      cometBack: "彗星が、戻ってきました。",
+    },
+    reading: { swipe: "スクロール／スワイプ" },
+    inside: { scrollOut: "スクロールして外へ", back: "外に戻る" },
+    completion: {
+      replay: "もう一度見る",
+      continues: "この手紙には、続きがあります。",
+      deploy: "軌道へ送り出す",
+      hasInside: "この立方体には、内側があります。",
+      lookInside: "中をのぞく",
+    },
+    orbit: {
+      tapStar: "星をタップしてみてください。",
+      returned: "約束の彗星が、戻ってきました。",
+      today: "今日",
+      thisSeason: "この冬",
+      aboard: `${you}の言葉も、のっています`,
+      lookInside: "中をのぞく",
+      reread: "手紙を読みかえす",
+      bar: "軌道",
+      trail: "航跡をたどる",
+      replied: "返事、届いています",
+      reply: "返事を打ち上げる",
+      comet: "彗星",
+      replyArrived: (comet) => (comet ? "返事は、彗星より先に届きました。" : "返事が、届きました。"),
+      about: "KARTA_SPACE について",
+      tapAgain: "もう一度タップ",
+    },
+    about: {
+      title: "KARTA_SPACE について",
+      lead: "ただ言葉を送るの場所ではなく、つながりを次に繋げる",
+      intro: "別れのもう一度会うための約束に変える、宇宙のカードです。",
+      more: "開発の経緯や設計思想は、",
+      values: [
+        {
+          title: "終わりではなく、変わる",
+          body: "手紙は閉じて終わりません。衛星になって軌道をめぐり、また戻ってきます。",
+        },
+        {
+          title: "ふたりだけの宇宙",
+          body: "航跡の思い出も、約束の彗星も、このカードのためだけにあります。",
+        },
+        {
+          title: "約束は、その日まで封をして",
+          body: "彗星にのせた言葉は、戻る日まで誰にも読めません。書いた本人にも、送り主にも。",
+        },
+        {
+          title: "言葉は、宇宙で繋がっている",
+          body: "手紙の言葉は、彗星の光にのって、衛星の光にのって、また会う日まで届きます。",
+        },
+        {
+          title: "静かに、いつも夜明け",
+          body: "派手な演出より、ゆっくり昇る朝日を。再会が近づくほど、空は明るく、前に進んでいます。",
+        },
+      ],
+    },
+    intro: {
+      label: "約束の彗星",
+      fallbackPromise: "また会えます",
+      untilBack: "彗星が戻るまで",
+      daysBefore: "あと",
+      daysAfter: () => "日",
+      arrived: "また会うよ！",
+      wordsArrive: (from) => `その日、彗星にのせた言葉が${from}に届きます。`,
+      promiseOpens: (from) => `その日、${from}との約束がひらきます。`,
+      skip: "スキップ",
+    },
+    sheet: {
+      label: "約束の彗星",
+      fromWords: (from) => `${from}の言葉`,
+      yourWords: `${you}の言葉`,
+      addWords: "言葉をのせる",
+      promiseComet: "約束の彗星",
+      delivery: (when, from) => `${when}に、${from}のもとへ届きます。`,
+      copied: "コピーしました",
+      copyLink: "彗星の行方を見るリンクをコピー",
+      dialog: "彗星",
+      returned: "約束の彗星が、戻ってきました。",
+      leftIn: (when) => `${when}に旅立った彗星です`,
+      alsoDelivered: (from) => `${you}の言葉も、${from}に届いています。`,
+      toOrbit: "軌道へもどる",
+      kept: "この彗星は、約束を果たしました。",
+      sealed: (from) => `${from}の言葉がのっています。また会う日に、ひらきます。`,
+      stillWaiting: `彗星は、まだ${you}の言葉を待っています。`,
+      invite: `この彗星に、${you}の言葉ものせませんか。`,
+      unreadable: (from) => `それまでは、${from}にも読めません。`,
+      notNow: "今はやめておく",
+      submit: "彗星にのせる",
+      sending: "のせています…",
+      boarded: "言葉をのせました。",
+      alsoAboard: `${you}の言葉も、のっています。`,
+      continue: "つづける",
+      comesBack: (when) => `${when}に、ここへ戻ってきます。`,
+      replayPreview: "彗星の軌道をもう一度見る",
+    },
+    crossroads: {
+      title: "このあとは",
+      rocket: "ロケットを打ち上げる",
+      rocketCost: (from, comet) => (comet ? `彗星より先に、今すぐ${from}へ` : `今すぐ、まっすぐ${from}へ`),
+      trail: "ふたりの航跡をたどる",
+      memories: (count) => `${count}つの思い出`,
+      orbit: "彗星の軌道を見る",
+      returnsAt: (when) => `${when}に戻ります`,
+      stay: "軌道にとどまる",
+    },
+    reply: {
+      title: "返事を打ち上げる",
+      how: (from, comet) =>
+        comet
+          ? `${you}の言葉をのせたロケットが、彗星を追い越して${from}に届きます。`
+          : `${you}の言葉をのせたロケットが、まっすぐ${from}に届きます。`,
+      submit: "ロケットを打ち上げる",
+      sending: "打ち上げています…",
+      note: (from, comet) => (comet ? `彗星より先に、すぐに${from}へ。` : `すぐに、${from}へ。`),
+    },
+    form: {
+      name: "お名前",
+      message: "メッセージ",
+      rateLimited: "少し時間をおいて、もう一度お試しください。",
+      failed: "うまく届きませんでした。もう一度お試しください。",
+    },
+    trajectory: {
+      title: "彗星の軌道",
+      bothAboard: (from) => `${from}と${you}の言葉がのっています。また会う日に、ひらきます。`,
+      sealed: (from) => `${from}の言葉がのっています。また会う日に、ひらきます。`,
+      aria: (when) => `彗星の軌道。${when}に、${you}の星へ戻ってきます。`,
+      mini: (when) => (when ? `彗星の軌道。${when}に戻ります。` : "彗星の軌道"),
+      home: `${you}の星`,
+      meetHere: "また、ここで。",
+      back: "帰ってきました",
+      now: "いま、ここ",
+    },
+    trail: { further: "スクロールで、さらに昔へ", back: "軌道に戻る" },
+    a11y: {
+      trail: "航跡",
+      comet: "彗星",
+      fromWords: (from) => `${from}からの言葉`,
+    },
+    gate: {
+      label: "パスワードを入力してください",
+      submit: "開く",
+      pending: "確認しています…",
+      wrong: "パスワードが正しくありません。",
+      protected: "このカードはパスワードで保護されています",
+      hint: (hint) => `ヒント: ${hint}`,
+      tooMany: "試行回数が多すぎます。しばらくしてからお試しください。",
+      failed: "うまく確認できませんでした。もう一度お試しください。",
+      hide: "パスワードを隠す",
+      show: "パスワードを表示",
+    },
+    index: {
+      enter: "カードのリンクからお入りください。",
+      devList: (count) => `開発用のカード一覧（${count}）`,
+    },
+    cometPage: {
+      notFound: "この彗星は見つかりませんでした。",
+      returned: (name) => `${name}さんの言葉が、戻ってきました。`,
+      boardedOn: (when) => `${when}に、彗星にのりました`,
+      words: (name) => `${name}さんの言葉`,
+      returnsOn: (when) => `約束の彗星にのって、${when}に戻ってきます。`,
+      daysLeft: (days) => `あと${days}日`,
+    },
+    defaults: { from: "送り主", replyPrompt: "ひとこと、返事をどうぞ。" },
+    mail: {
+      replySubject: (title) => `「${title}」に返事が届きました`,
+      replyLead: (name) => `${name}さんから、返事が届きました。`,
+      cometSubject: (name, date) => `${name}さんの言葉が、彗星にのりました（${date}に戻ってきます）`,
+      cometLead: (title, name) => `「${title}」から、${name}さんが彗星に言葉をのせました。`,
+      cometSealed: (date) => `${date}に戻ってくるまで、中身は読めません。`,
+      cometLink: "彗星の行方と、戻ってきた言葉は、このリンクから:",
+      cometKeep: "このメールは消さずに残しておいてください。リンクがなくなると、彗星は見つけられなくなります。",
+      daySubject: (label) => `今日は「${label}」です`,
+      dayLead: (title) => `「${title}」の彗星が、戻ってくる日になりました。`,
+      dayNudge: "相手に、連絡してみませんか。",
+      dayCard: (url) => `カード: ${url}`,
+      dayOpen: "彗星のメールが届いている場合は、今日からそのリンクで読めます。",
+      fallbackLabel: "約束の日",
+      fallbackPromise: "また会いましょう。",
+    },
+    dates: {
+      seasons: ["春", "夏", "秋", "冬"],
+      year: (year) => `${year}年`,
+      month: (year, month) => `${year}年${month}月`,
+      day: (year, month, day) => `${year}年${month}月${day}日`,
+      seasonOf: (year, season) => `${year}年${season}`,
+      approx: (text) => `${text}頃`,
+      thisSeason: (season) => `この${season}`,
+      nextSeason: (season) => `次の${season}`,
+    },
+    relative: {
+      today: "今日",
+      daysAgo: (days) => `${days}日前`,
+      daysLeft: (days) => `あと${days}日`,
+      soon: "もうすぐ",
+      months: (months) => `約${months}か月後`,
+      years: (years) => `約${years}年後`,
+      yearsHalf: (years) => `約${years}年半後`,
+    },
+  };
+}
+
+const ja = japanese(YOU_JA);
 
 const en: Strings = {
   common: {
@@ -681,6 +693,20 @@ const en: Strings = {
 
 const TABLES: Record<Lang, Strings> = { ja, en };
 
-export function strings(lang: Lang | undefined): Strings {
-  return TABLES[lang ?? "ja"];
+/** Japanese tables for named receivers, built once per name. */
+const NAMED = new Map<string, Strings>();
+
+/**
+ * The interface in `lang`. `to` is the card's receiver; in Japanese it takes
+ * the place of あなた (see `japanese`), and English ignores it.
+ */
+export function strings(lang: Lang | undefined, to?: string): Strings {
+  const name = to?.trim();
+  if ((lang ?? "ja") !== "ja" || !name || name === YOU_JA) return TABLES[lang ?? "ja"];
+  let table = NAMED.get(name);
+  if (!table) {
+    table = japanese(name);
+    NAMED.set(name, table);
+  }
+  return table;
 }

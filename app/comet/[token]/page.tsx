@@ -43,5 +43,5 @@ export default async function Page({ params, searchParams }: Props) {
   const today = civilDate(now, timeZone);
   const comet = timeZone === DEFAULT_TIME_ZONE ? provisional : open(token, today);
 
-  return <CometPage comet={comet} today={today} lang={langOf(card?.lang)} />;
+  return <CometPage comet={comet} today={today} lang={langOf(card?.lang)} to={card?.to} />;
 }

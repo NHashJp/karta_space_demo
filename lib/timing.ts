@@ -19,6 +19,14 @@
 export const ORBIT_HINT_MS = 3500;
 
 /**
+ * The beat between the signature's last stroke and この手紙には、続きがあります。
+ * The orbit offer waits for the closing line *and* the signature to finish —
+ * an offer to go on that arrives while the hand is still signing interrupts
+ * it — and never comes sooner than `ORBIT_HINT_MS`.
+ */
+export const ORBIT_AFTER_WRITING_MS = 700;
+
+/**
  * How long after everything else the cube's "inside" invitation arrives —
  * enough for the orbit offer's own 1.4 s fade to finish first, so the two are
  * never seen arriving together.

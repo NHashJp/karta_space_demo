@@ -11,9 +11,23 @@ import { strings, type Lang, type Strings } from "@/lib/i18n";
  * Without a provider it is Japanese, which is what every card was before.
  */
 const LangContext = createContext<Lang>("ja");
+/** The card's receiver (`to`), which the Japanese words call them by. */
+const ToContext = createContext<string | undefined>(undefined);
 
-export function LangProvider({ lang, children }: { lang: Lang; children: React.ReactNode }) {
-  return <LangContext.Provider value={lang}>{children}</LangContext.Provider>;
+export function LangProvider({
+  lang,
+  to,
+  children,
+}: {
+  lang: Lang;
+  to?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <LangContext.Provider value={lang}>
+      <ToContext.Provider value={to}>{children}</ToContext.Provider>
+    </LangContext.Provider>
+  );
 }
 
 export function useLang(): Lang {
@@ -21,5 +35,5 @@ export function useLang(): Lang {
 }
 
 export function useStrings(): Strings {
-  return strings(useContext(LangContext));
+  return strings(useContext(LangContext), useContext(ToContext));
 }

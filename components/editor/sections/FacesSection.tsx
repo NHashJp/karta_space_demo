@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { emptyTextFace, type SectionProps } from "../shared";
+import { UPLOAD_ACCEPT, thumbUrl, uploadImage } from "../uploadImage";
+import { RichField } from "../FormatBar";
+import { plainText } from "@/lib/richText";
 import { BODY_MAX, BODY_MIN, LINE_FACE_MAX, imageFolder } from "@/lib/cardRules";
 import type { CardFace, CardFaces } from "@/types/card";
 
@@ -44,45 +47,23 @@ export function FacesSection({
   async function upload(index: number, face: CardFace, file: File) {
     setUploading(index);
     setNotice(null);
+    const result = await uploadImage(card.slug, file);
+    setUploading(null);
 
-    const form = new FormData();
-    form.set("slug", card.slug);
-    form.set("file", file);
-
-    try {
-      const response = await fetch("/api/editor/upload", { method: "POST", body: form });
-      const payload = (await response.json().catch(() => ({}))) as {
-        src?: string;
-        large?: boolean;
-        error?: string;
-      };
-      setUploading(null);
-
-      if (!response.ok || !payload.src) {
-        setNotice(
-          payload.error === "unsupported_type"
-            ? "Only WebP, JPEG, PNG and AVIF images."
-            : payload.error === "too_large"
-              ? "That file is over 8 MB."
-              : payload.error === "editor_locked"
-                ? "The editor was locked. Reload and unlock it."
-                : "Could not save that file.",
-        );
-        return;
-      }
-
-      setFace(index, {
-        type: "image",
-        src: payload.src,
-        alt: face.type === "image" ? face.alt : "",
-        fit: face.type === "image" ? face.fit : "cover",
-      });
-      // A face fills the frame, so an oversized texture costs every visitor.
-      if (payload.large) setNotice("Saved — over 350 KB, so worth compressing.");
-    } catch {
-      setUploading(null);
-      setNotice("Could not save that file.");
+    if ("error" in result) {
+      setNotice(result.error);
+      return;
     }
+
+    setFace(index, {
+      type: "image",
+      src: result.src,
+      alt: face.type === "image" ? face.alt : "",
+      fit: face.type === "image" ? face.fit : "cover",
+    });
+    // A face fills the frame, so an oversized texture costs every visitor.
+    if (result.large) setNotice("Saved — over 350 KB, so worth compressing.");
+    else if (result.converted) setNotice("Converted to JPEG and saved.");
   }
 
   return (
@@ -95,7 +76,8 @@ export function FacesSection({
 
       {card.faces.map((face, index) => {
         const isLine = face.type === "text" && face.style === "line";
-        const chars = face.type === "text" ? face.body.length : 0;
+        // Without its **marks**, as the card counts it.
+        const chars = face.type === "text" ? plainText(face.body).length : 0;
         const min = isLine ? 1 : BODY_MIN;
         const max = isLine ? LINE_FACE_MAX : BODY_MAX;
 
@@ -163,19 +145,19 @@ export function FacesSection({
 
             {face.type === "text" ? (
               <>
-                <textarea
+                <RichField
+                  multiline
+                  label={`Face ${index + 1}`}
                   value={face.body}
                   rows={isLine ? 2 : 5}
-                  onChange={(event) =>
-                    setFace(index, { ...face, body: event.target.value })
-                  }
+                  onChange={(body) => setFace(index, { ...face, body })}
                   lang="ja"
                 />
                 <span
                   className="editor__hint"
                   data-warn={chars > 0 && (chars < min || chars > max)}
                 >
-                  {chars} / {min}–{max} characters
+                  {chars} / {min}–{max} characters · **bold**, *italic*, __underline__
                   {isLine ? " · set large and centred, a beat rather than a paragraph" : ""}
                 </span>
               </>
@@ -204,15 +186,19 @@ export function FacesSection({
                     />
                   )}
                   <span className="editor__hint">
-                    Cube-face images live in public{imageFolder(card.slug)}
+                    From {imageFolder(card.slug)}
                   </span>
                 </label>
+
+                {face.src ? (
+                  <img className="editor__thumb" src={thumbUrl(face.src)} alt="" />
+                ) : null}
 
                 <label className="field">
                   <span>Upload</span>
                   <input
                     type="file"
-                    accept="image/webp,image/jpeg,image/png,image/avif"
+                    accept={UPLOAD_ACCEPT}
                     disabled={uploading === index}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
@@ -222,7 +208,9 @@ export function FacesSection({
                     }}
                   />
                   <span className="editor__hint">
-                    {uploading === index ? "Saving…" : `Saved into public${imageFolder(card.slug)}`}
+                    {uploading === index
+                      ? "Saving…"
+                      : `Saved into ${imageFolder(card.slug)} · in the preview after Save to file, at face-${index + 1}`}
                   </span>
                 </label>
 

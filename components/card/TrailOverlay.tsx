@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useLang, useStrings } from "./LangContext";
+import { RichText } from "./RichText";
 import { formatFuzzyDate } from "@/lib/fuzzyDate";
 import type { ClientMemory } from "@/lib/clientCard";
 
@@ -23,7 +25,16 @@ type Props = {
 export function TrailOverlay({ memories, active, revealed, onBack }: Props) {
   const t = useStrings();
   const lang = useLang();
-  const memory = memories[active];
+  /*
+   * The words belong to the memory the camera last *arrived* at, not the one
+   * it is heading for. `active` moves the moment a drift begins, so reading
+   * it directly swapped in the next memory's date and caption while the old
+   * ones were still fading — the new words were on screen for the whole
+   * flight. They change only once the camera has arrived (`revealed`).
+   */
+  const [shown, setShown] = useState(active);
+  if (revealed && shown !== active) setShown(active);
+  const memory = memories[shown];
   const oldest = active === memories.length - 1;
 
   return (
@@ -54,7 +65,7 @@ export function TrailOverlay({ memories, active, revealed, onBack }: Props) {
               </h2>
               {memory.caption ? (
                 <p className="trail-ui__caption" lang={lang}>
-                  {memory.caption}
+                  <RichText text={memory.caption} />
                 </p>
               ) : null}
             </>

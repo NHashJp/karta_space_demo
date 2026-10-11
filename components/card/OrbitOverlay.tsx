@@ -162,9 +162,17 @@ export function OrbitOverlay({
 
   return (
     <div className="orbit-ui" data-panel={panel ?? "none"}>
-      <p className="orbit-ui__tip" data-visible={tip && !busy} lang={lang}>
-        {t.orbit.tapStar}
-      </p>
+      {/*
+        The hint goes in the caption's own column when there is one, under the
+        date, so it follows however tall the promise and the countdown set —
+        at a fixed height it ran into the larger countdown. Without a caption
+        it keeps the corner to itself.
+      */}
+      {card.comet ? null : (
+        <p className="orbit-ui__tip" data-visible={tip && !busy} lang={lang}>
+          {t.orbit.tapStar}
+        </p>
+      )}
 
       {/*
         The promise, in the top-right corner (rev 7.1 §10).
@@ -195,6 +203,9 @@ export function OrbitOverlay({
           {aboard ? (
             <p className="orbit-caption__aboard">{t.orbit.aboard}</p>
           ) : null}
+          <p className="orbit-ui__tip" data-visible={tip && !busy}>
+            {t.orbit.tapStar}
+          </p>
         </div>
       ) : null}
 

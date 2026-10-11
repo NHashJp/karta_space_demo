@@ -6,7 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import StrokeText, { strokeTextDuration } from "@/components/text/StrokeText";
 import { SocialLinks } from "./SocialLinks";
 import { Signature } from "./Signature";
-import { ORBIT_HINT_MS, SECRET_AFTER_MS, SIGNATURE_DRAW_MS, replayed } from "@/lib/timing";
+import {
+  ORBIT_AFTER_WRITING_MS,
+  ORBIT_HINT_MS,
+  SECRET_AFTER_MS,
+  SIGNATURE_DRAW_MS,
+  replayed,
+} from "@/lib/timing";
 import { usePrefersReducedMotion } from "@/lib/useFaceNavigation";
 import { closingLines } from "@/lib/closingLines";
 import type { SocialLink } from "@/types/card";
@@ -30,6 +36,8 @@ type Props = {
   onReveal: () => void;
   onReplay: () => void;
   onDeploy: () => void;
+  /** The last thing on the screen has arrived: the closing has been shown in full. */
+  onSettled?: () => void;
 };
 
 /**
@@ -82,6 +90,7 @@ export function CompletionState({
   onReveal,
   onReplay,
   onDeploy,
+  onSettled,
 }: Props) {
   const t = useStrings();
   const lang = useLang();
@@ -193,11 +202,24 @@ export function CompletionState({
     return () => clearTimeout(timer);
   }, [writingEndsS, signatureDelayMs, signature, again, reducedMotion]);
 
+  /*
+   * The order of the whole screen, in one place: the closing line, then the
+   * signature, then — a beat after the last stroke — the orbit offer, then
+   * the invitation inside the cube. Under reduced motion nothing is drawn, so
+   * the writing is over at once and only the offers' own pacing remains.
+   */
+  const writingEndsMs = reducedMotion
+    ? 0
+    : Math.max(writingEndsS * 1000, signature ? signatureDelayMs + SIGNATURE_DRAW_MS : 0);
+  const orbitAtMs = Math.max(ORBIT_HINT_MS, writingEndsMs + ORBIT_AFTER_WRITING_MS);
+  const secretAtMs = Math.max(writingEndsMs, hasOrbit ? orbitAtMs : 0) + SECRET_AFTER_MS;
+  const settledAtMs = hasSecret ? secretAtMs : hasOrbit ? orbitAtMs : writingEndsMs;
+
   useEffect(() => {
     if (!hasOrbit) return;
-    const timer = setTimeout(() => setOfferOrbit(true), replayed(ORBIT_HINT_MS, again));
+    const timer = setTimeout(() => setOfferOrbit(true), brisk(orbitAtMs));
     return () => clearTimeout(timer);
-  }, [hasOrbit, again]);
+  }, [hasOrbit, orbitAtMs, again]);
 
   /*
    * The invitation inside the cube comes **last**: after the closing line and
@@ -208,16 +230,15 @@ export function CompletionState({
    */
   useEffect(() => {
     if (!hasSecret) return;
-    const writingEnds = reducedMotion
-      ? 0
-      : Math.max(writingEndsS * 1000, signature ? signatureDelayMs + SIGNATURE_DRAW_MS : 0);
-    const orbitArrives = hasOrbit ? ORBIT_HINT_MS : 0;
-    const timer = setTimeout(
-      () => setOfferSecret(true),
-      brisk(Math.max(writingEnds, orbitArrives) + SECRET_AFTER_MS),
-    );
+    const timer = setTimeout(() => setOfferSecret(true), brisk(secretAtMs));
     return () => clearTimeout(timer);
-  }, [hasSecret, hasOrbit, writingEndsS, signatureDelayMs, signature, again, reducedMotion]);
+  }, [hasSecret, secretAtMs, again]);
+
+  /** Tells the card when the last thing on this screen has arrived. */
+  useEffect(() => {
+    const timer = setTimeout(() => onSettled?.(), brisk(settledAtMs));
+    return () => clearTimeout(timer);
+  }, [settledAtMs, again]);
 
   return (
     <div className="screen screen--completion" data-leaving={leaving} aria-hidden={leaving}>

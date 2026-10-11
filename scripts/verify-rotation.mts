@@ -73,7 +73,8 @@ import {
   shootingStars,
 } from "../lib/shootingStars.ts";
 import { cleanSignature } from "../lib/signature.ts";
-import { visualLength } from "../lib/i18n.ts";
+import { YOU_JA, strings, visualLength } from "../lib/i18n.ts";
+import { parseRich, plainText } from "../lib/richText.ts";
 /** The meteor shower's own length, read from the component that plays it. */
 const SHOWER_S = Number(
   /const DURATION_S = ([\d.]+)/.exec(
@@ -81,7 +82,7 @@ const SHOWER_S = Number(
   )?.[1],
 );
 import { readLocalCards } from "../lib/localCards.ts";
-import { formatFuzzyDate, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
+import { formatFuzzyDate, orderMemories, parseFuzzyDate, sortMemoriesNewestFirst } from "../lib/fuzzyDate.ts";
 import { civilDate, isCometDay, nextOccurrence } from "../lib/orbitClock.ts";
 import {
   APHELION,
@@ -329,12 +330,12 @@ console.log("4. Camera framing and on-screen text size:");
     const cssToScreen = renderedPx / panelPx;
     const longest = Math.max(
       ...cards.flatMap((card) =>
-        card.faces.filter((f) => f.type === "text").map((f) => visualLength(f.body)),
+        card.faces.filter((f) => f.type === "text").map((f) => visualLength(plainText(f.body))),
       ),
     );
     const longestSecret = Math.max(
       1,
-      ...cards.map((card) => visualLength((card.secret ?? "").trim())),
+      ...cards.map((card) => visualLength(plainText((card.secret ?? "").trim()))),
     );
     const worst = measureFace(panelPx, longest);
     const fontPx = worst.fontPx * cssToScreen;
@@ -404,7 +405,7 @@ console.log(`5. Configured content fits the spec's limits (${cards.length} card(
         check(id(`face ${i + 1} image exists`), existsSync(file), file);
         continue;
       }
-      const chars = visualLength(face.body);
+      const chars = visualLength(plainText(face.body));
 
       if (face.style === "line") {
         // A line face is fitted as a beat, not as a paragraph: the question is
@@ -3799,6 +3800,70 @@ console.log("32. Coming back from the trail is one move (rev 6 §9.3):");
   }
 
   console.log(`  retrace sampled at 400 steps across ${SIZES.length} framings`);
+}
+
+/* ---- the receiver's name (`to`) ------------------------------------------ */
+
+{
+  console.log("\nThe receiver's name:");
+  const flat = (table: unknown): string[] => {
+    if (typeof table === "string") return [table];
+    if (typeof table === "function") {
+      try {
+        return flat((table as (...args: unknown[]) => unknown)("X", true));
+      } catch {
+        return [];
+      }
+    }
+    if (table && typeof table === "object") return Object.values(table).flatMap(flat);
+    return [];
+  };
+  const plain = flat(strings("ja"));
+  const named = flat(strings("ja", "ゆい"));
+  const uses = plain.filter((line) => line.includes(YOU_JA)).length;
+  check("the Japanese interface says あなた somewhere", uses > 0, `${uses} lines`);
+  check(
+    "a named card says the name instead, everywhere",
+    !named.some((line) => line.includes(YOU_JA)) &&
+      named.filter((line) => line.includes("ゆい")).length === uses,
+  );
+  check("unnamed, blank or あなた gives the default table", strings("ja", " ") === strings("ja") &&
+    strings("ja", YOU_JA) === strings("ja"));
+  check("English ignores it", strings("en", "ゆい") === strings("en"));
+}
+
+/* ---- the sender's formatting (`lib/richText.ts`) --------------------------- */
+
+{
+  console.log("\nBold, italic, underline:");
+  const runs = parseRich("**太字** と *斜体* と __下線__ と ***両方*** と **外 *内* 外**");
+  const styled = (text: string) => runs.find((run) => run.text === text);
+  check("**…** is bold", styled("太字")?.bold === true && !styled("太字")?.italic);
+  check("*…* is italic", styled("斜体")?.italic === true && !styled("斜体")?.bold);
+  check("__…__ is underlined", styled("下線")?.underline === true);
+  check("***…*** is both", styled("両方")?.bold === true && styled("両方")?.italic === true);
+  check("marks nest", styled("内")?.bold === true && styled("内")?.italic === true);
+  check("the words survive without their marks", plainText("**太字** と *斜体*") === "太字 と 斜体");
+  check("an unclosed mark and a lone star show as typed", plainText("un**closed, a * b") === "un**closed, a * b");
+  check("no run is ever empty or markup", runs.every((run) => run.text.length > 0 && !/[<>]/.test(run.text)));
+}
+
+/* ---- the trail's order (`memoryOrder`) ----------------------------------- */
+
+{
+  console.log("\nThe trail's order:");
+  const listed = [
+    { title: "early", date: "2026-02-10" },
+    { title: "month", date: "2026-02" },
+    { title: "late", date: "2026-02-20" },
+    { title: "year", date: "2025" },
+  ];
+  const byDate = orderMemories(listed, undefined).map((m) => m.title).join(",");
+  check("by date, a month alone sits at its 15th", byDate === "late,month,early,year", byDate);
+  check("\"date\" is the same as unset", orderMemories(listed, "date").map((m) => m.title).join(",") === byDate);
+  const manual = orderMemories(listed, "manual").map((m) => m.title).join(",");
+  check("\"manual\" keeps the list exactly", manual === "early,month,late,year", manual);
+  check("ordering never mutates the list", listed[0].title === "early");
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);

@@ -55,7 +55,7 @@ restart the server ([messaging](./messaging.md#only-offered-when-deliverable)).
 |---|---|
 | Gate | nothing of the card in the page source; `HOSHIZORA`, ` hoshizora`, `ほしぞら` all accepted; an eleventh wrong try refused; a wrong slug looks like a wrong password |
 | Faces | one gesture, one face; every face square-on and upright; text inside the face, number included, on an iPhone too; text never readable mid-turn or on the landing/closing screens |
-| Closing | the line, then the signature, then the offers; 中をのぞく last; the second visit plays faster |
+| Closing | the line, then the signature, then この手紙には、続きがあります a beat after its last stroke; 中をのぞく last; the first time, scrolling and swiping do nothing until 中をのぞく has arrived; the second visit plays faster and is never held |
 | Inside | the line attaches only after the camera arrives; any gesture leads out |
 | Deployment | starts without a hitch; no panel through the body; the satellite stays in front of the planet on a phone; docking returns the closing screen exactly as it was |
 | First launch | the intro: あと X 日 over the promise, the dashed way home, the comet's run with the sunrise, the rewind, then the sheet; スキップ works; it can be replayed from the sheet once words are aboard |
