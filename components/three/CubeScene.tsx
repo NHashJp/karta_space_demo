@@ -498,6 +498,7 @@ export function CubeScene({
                 curveSeed={curveSeed}
                 seed={colourSeed}
                 reducedMotion={cube.reducedMotion}
+                behind={index < activeMemory}
               />
             ) : null,
           )

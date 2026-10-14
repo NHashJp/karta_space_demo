@@ -1,7 +1,7 @@
 import { civilDate, DEFAULT_TIME_ZONE } from "./orbitClock.ts";
 import { cometCycle, type CometStatus } from "./cometOrbit.ts";
 import { returnLabel, type ReturnLabel } from "./returnLabel.ts";
-import { sortMemoriesNewestFirst } from "./fuzzyDate.ts";
+import { orderMemories } from "./fuzzyDate.ts";
 import { cleanSignature } from "./signature.ts";
 import { langOf, strings } from "./i18n.ts";
 import type { CardConfig, Memory, MemoryImage } from "@/types/card";
@@ -144,7 +144,7 @@ export function toClientCard(card: CardConfig, now: Date, env: EnvFlags): Client
   ) as CardConfig["faces"];
 
   const memories = card.memories?.length
-    ? sortMemoriesNewestFirst(card.memories).map((memory) => ({
+    ? orderMemories(card.memories, card.memoryOrder).map((memory) => ({
         ...memory,
         image: memory.image
           ? { ...memory.image, url: mediaUrl(card.slug, memory.image.src) }

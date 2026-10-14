@@ -21,7 +21,8 @@ type CardConfig = {
   secret?: string;           // one short line inside the cube
   social?: SocialLink[];
   // all optional — a card using none of them is the v0.1 card:
-  from?, writtenAt?, timeZone?, signature?, sound?,
+  from?, to?,                // to: the receiver's name, said in place of あなた
+  writtenAt?, timeZone?, signature?, sound?,
   company?,                  // 1-3: how busy the sky round the satellite is
   memories?, comet?, reply?, access?
 };
@@ -31,7 +32,11 @@ type CardFace =
   | { type: "image"; src: string; alt: string; fit?: "cover" | "contain" };
 ```
 
-`types/card.ts` documents every field. The slug is restricted to `a-z`, `0-9`
+`types/card.ts` documents every field. Face text, memory captions and the
+`secret` line may use `**bold**`, `*italic*`, `__underline__` (and
+`***both***`); `lib/richText.ts` reads them into elements, never HTML, and
+lengths are counted without the marks. A mark with no partner shows as typed
+(`cardRules` warns). The closing line is drawn stroke by stroke and stays plain. The slug is restricted to `a-z`, `0-9`
 and hyphens because it becomes a URL, a cookie name and an environment variable
 name.
 

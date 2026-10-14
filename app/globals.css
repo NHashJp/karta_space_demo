@@ -573,6 +573,9 @@ body {
 }
 
 .face-text p {
+  /* The sender's own line breaks (Enter in the editor) are kept; runs of
+     spaces still collapse, so a stray space at a line's start does not show. */
+  white-space: pre-line;
   font-family: var(--font-ja);
   font-size: 1em;
   font-weight: 400;
@@ -583,6 +586,23 @@ body {
   word-break: normal;
   overflow-wrap: anywhere;
   line-break: strict;
+}
+
+/* The sender's own emphasis (`RichText`), wherever their words are shown. */
+.rich__b {
+  font-weight: 700;
+}
+
+.rich__i {
+  font-style: italic;
+}
+
+.rich__u {
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.22em;
+  /* Under Japanese the line would otherwise cut through descending kana. */
+  text-decoration-skip-ink: auto;
 }
 
 .face-text__index {
@@ -798,6 +818,16 @@ body {
   flex-wrap: wrap;
 }
 
+/* What an uploaded or chosen picture looks like, before anything is saved. */
+.editor__thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--space-1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  flex: none;
+}
+
 .editor__section {
   display: flex;
   flex-direction: column;
@@ -948,6 +978,49 @@ body {
   gap: var(--space-2);
 }
 
+/* ---- the trail's order in the editor (MemoriesSection) ---- */
+
+.memories__order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.memory__handle {
+  padding: 0 var(--space-half);
+  color: var(--titanium);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.memory__handle:active {
+  cursor: grabbing;
+}
+
+/* The title takes the room, so the moves and Remove sit together at the end. */
+.memory__handle + strong {
+  flex: 1;
+}
+
+.memory__moves {
+  display: flex;
+  gap: var(--space-half);
+}
+
+.face[data-dragging="true"] {
+  opacity: 0.45;
+}
+
+/* Where it will land: a line along the top of the memory it is dropped on. */
+.face[data-over="true"] {
+  border-color: var(--ion);
+  box-shadow: 0 -2px 0 var(--ion);
+}
+
 .face__types {
   display: flex;
   gap: var(--space-1);
@@ -962,6 +1035,54 @@ body {
   font: inherit;
   font-size: 0.75rem;
   cursor: pointer;
+}
+
+/* Bold, italic, underline above a field the sender writes in (`FormatBar`). */
+.rich-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.format-bar {
+  display: flex;
+  gap: var(--space-half);
+}
+
+.format-bar__button {
+  min-width: var(--space-4);
+  padding: var(--space-half) var(--space-1);
+  border: 1px solid var(--charcoal);
+  border-radius: var(--radius-1);
+  background: transparent;
+  color: var(--lunar);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.format-bar__button:hover,
+.format-bar__button:focus-visible {
+  border-color: var(--ion);
+  color: var(--starlight);
+}
+
+.format-bar__button[data-format="bold"] {
+  font-weight: 700;
+}
+
+.format-bar__button[data-format="italic"] {
+  font-style: italic;
+}
+
+.format-bar__button[data-format="underline"] {
+  text-decoration: underline;
+}
+
+.face__type:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .face__type[aria-pressed="true"] {
@@ -1040,6 +1161,7 @@ body {
 /* The line written on the inside of the far wall. */
 .secret-line {
   margin: 0;
+  white-space: pre-line;
   color: var(--starlight);
   font-family: var(--font-ja);
   font-weight: 500;
@@ -1248,6 +1370,13 @@ body {
 
 .orbit-ui__tip[data-visible="true"] {
   opacity: 1;
+}
+
+/* In the caption's column: in flow under the date, never over the countdown. */
+.orbit-caption .orbit-ui__tip {
+  position: static;
+  max-width: none;
+  margin-top: var(--space-1);
 }
 
 /*
@@ -1735,14 +1864,16 @@ body:has(.sheet-layer) .orbit-ui__reread {
  * while it is being read (§23.5), and the hidden ones keep their space so that
  * revealing one does not shift the button under the reader's thumb.
  */
+/* Out quickly as the camera sets off; in only once it has arrived. */
 .trail-ui__memory {
   text-align: center;
   opacity: 0;
-  transition: opacity 600ms ease;
+  transition: opacity 200ms ease;
 }
 
 .trail-ui__memory[data-visible="true"] {
   opacity: 1;
+  transition: opacity 600ms ease 120ms;
 }
 
 .trail-ui__date {
@@ -1761,6 +1892,7 @@ body:has(.sheet-layer) .orbit-ui__reread {
 
 .trail-ui__caption {
   margin-top: var(--space-1);
+  white-space: pre-line;
   font-size: 0.88rem;
   line-height: 1.8;
   color: var(--asteroid);

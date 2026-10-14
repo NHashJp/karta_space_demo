@@ -1,6 +1,8 @@
 "use client";
 
 import { scriptLang, visualLength } from "@/lib/i18n";
+import { plainText } from "@/lib/richText";
+import { RichText } from "@/components/card/RichText";
 import { useThree } from "@react-three/fiber";
 import { useLayoutEffect, useState } from "react";
 import type { TextFace as TextFaceData } from "@/types/card";
@@ -29,8 +31,8 @@ export function TextFace({ face, position, rotation, visible, index }: Props) {
   // spilling past the cube edge. A `line` face is fitted to land as a beat
   // instead (spec v0.2 §13.2).
   const fontPx = isLine
-    ? fitLineFaceSize(panelPx, visualLength(face.body))
-    : fitFontSize(panelPx, visualLength(face.body));
+    ? fitLineFaceSize(panelPx, visualLength(plainText(face.body)))
+    : fitFontSize(panelPx, visualLength(plainText(face.body)));
   const fitted = useFittedSize(fontPx, visible);
 
   return (
@@ -50,7 +52,9 @@ export function TextFace({ face, position, rotation, visible, index }: Props) {
           aria-hidden={!visible}
           lang={scriptLang(face.body)}
         >
-          <p>{face.body}</p>
+          <p>
+            <RichText text={face.body} />
+          </p>
           <span className="face-text__index">{String(index + 1).padStart(2, "0")}</span>
         </div>
       </FlatHtml>

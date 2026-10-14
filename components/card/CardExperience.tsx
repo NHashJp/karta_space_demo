@@ -16,6 +16,7 @@ import { CometIntro } from "./CometIntro";
 import { CrossroadsPanel } from "./CrossroadsPanel";
 import { TrajectoryPanel } from "./TrajectoryPanel";
 import { ReplyPanel } from "./ReplyPanel";
+import { RichText } from "./RichText";
 import { AboutPanel } from "./AboutPanel";
 import { LangProvider } from "./LangContext";
 import { strings } from "@/lib/i18n";
@@ -67,7 +68,7 @@ export function CardExperience({
   const memoryCount = card.memories?.length ?? 0;
   // The card's own language, for every word drawn around it (`lib/i18n.ts`).
   const lang = card.lang ?? "ja";
-  const t = strings(lang);
+  const t = strings(lang, card.to);
 
   /*
    * What this browser has already seen of the comet (§11.5). It is read once,
@@ -381,7 +382,18 @@ export function CardExperience({
   const deploying =
     state === "deploying" ? ("out" as const) : state === "undeploying" ? ("in" as const) : null;
 
-  useFaceNavigation(move, !acceptsInput(state), state !== "landing");
+  /*
+   * The first time the closing screen plays, a scroll or a swipe does nothing
+   * until all of it has arrived — the line, the signature, then the offers —
+   * so a reader still scrolling from the last face cannot sweep past the
+   * ending, or into orbit, before it has been said. `settledClosing` holds
+   * which closing has finished; from the second on it plays briskly and is
+   * never held.
+   */
+  const [settledClosing, setSettledClosing] = useState(0);
+  const closingHeld = state === "completed" && closings === 1 && settledClosing !== closings;
+
+  useFaceNavigation(move, !acceptsInput(state) || closingHeld, state !== "landing");
 
   // The document speaks the card's language, for screen readers and for the
   // browser's own line breaking.
@@ -403,7 +415,7 @@ export function CardExperience({
   }
 
   return (
-    <LangProvider lang={lang}>
+    <LangProvider lang={lang} to={card.to}>
       <main className="experience" data-state={state} lang={lang}>
         <div className="experience__scene" aria-hidden={state !== "reading"}>
           <CubeScene
@@ -488,6 +500,7 @@ export function CardExperience({
             onReveal={onReveal}
             onReplay={() => dispatch({ type: "replay" })}
             onDeploy={onDeploy}
+            onSettled={() => setSettledClosing(closings)}
           />
         ) : null}
 
@@ -629,10 +642,14 @@ export function CardExperience({
           <h1 lang={lang}>{card.title}</h1>
           {card.faces.map((face, index) => (
             <p key={index} lang={lang}>
-              {face.type === "text" ? face.body : face.alt}
+              {face.type === "text" ? <RichText text={face.body} /> : face.alt}
             </p>
           ))}
-          {secret ? <p lang={lang}>{secret}</p> : null}
+          {secret ? (
+            <p lang={lang}>
+              <RichText text={secret} />
+            </p>
+          ) : null}
 
           {memories.length > 0 ? (
             <section lang={lang}>
@@ -641,7 +658,11 @@ export function CardExperience({
                 <article key={index}>
                   <h3>{memory.title}</h3>
                   <p>{formatFuzzyDate(memory.date, { ...memory, lang })}</p>
-                  {memory.caption ? <p>{memory.caption}</p> : null}
+                  {memory.caption ? (
+                    <p>
+                      <RichText text={memory.caption} />
+                    </p>
+                  ) : null}
                   {memory.image ? <p>{memory.image.alt}</p> : null}
                 </article>
               ))}

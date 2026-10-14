@@ -4,7 +4,8 @@ import "./globals.css";
 
 const notoSansJp = Noto_Sans_JP({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  // 700 for the sender's **bold** (`RichText`); without it the browser fakes one.
+  weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-noto-sans-jp",
   preload: true,

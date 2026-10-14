@@ -2,6 +2,7 @@ import { visualLength } from "./i18n.ts";
 import { FUZZY_DATE_PATTERN, isFullDate, parseFuzzyDate } from "./fuzzyDate.ts";
 import { isValidTimeZone } from "./orbitClock.ts";
 import { COMPANY_MAX, companyLevel } from "./orbiters.ts";
+import { plainText } from "./richText.ts";
 import type { CardConfig, CardFace, ReturnPrecision } from "@/types/card";
 
 /**
@@ -83,11 +84,23 @@ export function imageFolder(slug: string): string {
   return `private/cards/${slug}/`;
 }
 
+/**
+ * A `**`, `*` or `__` left over once the formatting is read is one the sender
+ * opened and never closed — it will show on the card as typed.
+ */
+function looseMarks(at: string, text: string, out: Problems): void {
+  const left = plainText(text);
+  const mark = left.includes("**") ? "**" : left.includes("__") ? "__" : null;
+  if (mark) out.warnings.push(`${at}: an unclosed ${mark} will show as typed`);
+}
+
 function faceProblems(face: CardFace, index: number, slug: string, out: Problems): void {
   const at = `face ${index + 1}`;
 
   if (face.type === "text") {
-    const chars = visualLength(face.body.trim());
+    // Counted without its **marks**: they are formatting, not characters.
+    const chars = visualLength(plainText(face.body.trim()));
+    looseMarks(at, face.body, out);
 
     // A "line" face is a beat, not a paragraph: its own range replaces the
     // 80-250 check entirely (spec v0.2 §5).
@@ -131,6 +144,10 @@ export function cardProblems(card: CardConfig, seenSlugs: Iterable<string> = [])
   if (!card.title?.trim()) out.errors.push("the title is empty");
   if (!card.closing?.trim()) out.errors.push("the closing message is empty");
   // Only the languages the interface is written in (lib/i18n.ts).
+  if (card.memoryOrder !== undefined && card.memoryOrder !== "date" && card.memoryOrder !== "manual") {
+    out.errors.push(`memoryOrder: "${String(card.memoryOrder)}" is not "date" or "manual"`);
+  }
+
   if (card.lang !== undefined && card.lang !== "ja" && card.lang !== "en") {
     out.errors.push(`lang: "${String(card.lang)}" is not a supported language (ja, en)`);
   }
@@ -146,11 +163,12 @@ export function cardProblems(card: CardConfig, seenSlugs: Iterable<string> = [])
   card.faces?.forEach((face, index) => faceProblems(face, index, card.slug, out));
 
   const secret = card.secret?.trim();
-  if (secret && visualLength(secret) > SECRET_MAX) {
+  if (secret && visualLength(plainText(secret)) > SECRET_MAX) {
     out.warnings.push(
-      `the secret line is ${Math.round(visualLength(secret))} characters wide, over ${SECRET_MAX} — it sets too small inside the cube`,
+      `the secret line is ${Math.round(visualLength(plainText(secret)))} characters wide, over ${SECRET_MAX} — it sets too small inside the cube`,
     );
   }
+  if (secret) looseMarks("the secret line", secret, out);
 
   v02Problems(card, out);
 
@@ -203,9 +221,10 @@ function memoryProblems(card: CardConfig, out: Problems): void {
     else if (visualLength(title) > MEMORY_TITLE_MAX) {
       out.warnings.push(`${at}: title is ${title.length} characters, over ${MEMORY_TITLE_MAX}`);
     }
-    if (visualLength(memory.caption?.trim() ?? "") > MEMORY_CAPTION_MAX) {
+    if (visualLength(plainText(memory.caption?.trim() ?? "")) > MEMORY_CAPTION_MAX) {
       out.warnings.push(`${at}: caption is over ${MEMORY_CAPTION_MAX} characters`);
     }
+    if (memory.caption) looseMarks(`${at} caption`, memory.caption, out);
 
     const image = memory.image;
     if (!image) return;
@@ -288,6 +307,10 @@ function v02Problems(card: CardConfig, out: Problems): void {
   }
   if (visualLength(card.from?.trim() ?? "") > FROM_MAX) {
     out.warnings.push(`from: "${card.from}" is over ${FROM_MAX} characters`);
+  }
+  // The same length as `from`: it stands where あなた stood, in the same sentences.
+  if (visualLength(card.to?.trim() ?? "") > FROM_MAX) {
+    out.warnings.push(`to: "${card.to}" is over ${FROM_MAX} characters`);
   }
   if (card.closing && visualLength(card.closing.trim()) > CLOSING_MAX) {
     out.notes.push(

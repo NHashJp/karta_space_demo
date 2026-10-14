@@ -96,8 +96,9 @@ Both play only after the server accepted the message.
 
 ## The trail of memories
 
-Memories hang off the contrail, newest first; going forward goes further back in
-time, and either end returns to orbit.
+Memories hang off the contrail, newest first by date — or in the sender's own
+order when they have arranged one (`memoryOrder: "manual"`); going forward goes
+further back, and either end returns to orbit.
 
 - **Staged, not placed.** `stagedTrail` projects the curve's two screen targets
   back into the world so it leaves from the upper-left clear of the satellite;

@@ -136,6 +136,11 @@ export type CardConfig = {
 
   /** How the sender signs off, e.g. "みお". Defaults to "送り主". */
   from?: string;
+  /**
+   * Who the letter is for, e.g. "ゆい". In the Japanese interface it takes the
+   * place of あなた — ゆいの言葉, ゆいの星. Defaults to あなた; English ignores it.
+   */
+  to?: string;
   /** Landing line: "2026年3月に書かれた手紙". */
   writtenAt?: FuzzyDate;
   /** IANA zone, default "Asia/Tokyo". Every date comparison uses it. */
@@ -152,8 +157,14 @@ export type CardConfig = {
    * small craft and rocks in orbit and how often a rock passes (`COMPANY_MAX`).
    */
   company?: number;
-  /** 1-20 (`MEMORY_MAX`), shown newest first however they are ordered here. */
+  /** 1-20 (`MEMORY_MAX`), in the order `memoryOrder` says. */
   memories?: Memory[];
+  /**
+   * How the trail is ordered. Unset (or "date"): newest first by date, however
+   * they are listed — a month alone counts as its 15th. "manual": exactly as
+   * listed, newest-feeling first; the editor sets it when memories are dragged.
+   */
+  memoryOrder?: "date" | "manual";
   /** Replaces the revision-4 `satellite` and `comet` fields (§5.1). */
   comet?: PromiseComet;
   /** Presence enables the reply rocket, if email is configured. */

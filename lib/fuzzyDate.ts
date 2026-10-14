@@ -92,8 +92,8 @@ export function fuzzyDateSortKey(value: FuzzyDate, season?: Season): number {
 }
 
 /**
- * Newest first, config order breaking ties. Memories are always displayed this
- * way; the order they are written in is not the order they are shown in.
+ * Newest first, config order breaking ties: the trail's order unless the
+ * sender has arranged it by hand (`orderMemories`).
  */
 export function sortMemoriesNewestFirst<T extends { date: FuzzyDate; season?: Season }>(
   memories: readonly T[],
@@ -107,4 +107,15 @@ export function sortMemoriesNewestFirst<T extends { date: FuzzyDate; season?: Se
       return delta !== 0 ? delta : a.index - b.index;
     })
     .map((entry) => entry.memory);
+}
+
+/**
+ * The order the trail is travelled in: by date, or — once the sender has
+ * dragged them into an order of their own — exactly as listed.
+ */
+export function orderMemories<T extends { date: FuzzyDate; season?: Season }>(
+  memories: readonly T[],
+  order: "date" | "manual" | undefined,
+): T[] {
+  return order === "manual" ? [...memories] : sortMemoriesNewestFirst(memories);
 }

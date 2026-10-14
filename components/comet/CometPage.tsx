@@ -31,14 +31,17 @@ export function CometPage({
   comet,
   today,
   lang = "ja",
+  to,
 }: {
   comet: Opened;
   today: string;
   /** The card's language: the comet page speaks the card's words. */
   lang?: Lang;
+  /** The card's receiver: the planet the comet comes home to is theirs. */
+  to?: string;
 }) {
   return (
-    <LangProvider lang={lang}>
+    <LangProvider lang={lang} to={to}>
       <CometPageBody comet={comet} today={today} lang={lang} />
     </LangProvider>
   );

@@ -1,6 +1,8 @@
 "use client";
 
 import { scriptLang, visualLength } from "@/lib/i18n";
+import { plainText } from "@/lib/richText";
+import { RichText } from "@/components/card/RichText";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { FlatHtml } from "./FlatHtml";
@@ -21,7 +23,7 @@ type Props = {
 export function SecretFace({ text, visible }: Props) {
   const size = useThree((state) => state.size);
   const { panelPx, worldWidth } = secretPanel(size.width, size.height);
-  const fontPx = fitLinePx(panelPx, visualLength(text));
+  const fontPx = fitLinePx(panelPx, visualLength(plainText(text)));
 
   return (
     <group position={[0, 0, SECRET_PLANE_Z]}>
@@ -38,7 +40,7 @@ export function SecretFace({ text, visible }: Props) {
           aria-hidden={!visible}
           lang={scriptLang(text)}
         >
-          {text}
+          <RichText text={text} />
         </p>
       </FlatHtml>
     </group>

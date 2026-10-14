@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { SignaturePad } from "../SignaturePad";
 import type { SectionProps } from "../shared";
+import { RichField } from "../FormatBar";
 import { CLOSING_MAX, SECRET_MAX } from "@/lib/cardRules";
 import { cleanSignature, signaturePreview } from "@/lib/signature";
+import { plainText } from "@/lib/richText";
 
 /** The last screen: the line, the signature, and what is inside (§15.4). */
 export function ClosingSection({ card, edit }: SectionProps) {
@@ -63,20 +65,23 @@ export function ClosingSection({ card, edit }: SectionProps) {
         </span>
       </div>
 
-      <label className="field">
+      <div className="field">
         <span>
-          Inside the cube &middot; {(card.secret ?? "").length}/{SECRET_MAX}
+          Inside the cube &middot; {plainText(card.secret ?? "").length}/{SECRET_MAX}
         </span>
-        <input
+        <RichField
+          multiline
+          rows={2}
+          label="Inside the cube"
           value={card.secret ?? ""}
-          onChange={(event) => edit({ secret: event.target.value || undefined })}
+          onChange={(secret) => edit({ secret: secret || undefined })}
           lang="ja"
         />
         <span className="editor__hint">
           Optional. Offered a few seconds after the closing screen settles, and
           read from inside the cube — so it has to be short.
         </span>
-      </label>
+      </div>
 
       {drawing ? (
         <SignaturePad

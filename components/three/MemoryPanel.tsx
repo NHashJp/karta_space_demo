@@ -32,7 +32,15 @@ type Props = {
   curveSeed: number;
   seed: TrailSeed;
   reducedMotion: boolean;
+  /**
+   * Nearer the present than the memory being read: the camera has moved on
+   * past it, so it fades away rather than hanging in front of the next one.
+   */
+  behind?: boolean;
 };
+
+/** How quickly a passed memory fades, per second; about half a drift (DRIFT_MS). */
+const FADE_RATE = 2.2;
 
 export function MemoryPanel({
   memory,
@@ -41,10 +49,13 @@ export function MemoryPanel({
   curveSeed,
   seed,
   reducedMotion,
+  behind = false,
 }: Props) {
   const points = useStagedTrail(curveSeed);
   const group = useRef<THREE.Group>(null);
   const border = useRef<THREE.LineSegments>(null);
+  /** 1 while it is ahead or being read, easing to 0 once it is behind. */
+  const presence = useRef(behind ? 0 : 1);
 
   const u = memoryU(points, index, count);
 
@@ -53,9 +64,14 @@ export function MemoryPanel({
     const tangent = new THREE.Vector3(...trailTangent(points, u));
     // Facing back down the trail, at whoever is travelling it: the camera
     // arrives along the tangent, so the panel squares up to it exactly.
+    // `Matrix4.lookAt` points +z from the target to the eye, so aiming it
+    // *along* the tangent turns the front (+z) back towards the camera, which
+    // stands behind the memory (`trailPose`). Aimed the other way, the
+    // photograph's single-sided plane faced away and was culled, and only its
+    // frame — a line, drawn from either side — showed.
     const look = new THREE.Matrix4().lookAt(
       new THREE.Vector3(0, 0, 0),
-      tangent.clone().negate(),
+      tangent,
       new THREE.Vector3(0, 1, 0),
     );
     return {
@@ -64,8 +80,31 @@ export function MemoryPanel({
     };
   }, [points, u]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     const t = clock.elapsedTime;
+
+    // Fade a passed memory out while the camera flies on (and back in if the
+    // reader turns round), then stop drawing it at all.
+    const target = behind ? 0 : 1;
+    const step = reducedMotion ? 1 : Math.min(delta * FADE_RATE, 1);
+    presence.current += (target - presence.current) * step;
+    if (Math.abs(target - presence.current) < 0.002) presence.current = target;
+    if (group.current) {
+      group.current.visible = presence.current > 0.002;
+      // While fully present, leave every opacity alone (the shimmer animates
+      // its own); only a fading memory is scaled.
+      const fading = presence.current < 1 || group.current.userData.faded;
+      group.current.userData.faded = presence.current < 1;
+      if (fading) group.current.traverse((node) => {
+        const material = (node as THREE.Mesh).material as THREE.Material | undefined;
+        if (!material || Array.isArray(material)) return;
+        // Each material's own opacity, captured once, scaled by how present
+        // the memory is — so the photograph, its frame and the shimmer all
+        // fade together.
+        material.userData.base ??= material.opacity;
+        material.opacity = material.userData.base * presence.current;
+      });
+    }
 
     // The border is the trail's own colour here, from the same function the
     // ribbon is drawn with.
@@ -139,7 +178,8 @@ function Photograph({ url, fit }: { url: string; fit: "cover" | "contain" }) {
   return (
     <mesh>
       <planeGeometry args={[Math.min(scale[0], MEMORY_PANEL_WORLD), Math.min(scale[1], height)]} />
-      <meshBasicMaterial map={texture} toneMapped={false} />
+      {/* Transparent from the start, so fading it never recompiles a shader. */}
+      <meshBasicMaterial map={texture} toneMapped={false} transparent />
     </mesh>
   );
 }
