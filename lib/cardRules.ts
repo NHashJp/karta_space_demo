@@ -90,6 +90,12 @@ export function imageFolder(slug: string): string {
  */
 function looseMarks(at: string, text: string, out: Problems): void {
   const left = plainText(text);
+  // A link the card refused (not http, https or mailto) is left as typed.
+  const refused = /\[[^\]\n]+\]\(([^)\s]+)\)/.exec(left);
+  if (refused) {
+    out.warnings.push(`${at}: "${refused[1]}" is not a web or email address, so the link shows as typed`);
+    return;
+  }
   const mark = left.includes("**") ? "**" : left.includes("__") ? "__" : null;
   if (mark) out.warnings.push(`${at}: an unclosed ${mark} will show as typed`);
 }

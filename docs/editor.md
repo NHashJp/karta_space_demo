@@ -26,7 +26,8 @@ so "unsaved changes" is one honest flag.
   face. Text faces, memory captions and the line inside the cube take **bold**,
   *italic* and __underline__ from the B / I / U bar above the field or ⌘B / ⌘I /
   ⌘U, which wrap the selection in the marks the card reads (pressing again
-  removes them). Uploads (faces and memories) land in `private/cards/<slug>/` and show
+  removes them), and links from 🔗 or ⌘K: it asks for the address (https://
+  is added if left off) and writes `[words](address)`. Uploads (faces and memories) land in `private/cards/<slug>/` and show
   as a thumbnail at once (`/api/editor/image`, behind the editor's guard); the
   preview shows them after **Save to file**, at that face's Jump target. HEIC
   photos are converted to JPEG in the browser where it can read them (Safari);

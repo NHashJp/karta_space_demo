@@ -74,7 +74,7 @@ import {
 } from "../lib/shootingStars.ts";
 import { cleanSignature } from "../lib/signature.ts";
 import { YOU_JA, strings, visualLength } from "../lib/i18n.ts";
-import { parseRich, plainText } from "../lib/richText.ts";
+import { parseRich, plainText, safeHref } from "../lib/richText.ts";
 /** The meteor shower's own length, read from the component that plays it. */
 const SHOWER_S = Number(
   /const DURATION_S = ([\d.]+)/.exec(
@@ -3846,6 +3846,30 @@ console.log("32. Coming back from the trail is one move (rev 6 §9.3):");
   check("the words survive without their marks", plainText("**太字** と *斜体*") === "太字 と 斜体");
   check("an unclosed mark and a lone star show as typed", plainText("un**closed, a * b") === "un**closed, a * b");
   check("no run is ever empty or markup", runs.every((run) => run.text.length > 0 && !/[<>]/.test(run.text)));
+}
+
+/* ---- links in the sender's words ----------------------------------------- */
+
+{
+  console.log("\nLinks:");
+  const written = parseRich("詳しくは[こちら](https://example.com/a)を見てね");
+  check("[words](address) links the words", written.some((run) => run.text === "こちら" && run.href === "https://example.com/a"));
+  const bare = parseRich("見てね https://example.com/a_b__c__d。");
+  check(
+    "a bare address links itself, marks and all, and stops at Japanese punctuation",
+    bare.some((run) => run.text === "https://example.com/a_b__c__d" && run.href) && bare.at(-1)?.text === "。",
+  );
+  check("mailto: is linked", parseRich("[mail](mailto:a@example.com)")[0].href === "mailto:a@example.com");
+  for (const bad of ["javascript:alert(1)", "data:text/html,x", "JaVaScRiPt:alert(1)", "vbscript:x"]) {
+    check(`${bad.split(":")[0]}: is never a link`, safeHref(bad) === null && parseRich(`[x](${bad})`).every((run) => !run.href));
+  }
+  check("a link is counted by its words", plainText("[こちら](https://example.com)") === "こちら");
+  const inner = parseRich("[see https://b.example](https://a.example)");
+  check(
+    "an address inside a link's words is part of that one link",
+    inner.length > 0 && inner.every((run) => run.href === "https://a.example/"),
+    JSON.stringify(inner),
+  );
 }
 
 /* ---- the trail's order (`memoryOrder`) ----------------------------------- */

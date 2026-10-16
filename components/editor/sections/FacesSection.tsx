@@ -157,7 +157,7 @@ export function FacesSection({
                   className="editor__hint"
                   data-warn={chars > 0 && (chars < min || chars > max)}
                 >
-                  {chars} / {min}–{max} characters · **bold**, *italic*, __underline__
+                  {chars} / {min}–{max} characters · **bold**, *italic*, __underline__, [words](https://…)
                   {isLine ? " · set large and centred, a beat rather than a paragraph" : ""}
                 </span>
               </>

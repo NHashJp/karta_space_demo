@@ -605,6 +605,20 @@ body {
   text-decoration-skip-ink: auto;
 }
 
+/* A link in the sender's words: underlined, in the trail's light. */
+.rich__a {
+  color: var(--ion);
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.22em;
+  cursor: pointer;
+}
+
+.rich__a:hover,
+.rich__a:focus-visible {
+  color: var(--starlight);
+}
+
 .face-text__index {
   display: block;
   margin-top: 1.6em;
@@ -1183,6 +1197,17 @@ body {
 .flat-html,
 .flat-html * {
   pointer-events: none;
+}
+
+/*
+ * …except a link in the words being read. Only the visible text: the five
+ * hidden faces are laid flat over the same part of the screen, and an
+ * invisible link there would take the click meant for the real one.
+ */
+.face-text[data-visible="true"] .rich__a,
+.secret-line[data-visible="true"] .rich__a,
+.trail-ui__memory[data-visible="true"] .rich__a {
+  pointer-events: auto;
 }
 
 /* ---------- the orbit view (spec v0.2 §8.1, §8.3) ---------- */
