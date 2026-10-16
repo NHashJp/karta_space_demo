@@ -34,7 +34,10 @@ type CardFace =
 
 `types/card.ts` documents every field. Face text, memory captions and the
 `secret` line may use `**bold**`, `*italic*`, `__underline__` (and
-`***both***`); `lib/richText.ts` reads them into elements, never HTML, and
+`***both***`), and links — `[words](https://…)`, or a bare `https://…`.
+Only http, https and mailto addresses become links (anything else, such as
+`javascript:`, shows as typed); they open in a new tab. `lib/richText.ts` reads
+them into elements, never HTML, and
 lengths are counted without the marks. A mark with no partner shows as typed
 (`cardRules` warns). The closing line is drawn stroke by stroke and stays plain. The slug is restricted to `a-z`, `0-9`
 and hyphens because it becomes a URL, a cookie name and an environment variable

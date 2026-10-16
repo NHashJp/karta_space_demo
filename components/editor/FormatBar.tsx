@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, type KeyboardEvent } from "react";
+import { safeHref } from "@/lib/richText";
 
 /**
- * Bold, italic and underline for a field the sender writes in — as the marks
+ * Bold, italic, underline and links for a field the sender writes in — as the marks
  * the card reads (`lib/richText.ts`), so what is saved is still plain text.
  *
  * Applying a style wraps the selection in its marks, or unwraps it when the
@@ -12,12 +13,24 @@ import { useRef, type KeyboardEvent } from "react";
  */
 
 type Field = HTMLTextAreaElement | HTMLInputElement;
-export type Format = "bold" | "italic" | "underline";
+export type Format = "bold" | "italic" | "underline" | "link";
 
-const MARKS: Record<Format, string> = { bold: "**", italic: "*", underline: "__" };
+const MARKS: Record<Exclude<Format, "link">, string> = { bold: "**", italic: "*", underline: "__" };
 
-/** ⌘/Ctrl + B, I, U. */
-const KEYS: Record<string, Format> = { b: "bold", i: "italic", u: "underline" };
+/** ⌘/Ctrl + B, I, U, and K for a link. */
+const KEYS: Record<string, Format> = { b: "bold", i: "italic", u: "underline", k: "link" };
+
+/**
+ * What the sender typed, as an address the card will link to — `https://`
+ * supplied when they left it off, and anything that is not a web or mail
+ * address refused.
+ */
+function linkAddress(typed: string): string | null {
+  const value = typed.trim();
+  if (!value) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+  return safeHref(withScheme);
+}
 
 /** How many of `char` end `text` (or start it, with `fromStart`). */
 function run(text: string, char: string, fromStart = false): number {
@@ -31,7 +44,7 @@ function run(text: string, char: string, fromStart = false): number {
  * shared by bold (2), italic (1) and both (3), so they are counted rather than
  * matched: an odd run is italic, a run of two or more contains bold.
  */
-function wrapped(before: string, after: string, format: Format): boolean {
+function wrapped(before: string, after: string, format: Exclude<Format, "link">): boolean {
   if (format === "underline") return before.endsWith("__") && after.startsWith("__");
   const left = run(before, "*");
   const right = run(after, "*", true);
@@ -42,7 +55,35 @@ function wrapped(before: string, after: string, format: Format): boolean {
 export function useFormatting(value: string, onChange: (next: string) => void) {
   const ref = useRef<Field | null>(null);
 
+  /** Wrap the selection as `[words](address)`, or put the address in as its own words. */
+  function link() {
+    const field = ref.current;
+    if (!field) return;
+    const start = field.selectionStart ?? value.length;
+    const end = field.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+
+    const typed = window.prompt("Link to (https://… or mailto:…)", "https://");
+    if (typed === null) return;
+    const href = linkAddress(typed);
+    if (!href) {
+      window.alert("That is not a web address (https://…) or an email link (mailto:…).");
+      return;
+    }
+
+    // Square brackets would end the words early, so full-width ones stand in.
+    const words = (selected || href).replace(/\[/g, "［").replace(/\]/g, "］");
+    const written = `[${words}](${href})`;
+    onChange(value.slice(0, start) + written + value.slice(end));
+    requestAnimationFrame(() => {
+      field.focus();
+      // The words selected again, so they can be styled straight away.
+      field.setSelectionRange(start + 1, start + 1 + words.length);
+    });
+  }
+
   function apply(format: Format) {
+    if (format === "link") return link();
     const field = ref.current;
     if (!field) return;
     const mark = MARKS[format];
@@ -88,6 +129,7 @@ export function FormatBar({ onApply }: { onApply: (format: Format) => void }) {
     ["bold", "B", `Bold (${key}B)`],
     ["italic", "I", `Italic (${key}I)`],
     ["underline", "U", `Underline (${key}U)`],
+    ["link", "🔗", `Link (${key}K)`],
   ];
 
   return (
